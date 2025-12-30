@@ -23,15 +23,22 @@ export default function PhotoTaking() {
   const [permission, requestPermission] = useCameraPermissions();
   const [isReady, setIsReady] = useState(false);
 
-  // helper: parse existing URIs from params
+  // 1. Robust Helper to parse URIs safely
   const getExistingUris = (): string[] => {
-    const raw = params.uris;
-    const jsonStr = Array.isArray(raw) ? raw[0] : raw;
-    if (!jsonStr) return [];
     try {
-      const arr = JSON.parse(jsonStr);
-      return Array.isArray(arr) ? arr : [];
-    } catch {
+      if (!params.uris) return [];
+      
+      const raw = params.uris;
+      // If it's already an array (rare but possible in some routers), return it
+      if (Array.isArray(raw)) return raw as string[];
+      
+      // If it's a string, try parsing it
+      if (typeof raw === 'string') {
+        return JSON.parse(raw);
+      }
+      return [];
+    } catch (e) {
+      console.warn("Failed to parse existing URIs", e);
       return [];
     }
   };
@@ -43,15 +50,22 @@ export default function PhotoTaking() {
     }
   }, [permission]);
 
+  // 2. Updated Navigation Logic
   const goToImageCaptured = (newUri: string) => {
     const existing = getExistingUris();
     const updated = [...existing, newUri];
-    const urisParam = JSON.stringify(updated);
-    const index = String(updated.length - 1); // show last page
 
     router.push({
       pathname: "/capture/image-captured",
-      params: { uris: urisParam, index },
+      params: { 
+        // Important: Re-stringify the array so it passes correctly
+        uris: JSON.stringify(updated), 
+        index: updated.length - 1,
+        // Pass forward IDs if they exist (so we don't lose context)
+        classId: params.classId,
+        activityId: params.activityId,
+        studentId: params.studentId
+      },
     });
   };
 
@@ -62,6 +76,7 @@ export default function PhotoTaking() {
     try {
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.8,
+        skipProcessing: true, // Faster capture
       });
       goToImageCaptured(photo.uri);
     } catch (err) {
@@ -81,7 +96,7 @@ export default function PhotoTaking() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 1,
+      quality: 0.8,
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -169,7 +184,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-
   
   backBtn: { padding: 4 },
   headerTitle: { color: "#fff", fontSize: 20, fontWeight: "700", flex: 1 },

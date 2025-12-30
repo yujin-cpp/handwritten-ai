@@ -2,8 +2,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import { ref, remove } from "firebase/database"; // 1. Import DB functions
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -13,27 +15,49 @@ import {
   View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { auth, db } from "../../../firebase/firebaseConfig"; // 2. Import Auth & DB
+import { listenToClasses } from "../../../services/class.service"; // 3. Import Listener
 
 type ClassItem = {
   id: string;
   name: string;
   section: string;
   color: string;
+  academicYear?: string; // Added optional field for passing to details
 };
-
-const INITIAL: ClassItem[] = [
-  { id: "1", name: "BSCS-4B", section: "GEM14-M", color: "#BB73E0" },
-  { id: "2", name: "BSIT-4A", section: "GEM14-M", color: "#EE89B0" },
-  { id: "3", name: "BSECE-3A", section: "GEM14-M", color: "#AEBAF8" },
-];
 
 export default function ClassesScreen() {
   const router = useRouter();
-  const [items, setItems] = useState<ClassItem[]>(INITIAL);
+  const [items, setItems] = useState<ClassItem[]>([]);
   const [editMode, setEditMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmVisible, setConfirmVisible] = useState(false);
   const insets = useSafeAreaInsets();
+
+  // 4. REAL-TIME DATA FETCHING
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+
+    // Listen to changes
+    const unsubscribe = listenToClasses(uid, (data) => {
+      if (data) {
+        // Convert Object { id: { data } } -> Array [ { id, ...data } ]
+        const classArray = Object.entries(data).map(([key, val]: any) => ({
+          id: key,
+          name: val.className,
+          section: val.section,
+          color: val.themeColor || "#009e60", // Default color if missing
+          academicYear: val.semester
+        }));
+        setItems(classArray);
+      } else {
+        setItems([]);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const anySelected = selected.size > 0;
   const selectedNames = useMemo(
@@ -54,33 +78,68 @@ export default function ClassesScreen() {
     });
   }
 
-  function handleDeleteConfirmed() {
-    setItems(prev => prev.filter(i => !selected.has(i.id)));
-    setSelected(new Set());
-    setConfirmVisible(false);
-    setEditMode(false);
+  // 5. DELETE FROM FIREBASE
+  async function handleDeleteConfirmed() {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+
+    try {
+      // 1. Point to the correct path: 'professors/UID/classes/CLASS_ID'
+      const deletePromises = Array.from(selected).map((classId) => 
+        remove(ref(db, `professors/${uid}/classes/${classId}`)) 
+      );
+      
+      await Promise.all(deletePromises);
+
+      // 2. Update UI
+      setItems(prevItems => prevItems.filter(item => !selected.has(item.id)));
+      
+      console.log("✅ Delete successful");
+      setSelected(new Set());
+      setConfirmVisible(false);
+      setEditMode(false);
+      
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error", "Failed to delete selected classes.");
+    }
   }
 
   return (
     <View style={styles.page}>
       {/* Header */}
-      <LinearGradient colors={["#00b679", "#009e60"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.header, { paddingTop: insets.top + 20}]}>
-
+      <LinearGradient 
+        colors={["#00b679", "#009e60"]} 
+        start={{ x: 0, y: 0 }} 
+        end={{ x: 1, y: 0 }} 
+        style={[styles.header, { paddingTop: insets.top + 20 }]}
+      >
         <Text style={styles.headerTitle}>Class List</Text>
 
-        {editMode ? (
-          <TouchableOpacity onPress={toggleEdit} style={[styles.pill, styles.pillDone]}>
-            <Text style={[styles.pillText, { color: "#fff" }]}>Done</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity onPress={toggleEdit} style={styles.pill}>
-            <Text style={styles.pillText}>Edit</Text>
-          </TouchableOpacity>
+        {items.length > 0 && ( // Only show Edit if there are items
+          editMode ? (
+            <TouchableOpacity onPress={toggleEdit} style={[styles.pill, styles.pillDone]}>
+              <Text style={[styles.pillText, { color: "#fff" }]}>Done</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={toggleEdit} style={styles.pill}>
+              <Text style={styles.pillText}>Edit</Text>
+            </TouchableOpacity>
+          )
         )}
       </LinearGradient>
 
       {/* Content */}
       <ScrollView contentContainerStyle={styles.content}>
+        
+        {/* Empty State */}
+        {items.length === 0 && !editMode && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No classes found.</Text>
+            <Text style={styles.emptySub}>Tap "Add Class" to get started!</Text>
+          </View>
+        )}
+
         {items.map(item => (
           <Pressable
             key={item.id}
@@ -91,12 +150,15 @@ export default function ClassesScreen() {
                 : router.push({
                     pathname: "/(tabs)/classes/classinformation",
                     params: {
+                      classId: item.id, // Important: Pass ID
                       name: item.name,
                       section: item.section,
                       color: item.color,
+                      academicYear: item.academicYear
                     },
                   })
-            }          >
+            }
+          >
             {editMode && (
               <View style={styles.selectCircle}>
                 {selected.has(item.id) && <Ionicons name="checkmark" size={14} color="#fff" />}
@@ -109,12 +171,12 @@ export default function ClassesScreen() {
             </View>
 
             {!editMode && (
-              <Ionicons name="chevron-forward" size={22} color="rgba(0,0,0,0.35)" />
+              <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
             )}
           </Pressable>
         ))}
 
-        {/* Add Class */}
+        {/* Add Class Button (Hidden in Edit Mode) */}
         {!editMode && (
           <TouchableOpacity
             style={[styles.card, styles.addCard]}
@@ -132,7 +194,9 @@ export default function ClassesScreen() {
             style={[styles.deleteBar, !anySelected && { opacity: 0.5 }]}
             onPress={() => setConfirmVisible(true)}
           >
-            <Text style={styles.deleteBarText}>Delete selected class</Text>
+            <Text style={styles.deleteBarText}>
+              Delete {selected.size} selected {selected.size === 1 ? 'class' : 'classes'}
+            </Text>
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -144,6 +208,7 @@ export default function ClassesScreen() {
             <Text style={styles.modalTitle}>Delete Class?</Text>
             <Text style={styles.modalSub}>
               Are you sure you want to delete {selected.size === 1 ? selectedNames : "the selected classes"}?
+              {"\n\n"}This action cannot be undone.
             </Text>
 
             <View style={styles.modalActions}>
@@ -190,6 +255,10 @@ const styles = StyleSheet.create({
 
   content: { padding: 16, paddingBottom: 28 },
 
+  emptyState: { alignItems: 'center', marginTop: 30, marginBottom: 20 },
+  emptyText: { fontSize: 18, color: '#333', fontWeight: '600' },
+  emptySub: { fontSize: 14, color: '#888', marginTop: 4 },
+
   card: {
     borderRadius: CARD_RADIUS,
     padding: 16,
@@ -202,8 +271,8 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  className: { color: "#fff", fontWeight: "700" },
-  section: { color: "#fff", opacity: 0.95, fontWeight: "600" },
+  className: { color: "#fff", fontWeight: "700", fontSize: 18 },
+  section: { color: "#fff", opacity: 0.95, fontWeight: "500", marginTop: 2 },
 
   selectCircle: {
     width: 22,
@@ -235,25 +304,25 @@ const styles = StyleSheet.create({
 
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.25)",
+    backgroundColor: "rgba(0,0,0,0.4)", // Darker backdrop
     justifyContent: "center",
     padding: 20,
   },
   modalCard: {
     backgroundColor: "#fff",
     borderRadius: 12,
-    padding: 16,
+    padding: 20,
     shadowColor: "#000",
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 5,
   },
-  modalTitle: { fontSize: 16, fontWeight: "800", marginBottom: 4 },
-  modalSub: { color: "#666", marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontWeight: "800", marginBottom: 8, color: '#D32F2F' },
+  modalSub: { color: "#666", marginBottom: 20, lineHeight: 20 },
 
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10 },
-  modalBtn: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8 },
-  modalCancel: { backgroundColor: "#eee" },
+  modalBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
+  modalCancel: { backgroundColor: "#f5f5f5" },
   modalCancelText: { color: "#333", fontWeight: "700" },
   modalDelete: { backgroundColor: "#D32F2F" },
   modalDeleteText: { color: "#fff", fontWeight: "700" },

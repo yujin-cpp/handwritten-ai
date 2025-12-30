@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +14,11 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+// --- EXPORT IMPORTS ---
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import * as XLSX from 'xlsx';
 
 // Firebase imports
 import { auth } from "../../../firebase/firebaseConfig";
@@ -62,6 +68,7 @@ export default function MasterlistScreen() {
   // Export UI
   const [exportOpen, setExportOpen] = useState(false);
   const [exportDone, setExportDone] = useState<null | ".CSV" | ".PDF" | ".XLSX">(null);
+  const [isExporting, setIsExporting] = useState(false); // To show loading state during file generation
 
   // 🔹 ADD/EDIT STATE
   const [modalVisible, setModalVisible] = useState(false);
@@ -116,6 +123,209 @@ export default function MasterlistScreen() {
     return list;
   }, [rows, query, sortKey]);
 
+  // 🔹 EXPORT LOGIC
+  const handleExport = async (format: ".CSV" | ".PDF" | ".XLSX") => {
+    try {
+      if (visibleRows.length === 0) {
+        Alert.alert("No Data", "There are no students to export.");
+        return;
+      }
+
+      setIsExporting(true);
+      const fileName = `${className}_${section}_Masterlist`;
+      
+      if (format === ".CSV") {
+  const header = "Name,Student ID\n";
+  const csvRows = visibleRows
+    .map(r => `"${r.name}","${r.studentId}"`)
+    .join("\n");
+  const csvContent = header + csvRows;
+
+  if (Platform.OS === "web") {
+    // 🌐 WEB: Blob download
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${fileName}.csv`;
+    a.click();
+
+    URL.revokeObjectURL(url);
+  } else {
+    // 📱 MOBILE: FileSystem
+    const uri = FileSystem.cacheDirectory + `${fileName}.csv`;
+    await FileSystem.writeAsStringAsync(uri, csvContent);
+    await Sharing.shareAsync(uri);
+  }
+
+  setExportDone(".CSV");
+} else if (format === ".PDF") {
+
+  const html = `
+<html>
+  <head>
+    <style>
+      @page {
+        size: A4;
+        margin: 25mm 20mm 25mm 20mm;
+      }
+
+      body {
+        font-family: "Times New Roman", serif;
+        font-size: 12pt;
+      }
+
+      h1 {
+        text-align: center;
+        font-size: 16pt;
+        margin-bottom: 4mm;
+      }
+
+      h2 {
+        text-align: center;
+        font-size: 12pt;
+        margin-bottom: 10mm;
+        font-weight: normal;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        page-break-inside: auto;
+      }
+
+      thead {
+        display: table-header-group;
+      }
+
+      tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+      }
+
+      th, td {
+        border: 1px solid #000;
+        padding: 6px;
+      }
+
+      footer {
+        position: fixed;
+        bottom: 10mm;
+        width: 100%;
+        text-align: center;
+        font-size: 10pt;
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- ✅ PRINT AREA START -->
+    <div id="print-area">
+
+      <h1>${className}</h1>
+      <h2>${section}</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Student ID</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${visibleRows.map((r, i) => `
+            <tr>
+              <td>${i + 1}</td>
+              <td>${r.name}</td>
+              <td>${r.studentId}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+
+    </div>
+    <!-- ✅ PRINT AREA END -->
+
+    <footer>
+      Page <span class="pageNumber"></span>
+    </footer>
+  </body>
+</html>
+`;
+
+
+  await new Promise(r => setTimeout(r, 300));
+
+  const pdf = await Print.printToFileAsync({
+    html,
+    width: 1122,
+    height: 793,
+  });
+
+  if (Platform.OS === "web") {
+    // ✅ WEB SAFE
+    const link = document.createElement("a");
+    link.href = pdf.uri;
+    link.download = "class-masterlist.pdf";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } else {
+    // ✅ MOBILE SAFE
+    await Sharing.shareAsync(pdf.uri);
+  }
+
+  setExportDone(".PDF");
+}
+
+ else if (format === ".XLSX") {
+  const data = visibleRows.map(r => ({
+    Name: r.name,
+    "Student ID": r.studentId,
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Masterlist");
+
+  if (Platform.OS === "web") {
+    // 🌐 WEB
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([wbout], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${fileName}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } else {
+    // 📱 MOBILE
+    const wbout = XLSX.write(wb, { type: "base64", bookType: "xlsx" });
+    const uri = FileSystem.cacheDirectory + `${fileName}.xlsx`;
+    await FileSystem.writeAsStringAsync(uri, wbout, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    await Sharing.shareAsync(uri);
+  }
+
+  setExportDone(".XLSX");
+}
+
+    } catch (error: any) {
+      console.error("Export Error:", error);
+      Alert.alert("Export Failed", "Could not generate the file. Please try again.");
+    } finally {
+      setIsExporting(false);
+      setExportOpen(false);
+    }
+  };
+
   // 🔹 ACTIONS
   const handleOpenAdd = () => {
     setIsEditing(false);
@@ -162,21 +372,44 @@ export default function MasterlistScreen() {
     }
   };
 
-  const handleDelete = (id: string) => {
-    Alert.alert("Delete Student", "Are you sure you want to remove this student?", [
-      { text: "Cancel", style: "cancel" },
-      { 
-        text: "Delete", 
-        style: "destructive", 
-        onPress: async () => {
-          const uid = auth.currentUser?.uid;
-          if (uid && classId) {
-            await deleteStudent(uid, classId, id);
-          }
+    const handleDelete = (id: string) => {
+  if (Platform.OS === 'web') {
+    // 🌐 WEB: Use browser native confirm
+    const confirmDelete = window.confirm("Are you sure you want to delete this student?");
+    if (confirmDelete) {
+      performDelete(id);
+    }
+  } else {
+    // 📱 MOBILE: Use React Native Alert
+    Alert.alert(
+      "Delete Student",
+      "Are you sure you want to remove this student?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive", 
+          onPress: () => performDelete(id) 
         }
-      }
-    ]);
-  };
+      ]
+    );
+  }
+};
+
+// 🔹 Extracted the delete logic to be reusable
+const performDelete = async (id: string) => {
+  const uid = auth.currentUser?.uid;
+  if (uid && classId) {
+    try {
+      await deleteStudent(uid, classId, id);
+    } catch (error: any) {
+      console.error(error);
+      // On web we often use window.alert for simple errors
+      if (Platform.OS === 'web') alert("Failed to delete: " + error.message);
+      else Alert.alert("Error", error.message);
+    }
+  }
+};
 
   return (
     <View style={styles.container}>
@@ -339,7 +572,7 @@ export default function MasterlistScreen() {
         </View>
       </Modal>
 
-      {/* Export choose modal (UNCHANGED) */}
+      {/* Export choose modal */}
       <Modal
         visible={exportOpen}
         transparent
@@ -356,20 +589,15 @@ export default function MasterlistScreen() {
             </View>
 
             <Text style={styles.modalBodyCenter}>
-              Choose a file format to download{"\n"}the data!
+              {isExporting ? "Generating file..." : "Choose a file format to download\nthe data!"}
             </Text>
 
-            {[".CSV", ".PDF", ".XLSX"].map((fmt) => (
+            {/* If exporting, show spinner or disable buttons */}
+            {!isExporting && [".CSV", ".PDF", ".XLSX"].map((fmt) => (
               <TouchableOpacity
                 key={fmt}
                 style={styles.optionBtn}
-                onPress={() => {
-                  setExportOpen(false);
-                  setTimeout(
-                    () => setExportDone(fmt as ".CSV" | ".PDF" | ".XLSX"),
-                    180
-                  );
-                }}
+                onPress={() => handleExport(fmt as any)}
               >
                 <Text style={styles.optionText}>{fmt}</Text>
               </TouchableOpacity>
@@ -378,7 +606,7 @@ export default function MasterlistScreen() {
         </View>
       </Modal>
 
-      {/* Export success modal (UNCHANGED) */}
+      {/* Export success modal */}
       <Modal
         visible={exportDone !== null}
         transparent

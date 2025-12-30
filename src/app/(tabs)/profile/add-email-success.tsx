@@ -1,12 +1,25 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AddEmailSuccess() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const params = useLocalSearchParams();
   
+  // Get the email passed from the previous screen (or fallback)
+  const email = params.email as string || "your email";
+
+  // Optional: Auto-redirect after 3 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      router.replace("/(tabs)/profile");
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
       <View style={[styles.container, { paddingTop: insets.top + 20 }]}>
         <Text style={styles.title}>Add personal email</Text>
@@ -18,11 +31,14 @@ export default function AddEmailSuccess() {
       <Text style={styles.message}>
         A verification link has been sent to{"\n"}
         <Text style={{ fontWeight: "700" }}>
-          princessjade.domingao@gmail.com!
+          {email}!
         </Text>
       </Text>
 
-      <TouchableOpacity style={styles.doneBtn} onPress={() => router.back()}>
+      <TouchableOpacity 
+        style={styles.doneBtn} 
+        onPress={() => router.replace("/(tabs)/profile")}
+      >
         <Text style={styles.doneText}>Done</Text>
       </TouchableOpacity>
     </View>

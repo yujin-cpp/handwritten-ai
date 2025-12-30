@@ -4,11 +4,12 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
+  Alert,
   Image,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -17,7 +18,10 @@ export default function ImageCaptured() {
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
 
-  // Parse uris array from params
+  // 1. Capture Context IDs (Crucial for the final step)
+  const { classId, activityId, studentId } = params;
+
+  // 2. Parse uris array safely
   const images: string[] = useMemo(() => {
     const raw = params.uris;
     const jsonStr = Array.isArray(raw) ? raw[0] : raw;
@@ -50,9 +54,49 @@ export default function ImageCaptured() {
     if (currentIndex < images.length - 1) setCurrentIndex((i) => i + 1);
   };
 
-  const pageText = `Page ${currentIndex + 1} of ${images.length || 1}`;
+  const pageText = hasImages 
+    ? `Page ${currentIndex + 1} of ${images.length}` 
+    : "No Images";
 
-  const encodedUris = JSON.stringify(images);
+  // --- ACTIONS ---
+
+  // A. Retake: Remove current image -> Go back to Camera
+  const handleRetake = () => {
+    const newImages = images.filter((_, i) => i !== currentIndex);
+    router.push({
+      pathname: "/capture/photo-taking",
+      params: { 
+        uris: JSON.stringify(newImages),
+        classId, activityId, studentId 
+      },
+    });
+  };
+
+  // B. Take Another: Keep images -> Go back to Camera
+  const handleAddMore = () => {
+    router.push({
+      pathname: "/capture/photo-taking",
+      params: { 
+        uris: JSON.stringify(images),
+        classId, activityId, studentId 
+      },
+    });
+  };
+
+  // C. Proceed: Pass everything to Processing
+  const handleProceed = () => {
+    if (images.length === 0) {
+        Alert.alert("No Images", "Please take at least one photo.");
+        return;
+    }
+    router.push({
+      pathname: "/capture/processing", // Make sure you create this file next!
+      params: { 
+        uris: JSON.stringify(images),
+        classId, activityId, studentId 
+      },
+    });
+  };
 
   return (
     <View style={styles.container}>
@@ -74,11 +118,11 @@ export default function ImageCaptured() {
       <View style={styles.imageRow}>
         {/* Left arrow */}
         <TouchableOpacity
-          disabled={currentIndex === 0}
+          disabled={currentIndex === 0 || !hasImages}
           onPress={goPrev}
           style={[
             styles.arrowBtn,
-            currentIndex === 0 && { opacity: 0.3 },
+            (currentIndex === 0 || !hasImages) && { opacity: 0.3 },
           ]}
         >
           <Ionicons name="chevron-back" size={22} color="#555" />
@@ -88,7 +132,10 @@ export default function ImageCaptured() {
           {currentUri ? (
             <Image source={{ uri: currentUri }} style={styles.capturedImage} />
           ) : (
-            <Ionicons name="image-outline" size={70} color="#888" />
+            <View style={{ alignItems: "center", gap: 10 }}>
+                <Ionicons name="image-outline" size={70} color="#888" />
+                <Text style={{ color: "#999" }}>No image selected</Text>
+            </View>
           )}
         </View>
 
@@ -109,40 +156,23 @@ export default function ImageCaptured() {
 
       {/* Buttons */}
       <View style={styles.buttons}>
-        {/* For simplicity, Retake just goes back to camera with existing pages.
-            You could later add logic to replace the current page. */}
         <TouchableOpacity
           style={styles.outlineBtn}
-          onPress={() =>
-            router.push({
-              pathname: "/capture/photo-taking",
-              params: { uris: encodedUris },
-            })
-          }
+          onPress={handleRetake}
         >
           <Text style={styles.outlineText}>Retake Photo</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.outlineBtn}
-          onPress={() =>
-            router.push({
-              pathname: "/capture/photo-taking",
-              params: { uris: encodedUris },
-            })
-          }
+          onPress={handleAddMore}
         >
           <Text style={styles.outlineText}>Take another Photo</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.primaryBtn}
-          onPress={() =>
-            router.push({
-              pathname: "/capture/processing",
-              params: { uris: encodedUris },
-            })
-          }
+          onPress={handleProceed}
         >
           <Text style={styles.primaryText}>Upload and Proceed</Text>
         </TouchableOpacity>
@@ -167,6 +197,7 @@ const styles = StyleSheet.create({
   topRow: {
     paddingHorizontal: 20,
     paddingTop: 18,
+    alignItems: "center"
   },
   pageLabel: { fontWeight: "600", color: "#222" },
 
@@ -182,7 +213,7 @@ const styles = StyleSheet.create({
   },
   imageFrame: {
     width: "70%",
-    height: 220,
+    height: 350, // Made slightly taller for better visibility
     borderRadius: 10,
     borderWidth: 1,
     borderColor: "#ddd",
@@ -199,7 +230,7 @@ const styles = StyleSheet.create({
   },
 
   buttons: {
-    marginTop: 40,
+    marginTop: 30,
     paddingHorizontal: 20,
   },
   outlineBtn: {
@@ -219,6 +250,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: "center",
+    marginTop: 10
   },
   primaryText: {
     color: "#000",

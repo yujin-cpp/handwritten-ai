@@ -2,15 +2,20 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  Alert,
   Modal,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+// FIREBASE IMPORTS
+import { auth } from "../../../firebase/firebaseConfig";
+import { updateActivity } from "../../../services/class.service";
 
 const P = (v: string | string[] | undefined, fb = "") =>
   Array.isArray(v) ? v[0] : v ?? fb;
@@ -20,6 +25,10 @@ export default function ActivityDetails() {
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
 
+  // 1. Get Params
+  const classId = P(params.classId); 
+  const activityId = P(params.activityId); // Crucial for database updates
+  
   const className = P(params.name, "BSCS-4B");
   const section = P(params.section, "GEM14-M");
   const headerColor = P(params.color, "#C17CEB");
@@ -28,22 +37,42 @@ export default function ActivityDetails() {
   const [title, setTitle] = useState(initialTitle);
   const [editOpen, setEditOpen] = useState(false);
   const [tempTitle, setTempTitle] = useState(initialTitle);
+  const [saving, setSaving] = useState(false);
 
   function openEdit() {
     setTempTitle(title);
     setEditOpen(true);
   }
-  function saveTitle() {
+
+  // 2. Handle Save to Firebase
+  async function saveTitle() {
     const t = tempTitle.trim();
     if (!t) return;
-    setTitle(t);
-    setEditOpen(false);
+
+    const uid = auth.currentUser?.uid;
+    if (!uid || !classId || !activityId) {
+      // Fallback if ID is missing (e.g. preview mode)
+      setTitle(t);
+      setEditOpen(false);
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await updateActivity(uid, classId, activityId, t);
+      setTitle(t);
+      setEditOpen(false);
+    } catch (error: any) {
+      Alert.alert("Error", "Failed to update activity title.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: headerColor }, {paddingTop: insets.top + 20}]}>
+      <View style={[styles.header, { backgroundColor: headerColor, paddingTop: insets.top + 20 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={22} color="#fff" />
         </TouchableOpacity>
@@ -72,7 +101,14 @@ export default function ActivityDetails() {
             onPress={() =>
               router.push({
                 pathname: "/(tabs)/classes/qa",
-                params: { name: className, section, color: headerColor, title },
+                params: { 
+                    classId, // Pass IDs forward
+                    activityId,
+                    name: className, 
+                    section, 
+                    color: headerColor, 
+                    title 
+                },
               })
             }
           >
@@ -87,24 +123,30 @@ export default function ActivityDetails() {
 
           {/* Essay Rubrics */}
           <TouchableOpacity
-  style={styles.card}
-  activeOpacity={0.9}
-  onPress={() =>
-    router.push({
-      pathname: "/(tabs)/classes/essay",
-      params: { name: className, section, color: headerColor, title },
-    })
-  }
->
-  <View style={styles.left}>
-    <View style={styles.iconBadge}>
-      <Ionicons name="document-text-outline" size={18} color="#2E7D32" />
-    </View>
-    <Text style={styles.cardText}>Essay Grading</Text>
-  </View>
-  <Ionicons name="chevron-forward" size={18} color="#9AA0A6" />
-</TouchableOpacity>
-
+            style={styles.card}
+            activeOpacity={0.9}
+            onPress={() =>
+              router.push({
+                pathname: "/(tabs)/classes/essay",
+                params: { 
+                    classId,
+                    activityId,
+                    name: className, 
+                    section, 
+                    color: headerColor, 
+                    title 
+                },
+              })
+            }
+          >
+            <View style={styles.left}>
+              <View style={styles.iconBadge}>
+                <Ionicons name="document-text-outline" size={18} color="#2E7D32" />
+              </View>
+              <Text style={styles.cardText}>Essay Grading</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#9AA0A6" />
+          </TouchableOpacity>
 
           {/* Students Score */}
           <TouchableOpacity
@@ -113,7 +155,14 @@ export default function ActivityDetails() {
             onPress={() =>
               router.push({
                 pathname: "/(tabs)/classes/quiz-score",
-                params: { name: className, section, color: headerColor, title },
+                params: { 
+                    classId,
+                    activityId,
+                    name: className, 
+                    section, 
+                    color: headerColor, 
+                    title 
+                },
               })
             }
           >
@@ -146,14 +195,20 @@ export default function ActivityDetails() {
               onChangeText={setTempTitle}
               placeholder="Quiz no 1"
               style={styles.modalInput}
+              autoFocus
             />
 
             <View style={styles.modalActionsRow}>
               <TouchableOpacity style={[styles.modalBtn, styles.modalCancel]} onPress={() => setEditOpen(false)}>
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalBtn, styles.modalSave]} onPress={saveTitle}>
-                <Text style={styles.modalSaveText}>Save</Text>
+              
+              <TouchableOpacity 
+                style={[styles.modalBtn, styles.modalSave, saving && { opacity: 0.7 }]} 
+                onPress={saveTitle}
+                disabled={saving}
+              >
+                <Text style={styles.modalSaveText}>{saving ? "Saving..." : "Save"}</Text>
               </TouchableOpacity>
             </View>
           </View>

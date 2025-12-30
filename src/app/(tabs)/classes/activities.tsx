@@ -1,52 +1,73 @@
 // app/(tabs)/classes/activities.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Modal,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-// normalize expo-router params (string | string[] | undefined -> string)
+// FIREBASE IMPORTS
+import { auth } from "../../../firebase/firebaseConfig";
+import {
+  addActivity,
+  deleteActivity,
+  listenToActivities
+} from "../../../services/class.service";
+
+// normalize expo-router params
 const P = (v: string | string[] | undefined, fb = "") =>
   Array.isArray(v) ? v[0] : v ?? fb;
 
 type Activity = { id: string; title: string };
-
-const INITIAL: Activity[] = [
-  { id: "a1", title: "Quiz no 1" },
-  { id: "a2", title: "Long quiz no 1" },
-  { id: "a3", title: "Prelim" },
-];
 
 export default function ActivitiesScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
 
+  const classId = P(params.classId); // We need the ID for DB operations
   const className = P(params.name, "BSCS-4B");
   const section = P(params.section, "GEM14-M");
-  const headerColor = P(params.color, "#BB73E0"); // fallback purple
+  const headerColor = P(params.color, "#BB73E0");
 
-  const [items, setItems] = useState<Activity[]>(INITIAL);
+  const [items, setItems] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   // Add activity modal
   const [addOpen, setAddOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
 
   // Delete confirmation modal
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const anySelected = selected.size > 0;
   const displayItems = useMemo(() => items, [items]);
+
+  // 🔹 1. LISTEN TO DATA
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || !classId) return;
+
+    const unsubscribe = listenToActivities(uid, classId, (data) => {
+      setItems(data);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [classId]);
 
   function toggleEdit() {
     if (editMode) setSelected(new Set());
@@ -61,12 +82,24 @@ export default function ActivitiesScreen() {
     });
   }
 
-  function handleAdd() {
+  // 🔹 2. HANDLE ADD
+  async function handleAdd() {
     const title = newTitle.trim();
     if (!title) return;
-    setItems((prev) => [{ id: `${Date.now()}`, title }, ...prev]);
-    setNewTitle("");
-    setAddOpen(false);
+
+    const uid = auth.currentUser?.uid;
+    if (!uid || !classId) return;
+
+    try {
+      setIsAdding(true);
+      await addActivity(uid, classId, title);
+      setNewTitle("");
+      setAddOpen(false);
+    } catch (error: any) {
+      Alert.alert("Error", "Failed to add activity.");
+    } finally {
+      setIsAdding(false);
+    }
   }
 
   function confirmDelete() {
@@ -74,17 +107,34 @@ export default function ActivitiesScreen() {
     setConfirmOpen(true);
   }
 
-  function doDelete() {
-    setItems((prev) => prev.filter((a) => !selected.has(a.id)));
-    setSelected(new Set());
-    setConfirmOpen(false);
-    setEditMode(false);
+  // 🔹 3. HANDLE DELETE
+  async function doDelete() {
+    const uid = auth.currentUser?.uid;
+    if (!uid || !classId) return;
+
+    try {
+      setIsDeleting(true);
+      // Delete all selected items concurrently
+      const deletePromises = Array.from(selected).map((id) => 
+        deleteActivity(uid, classId, id)
+      );
+      
+      await Promise.all(deletePromises);
+      
+      setSelected(new Set());
+      setConfirmOpen(false);
+      setEditMode(false);
+    } catch (error: any) {
+      Alert.alert("Error", "Failed to delete activities.");
+    } finally {
+      setIsDeleting(false);
+    }
   }
 
   return (
     <View style={styles.container}>
       {/* Header (solid class color) */}
-      <View style={[styles.header, { backgroundColor: headerColor }, {paddingTop: insets.top + 20}]}>
+      <View style={[styles.header, { backgroundColor: headerColor, paddingTop: insets.top + 20 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={22} color="#fff" />
         </TouchableOpacity>
@@ -95,9 +145,7 @@ export default function ActivitiesScreen() {
       </View>
 
       {/* Scrollable content */}
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: 120 }]} // extra bottom space
-      >
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 120 }]}>
         {/* Title row */}
         <View style={styles.titleRow}>
           <Text style={styles.title}>Class Activities</Text>
@@ -113,66 +161,66 @@ export default function ActivitiesScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Activity cards */}
-        <View style={{ gap: 14 }}>
-          {displayItems.map((a) => (
-            <TouchableOpacity
-              key={a.id}
-              activeOpacity={0.9}
-              onPress={() => {
-                if (editMode) {
-                  // select/deselect
-                  toggleSelect(a.id);
-                } else {
-                  // navigate to activity details
-                  router.push({
-                    pathname: "/(tabs)/classes/activity-details",
-                    params: {
-                      name: className,
-                      section,
-                      color: headerColor,
-                      activityTitle: a.title, // MUST match ActivityDetails param
-                    },
-                  });
-                }
-              }}
-              style={styles.activityCard}
-            >
-              <View style={styles.left}>
-                {/* Icon left: checkbox in normal, circle/check in edit */}
-                {editMode ? (
-                  selected.has(a.id) ? (
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={20}
-                      color="#2E7D32"
-                    />
-                  ) : (
-                    <Ionicons
-                      name="ellipse-outline"
-                      size={20}
-                      color="#2E7D32"
-                    />
-                  )
-                ) : (
-                  <Ionicons
-                    name="checkbox-outline"
-                    size={20}
-                    color="#2E7D32"
-                  />
-                )}
-                <Text style={styles.activityText} numberOfLines={1}>
-                  {a.title}
+        {/* Loading State */}
+        {loading ? (
+           <View style={{ marginTop: 50 }}>
+             <ActivityIndicator size="large" color={headerColor} />
+           </View>
+        ) : (
+          /* Activity cards */
+          <View style={{ gap: 14 }}>
+            {displayItems.length === 0 && (
+                <Text style={{ textAlign: "center", color: "#999", marginTop: 20 }}>
+                    No activities yet. Tap + to add one.
                 </Text>
-              </View>
+            )}
 
-              <Ionicons name="chevron-forward" size={18} color="#9AA0A6" />
-            </TouchableOpacity>
-          ))}
-        </View>
+            {displayItems.map((a) => (
+              <TouchableOpacity
+                key={a.id}
+                activeOpacity={0.9}
+                onPress={() => {
+                  if (editMode) {
+                    toggleSelect(a.id);
+                  } else {
+                    router.push({
+                      pathname: "/(tabs)/classes/activity-details",
+                      params: {
+                        classId: classId,
+                        activityId: a.id,
+                        name: className,
+                        section,
+                        color: headerColor,
+                        activityTitle: a.title,
+                      },
+                    });
+                  }
+                }}
+                style={styles.activityCard}
+              >
+                <View style={styles.left}>
+                  {editMode ? (
+                    selected.has(a.id) ? (
+                      <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />
+                    ) : (
+                      <Ionicons name="ellipse-outline" size={20} color="#2E7D32" />
+                    )
+                  ) : (
+                    <Ionicons name="checkbox-outline" size={20} color="#2E7D32" />
+                  )}
+                  <Text style={styles.activityText} numberOfLines={1}>
+                    {a.title}
+                  </Text>
+                </View>
+
+                <Ionicons name="chevron-forward" size={18} color="#9AA0A6" />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {/* Add activity (only when not editing) */}
-        {!editMode && (
+        {!editMode && !loading && (
           <View style={styles.addWrap}>
             <TouchableOpacity
               style={styles.addCircle}
@@ -188,20 +236,19 @@ export default function ActivitiesScreen() {
       </ScrollView>
 
       {/* FIXED BOTTOM DELETE BAR (only when editing) */}
-{editMode && (
-  <View style={styles.deleteBarWrapper}>
-    <TouchableOpacity
-      disabled={!anySelected}
-      onPress={confirmDelete}
-      style={[styles.deleteBar, !anySelected && { opacity: 0.5 }]}
-    >
-      <Text style={styles.deleteText}>
-        Delete {selected.size} activit{selected.size > 1 ? "ies" : "y"}
-      </Text>
-    </TouchableOpacity>
-  </View>
-)}
-
+      {editMode && (
+        <View style={styles.deleteBarWrapper}>
+          <TouchableOpacity
+            disabled={!anySelected || isDeleting}
+            onPress={confirmDelete}
+            style={[styles.deleteBar, (!anySelected || isDeleting) && { opacity: 0.5 }]}
+          >
+            <Text style={styles.deleteText}>
+              {isDeleting ? "Deleting..." : `Delete ${selected.size} activit${selected.size > 1 ? "ies" : "y"}`}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Add Activity Modal */}
       <Modal
@@ -225,8 +272,9 @@ export default function ActivitiesScreen() {
             <TextInput
               value={newTitle}
               onChangeText={setNewTitle}
-              placeholder=" "
+              placeholder="e.g. Quiz #1"
               style={styles.modalInput}
+              autoFocus
             />
 
             <View style={styles.modalActionsRow}>
@@ -238,10 +286,11 @@ export default function ActivitiesScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.modalBtn, styles.modalSave]}
+                style={[styles.modalBtn, styles.modalSave, isAdding && { opacity: 0.7 }]}
                 onPress={handleAdd}
+                disabled={isAdding}
               >
-                <Text style={styles.modalSaveText}>Add</Text>
+                <Text style={styles.modalSaveText}>{isAdding ? "Adding..." : "Add"}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -257,7 +306,7 @@ export default function ActivitiesScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Delete Class?</Text>
+            <Text style={styles.modalTitle}>Delete Activity?</Text>
             <Text style={styles.modalBody}>
               Are you sure you want to delete the selected activit
               {selected.size > 1 ? "ies" : "y"}?
@@ -432,7 +481,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
   },
-  modalCancel: { backgroundColor: "#eee",  borderWidth: 1,  borderColor: "#111",paddingVertical: 12, borderRadius: 12, elevation: 3, },
+  modalCancel: { backgroundColor: "#eee",  borderWidth: 1,  borderColor: "#111", paddingVertical: 12, borderRadius: 12, elevation: 3, },
   modalCancelText: { color: "#333", fontWeight: "700" },
   modalDelete: { backgroundColor: "#D62020" },
   modalDeleteText: { color: "#fff", fontWeight: "700" },

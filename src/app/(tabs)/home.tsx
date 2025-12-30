@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react"; // 🔹 Add useEffect
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Image,
   ScrollView,
@@ -12,8 +12,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth } from "../../firebase/firebaseConfig";
-import { listenToClasses } from "../../services/class.service"; // 🔹 Import Listener
+import { listenToClasses } from "../../services/class.service";
 import { getProfessorProfile } from "../../services/professor.service";
+
+// Default placeholder if no photo exists
+const DEFAULT_AVATAR = "https://i.imgur.com/4YQZ6uM.png";
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -22,31 +25,37 @@ export default function HomeScreen() {
   const [professor, setProfessor] = useState<any>(null);
   const [classes, setClasses] = useState<any>({});
 
-  // 1. Fetch Professor Profile (Once on focus is fine for this)
+  // 1. Fetch Professor Profile & Photo
   useFocusEffect(
     useCallback(() => {
       const loadProfile = async () => {
-        const uid = auth.currentUser?.uid;
-        if (uid) {
-          const prof = await getProfessorProfile(uid);
-          setProfessor(prof);
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          // Force reload to get the latest photoURL if it just changed
+          await currentUser.reload();
+          
+          const profData = await getProfessorProfile(currentUser.uid);
+          
+          setProfessor({
+            ...profData, // Name, etc from DB
+            // Use Auth photo first, then fallback to default
+            photoURL: currentUser.photoURL || DEFAULT_AVATAR 
+          });
         }
       };
       loadProfile();
     }, [])
   );
 
-  // 2. 🔹 REAL-TIME LISTENER FOR CLASSES
+  // 2. REAL-TIME LISTENER FOR CLASSES
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
 
-    // Start listening
     const unsubscribe = listenToClasses(uid, (data) => {
-      setClasses(data); // This runs automatically whenever DB changes
+      setClasses(data); 
     });
 
-    // Cleanup listener when leaving the app/screen
     return () => unsubscribe();
   }, []);
 
@@ -71,8 +80,9 @@ export default function HomeScreen() {
         style={[styles.header, { paddingTop: insets.top + 20 }]}
       >
         <View style={styles.headerContent}>
+          {/* UPDATED IMAGE SOURCE */}
           <Image
-            source={{ uri: "https://i.imgur.com/4YQZ6uM.png" }}
+            source={{ uri: professor.photoURL }}
             style={styles.avatar}
           />
           <View>
@@ -101,7 +111,6 @@ export default function HomeScreen() {
 
         <View style={styles.classGrid}>
           {classList.map(([classId, cls]: any, index) => {
-            // Priority: DB Color -> Fallback Array
             const cardColor = cls.themeColor || COLORS[index % COLORS.length];
 
             return (
@@ -117,7 +126,7 @@ export default function HomeScreen() {
                       classId, 
                       name: cls.className,
                       section: cls.section,
-                      color: cardColor, // Pass the updated color
+                      color: cardColor, 
                       academicYear: cls.semester,
                     },
                   })
@@ -210,6 +219,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
+    backgroundColor: '#fff', // Added bg color to look nice while loading
   },
 
   welcomeText: {

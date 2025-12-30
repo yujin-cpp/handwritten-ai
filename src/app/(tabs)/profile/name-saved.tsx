@@ -1,11 +1,20 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React from "react";
+import React, { useEffect } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function NameSaved() {
   const insets = useSafeAreaInsets();
+
+  // Optional: Auto-redirect after 2 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      router.replace("/(tabs)/profile");
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 20 }]}>
@@ -47,6 +56,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     textAlign: "center",
     marginBottom: 60,
+    color: "#333", // Added explicit color
   },
   doneBtn: {
     backgroundColor: "#ccf6dd",
