@@ -1,11 +1,13 @@
-// app/(tabs)/analytics/index.tsx
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from "react";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -13,58 +15,34 @@ import {
 } from "react-native";
 import PieChart from "react-native-pie-chart";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-const SECTIONS = ["BSCS-4B", "BSIT-4A", "BSECE-3A"];
-const ACTIVITIES = ["Quiz 1", "Long Quiz 1", "Prelim"];
+import { auth } from "../../../firebase/firebaseConfig";
+import { getActivities, getClasses, listenToStudents } from "../../../services/class.service";
 
 type PickerType = "section" | "activity" | null;
 
-const TOP10 = [
-  { name: "Buenaflor, Sean Kurt", score: 29 },
-  { name: "Capuz, Prince Aaron", score: 28 },
-  { name: "Domingo, Princess Jade", score: 27 },
-  { name: "Elle, Clarise Mae", score: 27 },
-  { name: "Perez, Maria Angela Mae", score: 26 },
-  { name: "Togonon, Francesca", score: 26 },
-  { name: "Student 7", score: 25 },
-  { name: "Student 8", score: 25 },
-  { name: "Student 9", score: 24 },
-  { name: "Student 10", score: 24 },
-];
+interface StudentScore {
+  name: string;
+  score: number;
+}
 
-// Example stats
-const PASSED_COUNT = 25;
-const FAILED_COUNT = 17;
-const TOTAL_STUDENTS = PASSED_COUNT + FAILED_COUNT;
-
-function DonutChart() {
+function DonutChart({ passed, failed }: { passed: number, failed: number }) {
   const widthAndHeight = 120;
+  const total = passed + failed;
+  const percent = total === 0 ? 0 : Math.round((passed / total) * 100);
 
-  const percent =
-    TOTAL_STUDENTS === 0
-      ? 0
-      : Math.round((PASSED_COUNT / TOTAL_STUDENTS) * 100);
-
-  // v4 API: series is Slice[]
-  const series =
-    TOTAL_STUDENTS === 0
-      ? [
-          {
-            value: 1,
-            color: "#e0e0e0",
-          },
-        ]
-      : [
-          { value: PASSED_COUNT, color: "#22b573" },
-          { value: FAILED_COUNT, color: "#e74c3c" },
-        ];
+  const series = total === 0
+    ? [{ value: 1, color: "#f0f0f0" }]
+    : [
+      { value: passed, color: "#00b679" },
+      { value: failed, color: "#ff3b30" },
+    ];
 
   return (
     <View style={styles.donutWrapper}>
       <PieChart
         widthAndHeight={widthAndHeight}
         series={series}
-        cover={{ radius: 0.65, color: "#ffffff" }} 
+        cover={{ radius: 0.7, color: "#ffffff" }}
       />
       <View style={styles.donutCenter}>
         <Text style={styles.donutCenterNumber}>{percent}%</Text>
@@ -75,223 +53,296 @@ function DonutChart() {
 }
 
 export default function AnalyticsScreen() {
-  const [section, setSection] = useState(SECTIONS[0]);
-  const [activity, setActivity] = useState(ACTIVITIES[0]);
+  const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  const [classList, setClassList] = useState<any[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState<string>("");
+  const [selectedClassName, setSelectedClassName] = useState<string>("Select Class");
+
+  const [activityList, setActivityList] = useState<any[]>([]);
+  const [selectedActivityId, setSelectedActivityId] = useState<string>("");
+  const [selectedActivityName, setSelectedActivityName] = useState<string>("Select Activity");
+
+  const [studentScores, setStudentScores] = useState<StudentScore[]>([]);
+  const [passedCount, setPassedCount] = useState(0);
+  const [failedCount, setFailedCount] = useState(0);
+  const [distribution, setDistribution] = useState([0, 0, 0, 0]);
+  const [loading, setLoading] = useState(true);
 
   const [pickerType, setPickerType] = useState<PickerType>(null);
   const [pickerY, setPickerY] = useState(0);
 
-  const isPickerOpen = pickerType !== null;
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
 
-  const currentOptions =
-    pickerType === "section"
-      ? SECTIONS
-      : pickerType === "activity"
-      ? ACTIVITIES
-      : [];
+    const fetchClasses = async () => {
+      try {
+        const data = await getClasses(uid);
+        const formatted = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+        setClassList(formatted);
+        if (formatted.length > 0) {
+          setSelectedClassId(formatted[0].id);
+          setSelectedClassName(formatted[0].className);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchClasses();
+  }, []);
 
-  const currentValue =
-    pickerType === "section" ? section : pickerType === "activity" ? activity : "";
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || !selectedClassId) return;
 
-  const handleSelect = (value: string) => {
-    if (pickerType === "section") setSection(value);
-    if (pickerType === "activity") setActivity(value);
+    const fetchActivities = async () => {
+      const data = await getActivities(uid, selectedClassId);
+      setActivityList(data);
+      if (data.length > 0) {
+        setSelectedActivityId(data[0].id);
+        setSelectedActivityName(data[0].title);
+      } else {
+        setSelectedActivityId("");
+        setSelectedActivityName("No Activities");
+      }
+    };
+    fetchActivities();
+  }, [selectedClassId]);
+
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || !selectedClassId || !selectedActivityId) {
+      setStudentScores([]);
+      setPassedCount(0);
+      setFailedCount(0);
+      setDistribution([0, 0, 0, 0]);
+      return;
+    }
+
+    const unsubscribe = listenToStudents(uid, selectedClassId, (students) => {
+      const scores: StudentScore[] = [];
+      let passed = 0, failed = 0;
+      const dist = [0, 0, 0, 0];
+
+      const activityMetadata = activityList.find(a => a.id === selectedActivityId);
+      const totalScore = Number(activityMetadata?.total || 100);
+      const passingScore = Number(activityMetadata?.passingScore || Math.ceil(totalScore * 0.5));
+
+      students.forEach(s => {
+        const ad = s.activities?.[selectedActivityId];
+        if (ad && (ad.status === "graded" || ad.score !== undefined)) {
+          const score = Number(ad.score || 0);
+          scores.push({ name: s.name, score });
+          if (score >= passingScore) passed++; else failed++;
+
+          const b1 = Math.floor(totalScore * 0.25);
+          const b2 = Math.floor(totalScore * 0.5);
+          const b3 = Math.floor(totalScore * 0.75);
+
+          if (score <= b1) dist[0]++;
+          else if (score <= b2) dist[1]++;
+          else if (score <= b3) dist[2]++;
+          else dist[3]++;
+        }
+      });
+
+      setStudentScores(scores.sort((a, b) => b.score - a.score));
+      setPassedCount(passed);
+      setFailedCount(failed);
+      setDistribution(dist);
+    });
+
+    return () => unsubscribe();
+  }, [selectedClassId, selectedActivityId]);
+
+  const currentOptions = pickerType === "section" ? classList.map(c => c.className) : pickerType === "activity" ? activityList.map(a => a.title) : [];
+  const currentValue = pickerType === "section" ? selectedClassName : selectedActivityName;
+
+  const handleSelect = (val: string) => {
+    if (pickerType === "section") {
+      const s = classList.find(c => c.className === val);
+      if (s) { setSelectedClassId(s.id); setSelectedClassName(s.className); }
+    } else {
+      const s = activityList.find(a => a.title === val);
+      if (s) { setSelectedActivityId(s.id); setSelectedActivityName(s.title); }
+    }
     setPickerType(null);
   };
 
+  if (loading) return (
+    <View style={styles.loaderPage}>
+      <ActivityIndicator size="large" color="#00b679" />
+    </View>
+  );
+
   return (
-    <View style={styles.page}>
-      {/* Header */}
-      <LinearGradient colors={["#00b679", "#009e60"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}  style={[styles.header, { paddingTop: insets.top + 20 }]}>
-        <Text style={styles.headerTitle}>Analytics</Text>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      <LinearGradient colors={["#00b679", "#008a5b"]} style={[styles.header, { paddingTop: insets.top + 15 }]}>
+        <View style={styles.headerTop}>
+          <Text style={styles.headerTitle}>Analytics Dashboard</Text>
+          <TouchableOpacity style={styles.headerInfoBtn}>
+            <Feather name="info" size={18} color="#fff" />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.pillsRow}>
+          <TouchableOpacity
+            style={styles.pill}
+            onPress={(e) => { setPickerY(e.nativeEvent.pageY); setPickerType("section"); }}
+          >
+            <Feather name="users" size={14} color="#fff" style={{ marginRight: 6 }} />
+            <Text style={styles.pillText} numberOfLines={1}>{selectedClassName}</Text>
+            <Feather name="chevron-down" size={12} color="#fff" style={{ marginLeft: 4 }} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.pill}
+            onPress={(e) => { setPickerY(e.nativeEvent.pageY); setPickerType("activity"); }}
+          >
+            <Feather name="file-text" size={14} color="#fff" style={{ marginRight: 6 }} />
+            <Text style={styles.pillText} numberOfLines={1}>{selectedActivityName}</Text>
+            <Feather name="chevron-down" size={12} color="#fff" style={{ marginLeft: 4 }} />
+          </TouchableOpacity>
+        </View>
       </LinearGradient>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Dropdown row */}
-        <View style={styles.filterRow}>
-          <View style={{ flex: 1, marginRight: 8 }}>
-            <Pressable
-              style={styles.dropdownBtn}
-              onPress={(e) => {
-                setPickerY(e.nativeEvent.pageY);
-                setPickerType("section");
-              }}
-            >
-              <Text>{section}</Text>
-              <Ionicons name="chevron-down" size={18} color="#555" />
-            </Pressable>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.summaryGrid}>
+          <View style={styles.summaryCard}>
+            <Text style={styles.statLabel}>Avg. Score</Text>
+            <Text style={styles.statValue}>
+              {studentScores.length ? (studentScores.reduce((a, b) => a + b.score, 0) / studentScores.length).toFixed(1) : "0.0"}
+            </Text>
           </View>
-          <View style={{ flex: 1, marginLeft: 8 }}>
-            <Pressable
-              style={styles.dropdownBtn}
-              onPress={(e) => {
-                setPickerY(e.nativeEvent.pageY);
-                setPickerType("activity");
-              }}
-            >
-              <Text>{activity}</Text>
-              <Ionicons name="chevron-down" size={18} color="#555" />
-            </Pressable>
+          <View style={[styles.summaryCard, { borderLeftWidth: 1, borderColor: '#f0f0f0' }]}>
+            <Text style={styles.statLabel}>Participation</Text>
+            <Text style={styles.statValue}>{studentScores.length}</Text>
           </View>
         </View>
 
-        {/* Student Score Distribution */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Student Score Distribution</Text>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Score Distribution</Text>
+            <Feather name="bar-chart-2" size={16} color="#ddd" />
+          </View>
 
-          <View style={styles.chartWrapper}>
-            {/* Y axis labels */}
+          <View style={styles.chartContainer}>
             <View style={styles.yAxis}>
-              {[25, 20, 15, 10, 5, 0].map((v) => (
-                <View key={v} style={styles.yTickRow}>
-                  <Text style={styles.yLabel}>{v}</Text>
-                </View>
-              ))}
+              {[5, 4, 3, 2, 1, 0].map(v => {
+                const max = Math.max(...distribution, 0);
+                const step = max <= 5 ? 1 : Math.ceil(max / 5);
+                return <Text key={v} style={styles.axisLabel}>{v * step}</Text>;
+              })}
             </View>
-
-            {/* Chart area with bars */}
-            <View style={styles.chartArea}>
-              {/* vertical axis line */}
-              <View style={styles.yAxisLine} />
-              {/* horizontal axis line */}
-              <View style={styles.xAxisLine} />
-
-              <View style={styles.barRow}>
-                <View style={styles.barGroup}>
-                  <View style={[styles.bar, { height: 80 }]} />
-                  <Text style={styles.xLabel}>0–10</Text>
-                </View>
-                <View style={styles.barGroup}>
-                  <View style={[styles.bar, { height: 30 }]} />
-                  <Text style={styles.xLabel}>11–20</Text>
-                </View>
-                <View style={styles.barGroup}>
-                  <View style={[styles.bar, { height: 120 }]} />
-                  <Text style={styles.xLabel}>21–30</Text>
-                </View>
-                <View style={styles.barGroup}>
-                  <View style={[styles.bar, { height: 20 }]} />
-                  <Text style={styles.xLabel}>31–40</Text>
-                </View>
+            <View style={styles.barArea}>
+              <View style={styles.gridLines}>
+                {[1, 2, 3, 4].map(i => <View key={i} style={styles.gridLine} />)}
+              </View>
+              <View style={styles.bars}>
+                {distribution.map((count, idx) => {
+                  const max = Math.ceil(Math.max(...distribution, 0) / 5) * 5 || 1;
+                  const h = (count / max) * 120;
+                  return (
+                    <View key={idx} style={styles.barColumn}>
+                      <View style={[styles.bar, { height: h || 4, backgroundColor: h ? '#00b679' : '#f0f0f0' }]} />
+                    </View>
+                  );
+                })}
               </View>
             </View>
           </View>
-
-          {/* Axis captions */}
-          <View style={styles.axisCaptions}>
-            <Text style={styles.yAxisCaption}>Number of Students</Text>
-            <Text style={styles.xAxisCaption}>Score Ranges</Text>
+          <View style={styles.xAxisLabels}>
+            <Text style={styles.axisLabel}>Q1</Text>
+            <Text style={styles.axisLabel}>Q2</Text>
+            <Text style={styles.axisLabel}>Q3</Text>
+            <Text style={styles.axisLabel}>Q4</Text>
           </View>
         </View>
 
-        {/* Class Performance (donut) */}
-        <View style={[styles.card, { marginTop: 16 }]}>
-          <Text style={styles.cardTitle}>Class Performance</Text>
-
-          <View style={styles.performanceRow}>
-            <DonutChart />
-
+        <View style={[styles.card, { marginTop: 20 }]}>
+          <Text style={styles.cardTitle}>Success Rate</Text>
+          <View style={styles.perfRow}>
+            <DonutChart passed={passedCount} failed={failedCount} />
             <View style={styles.legend}>
-              <View style={styles.legendRow}>
-                <View
-                  style={[styles.legendDot, { backgroundColor: "#22b573" }]}
-                />
-                <Text style={styles.legendText}>
-                  <Text style={styles.legendLabel}>Passed</Text>
-                  <Text style={styles.legendLight}>
-                    {" "}
-                    ({PASSED_COUNT} Students)
-                  </Text>
-                </Text>
+              <View style={styles.legendItem}>
+                <View style={[styles.dot, { backgroundColor: '#00b679' }]} />
+                <View>
+                  <Text style={styles.legPrimary}>Passed</Text>
+                  <Text style={styles.legSecondary}>{passedCount} students</Text>
+                </View>
               </View>
-              <View style={styles.legendRow}>
-                <View
-                  style={[styles.legendDot, { backgroundColor: "#e74c3c" }]}
-                />
-                <Text style={styles.legendText}>
-                  <Text style={styles.legendLabel}>Failed</Text>
-                  <Text style={styles.legendLight}>
-                    {" "}
-                    ({FAILED_COUNT} Students)
-                  </Text>
-                </Text>
+              <View style={[styles.legendItem, { marginTop: 15 }]}>
+                <View style={[styles.dot, { backgroundColor: '#ff3b30' }]} />
+                <View>
+                  <Text style={styles.legPrimary}>Failed</Text>
+                  <Text style={styles.legSecondary}>{failedCount} students</Text>
+                </View>
               </View>
             </View>
           </View>
         </View>
 
-        {/* Top 10 Students */}
-        <View style={[styles.card, { marginTop: 16 }]}>
-          <View style={styles.topRow}>
-            <Text style={styles.topTitle}>Top 10 Students</Text>
-            <Text style={styles.topQuizLabel}>{activity}</Text>
+        <View style={[styles.card, { marginTop: 20, paddingBottom: 10 }]}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Top Performers</Text>
+            <Feather name="award" size={18} color="#FFD700" />
           </View>
-
-          {/* Header */}
-          <View style={[styles.tableRow, styles.tableHeader]}>
-            <Text style={[styles.tableCellName, styles.tableHeaderText]}>
-              Name
-            </Text>
-            <Text style={[styles.tableCellScore, styles.tableHeaderText]}>
-              Score
-            </Text>
+          <View style={styles.list}>
+            {studentScores.slice(0, 5).map((s, idx) => (
+              <View key={idx} style={[styles.listItem, idx === 4 && { borderBottomWidth: 0 }]}>
+                <View style={styles.rankBox}>
+                  <Text style={styles.rankText}>{idx + 1}</Text>
+                </View>
+                <Text style={styles.studentName} numberOfLines={1}>{s.name}</Text>
+                <Text style={styles.studentScore}>{s.score}</Text>
+              </View>
+            ))}
+            {studentScores.length === 0 && (
+              <View style={styles.emptyResults}>
+                <Feather name="slash" size={32} color="#eee" />
+                <Text style={styles.emptyText}>No graded data available.</Text>
+              </View>
+            )}
           </View>
-
-          {TOP10.map((s, idx) => (
-            <View
-              key={s.name}
-              style={[
-                styles.tableRow,
-                idx % 2 === 1 && { backgroundColor: "#fafafa" },
-              ]}
-            >
-              <Text style={styles.tableCellName}>{s.name}</Text>
-              <Text style={styles.tableCellScore}>{s.score}</Text>
-            </View>
-          ))}
-
-          <TouchableOpacity style={styles.viewMoreBtn}>
-            <Text style={styles.viewMoreText}>View full class results →</Text>
+          <TouchableOpacity
+            style={styles.moreBtn}
+            onPress={() => selectedClassId && router.push({
+              pathname: "/(tabs)/classes/activities",
+              params: { classId: selectedClassId, name: selectedClassName, color: "#00b679" }
+            })}
+          >
+            <Text style={styles.moreBtnText}>Go to Class Records</Text>
+            <Feather name="arrow-right" size={14} color="#00b679" />
           </TouchableOpacity>
         </View>
       </ScrollView>
 
-      {/* Popup for dropdowns */}
-      <Modal
-        visible={isPickerOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setPickerType(null)}
-      >
-        <View style={styles.modalBackdrop}>
-          <Pressable
-            style={StyleSheet.absoluteFillObject}
-            onPress={() => setPickerType(null)}
-          />
-        <View style={[styles.popup, { top: pickerY + 8 }]}>
-            {currentOptions.map((opt) => {
-              const selected = opt === currentValue;
-              return (
+      {/* Choice Modal */}
+      <Modal visible={!!pickerType} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setPickerType(null)} />
+          <View style={[styles.popup, { top: Math.min(pickerY + 20, 500) }]}>
+            <ScrollView style={{ maxHeight: 350 }} showsVerticalScrollIndicator={false}>
+              <View style={styles.popupHead}>
+                <Text style={styles.popupTitle}>Select {pickerType === 'section' ? 'Class' : 'Activity'}</Text>
+              </View>
+              {currentOptions.map((opt) => (
                 <TouchableOpacity
                   key={opt}
-                  style={[
-                    styles.popupItem,
-                    selected && styles.popupItemSelected,
-                  ]}
+                  style={[styles.popupItem, opt === currentValue && { backgroundColor: '#00b67910' }]}
                   onPress={() => handleSelect(opt)}
                 >
-                  <Text
-                    style={[
-                      styles.popupItemText,
-                      selected && styles.popupItemTextSelected,
-                    ]}
-                  >
-                    {opt}
-                  </Text>
+                  <Text style={[styles.popupItemText, opt === currentValue && { color: '#00b679', fontWeight: '700' }]}>{opt}</Text>
+                  {opt === currentValue && <Feather name="check" size={16} color="#00b679" />}
                 </TouchableOpacity>
-              );
-            })}
+              ))}
+              {currentOptions.length === 0 && <Text style={styles.noData}>No data available</Text>}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -300,271 +351,65 @@ export default function AnalyticsScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: {
-    flex: 1,
-    backgroundColor: "#f5f5f7",
-  },
-  header: {
-    paddingHorizontal: 18,
-    paddingTop: 45,
-    paddingBottom: 25,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  headerTitle: { color: "#fff", fontSize: 20, fontWeight: "700", flex: 1 },
+  container: { flex: 1, backgroundColor: "#f8f9fa" },
+  loaderPage: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { paddingHorizontal: 20, paddingBottom: 25 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  headerTitle: { color: '#fff', fontSize: 22, fontWeight: '800' },
+  headerInfoBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
+  pillsRow: { flexDirection: 'row', gap: 10 },
+  pill: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 14 },
+  pillText: { color: '#fff', fontSize: 13, fontWeight: '700', flex: 1 },
 
-  content: {
-    padding: 16,
-    paddingBottom: 40,
-  },
+  content: { padding: 20 },
+  summaryGrid: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 24, padding: 20, elevation: 1, shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 15, marginBottom: 20 },
+  summaryCard: { flex: 1, alignItems: 'center' },
+  statLabel: { fontSize: 11, fontWeight: '800', color: '#bbb', textTransform: 'uppercase', marginBottom: 5 },
+  statValue: { fontSize: 24, fontWeight: '800', color: '#111' },
 
-  filterRow: {
-    flexDirection: "row",
-    marginBottom: 12,
-  },
-  dropdownBtn: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#fff",
-  },
+  card: { backgroundColor: '#fff', borderRadius: 24, padding: 20, elevation: 1, shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 15 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  cardTitle: { fontSize: 16, fontWeight: '800', color: '#111' },
 
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 14,
-    marginTop: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-  },
-  cardTitle: {
-    fontWeight: "700",
-    marginBottom: 8,
-    color: "#494949",
-    fontSize: 15,
-  },
+  chartContainer: { flexDirection: 'row', height: 130 },
+  yAxis: { width: 30, justifyContent: 'space-between', paddingBottom: 10 },
+  barArea: { flex: 1, position: 'relative' },
+  gridLines: { ...StyleSheet.absoluteFillObject, justifyContent: 'space-between' },
+  gridLine: { height: 1, backgroundColor: '#f5f5f5' },
+  bars: { flex: 1, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-around' },
+  barColumn: { alignItems: 'center' },
+  bar: { width: 35, borderRadius: 8 },
+  xAxisLabels: { flexDirection: 'row', justifyContent: 'space-around', paddingLeft: 30, marginTop: 10 },
+  axisLabel: { fontSize: 10, fontWeight: '700', color: '#ccc' },
 
-  // Distribution chart
-  chartWrapper: {
-    flexDirection: "row",
-    marginTop: 4,
-  },
-  yAxis: {
-    width: 34,
-    justifyContent: "space-between",
-    paddingVertical: 10,
-    marginRight: 4,
-  },
-  yTickRow: {
-    height: 18,
-    justifyContent: "center",
-  },
-  yLabel: {
-    fontSize: 9,
-    color: "#888",
-  },
-  chartArea: {
-    flex: 1,
-    height: 150,
-    position: "relative",
-    paddingTop: 8,
-    paddingBottom: 10,
-    paddingHorizontal: 6,
-  },
-  yAxisLine: {
-    position: "absolute",
-    left: 0,
-    top: 4,
-    bottom: 14,
-    borderLeftWidth: 1,
-    borderColor: "#cfcfcf",
-  },
-  xAxisLine: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 14,
-    borderBottomWidth: 1,
-    borderColor: "#cfcfcf",
-  },
-  barRow: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "space-around",
-    paddingBottom: 14,
-  },
-  barGroup: {
-    alignItems: "center",
-  },
-  bar: {
-    width: 22,
-    borderRadius: 4,
-    backgroundColor: "#00b679",
-  },
-  xLabel: {
-    marginTop: 4,
-    fontSize: 9,
-    color: "#888",
-  },
-  axisCaptions: {
-    marginTop: 4,
-    paddingHorizontal: 4,
-  },
-  xAxisCaption: {
-    marginTop: 4,
-    textAlign: "center",
-    fontSize: 10,
-    color: "#888",
-  },
-  yAxisCaption: {
-    fontSize: 10,
-    color: "#888",
-  },
+  perfRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
+  donutWrapper: { width: 130, height: 130, alignItems: 'center', justifyContent: 'center' },
+  donutCenter: { position: 'absolute', alignItems: 'center' },
+  donutCenterNumber: { fontSize: 22, fontWeight: '800', color: '#111' },
+  donutCenterLabel: { fontSize: 10, color: '#999', fontWeight: '700' },
+  legend: { flex: 1, marginLeft: 25 },
+  legendItem: { flexDirection: 'row', alignItems: 'center' },
+  dot: { width: 10, height: 10, borderRadius: 5, marginRight: 12 },
+  legPrimary: { fontSize: 14, fontWeight: '700', color: '#111' },
+  legSecondary: { fontSize: 12, color: '#999', marginTop: 2 },
 
-  // Class performance donut
-  performanceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
-  },
-  donutWrapper: {
-    width: 130,
-    height: 130,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 18,
-  },
-  donutCenter: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  donutCenterNumber: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#333",
-  },
-  donutCenterLabel: {
-    fontSize: 11,
-    color: "#777",
-    marginTop: 2,
-  },
+  list: { marginTop: 10 },
+  listItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#f9f9f9', gap: 15 },
+  rankBox: { width: 28, height: 28, borderRadius: 8, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' },
+  rankText: { fontSize: 12, fontWeight: '800', color: '#666' },
+  studentName: { flex: 1, fontSize: 15, fontWeight: '600', color: '#333' },
+  studentScore: { fontSize: 16, fontWeight: '800', color: '#111' },
+  emptyResults: { alignItems: 'center', paddingVertical: 30 },
+  emptyText: { fontSize: 13, color: '#ccc', marginTop: 10 },
 
-  legend: {
-    flex: 1,
-  },
-  legendRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 6,
-  },
-  legendText: {
-    fontSize: 12,
-    color: "#777",
-  },
-  legendLabel: {
-    fontWeight: "600",
-    color: "#555",
-  },
-  legendLight: {
-    fontStyle: "italic",
-    color: "#aaa",
-  },
+  moreBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 15, gap: 8, borderTopWidth: 1, borderTopColor: '#f9f9f9', paddingTop: 15 },
+  moreBtnText: { fontSize: 13, fontWeight: '800', color: '#00b679' },
 
-  // Top 10 table
-  topRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 6,
-  },
-  topTitle: {
-    fontWeight: "700",
-  },
-  topQuizLabel: {
-    fontSize: 12,
-    color: "#777",
-  },
-  tableRow: {
-    flexDirection: "row",
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-  },
-  tableHeader: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#e4e4e4",
-    marginBottom: 2,
-  },
-  tableCellName: {
-    flex: 1,
-    fontSize: 12,
-    color: "#333",
-  },
-  tableCellScore: {
-    width: 50,
-    textAlign: "right",
-    fontSize: 12,
-    color: "#333",
-  },
-  tableHeaderText: {
-    fontWeight: "700",
-    color: "#555",
-  },
-  viewMoreBtn: {
-    marginTop: 6,
-    alignItems: "flex-end",
-  },
-  viewMoreText: {
-    fontSize: 11,
-    color: "#00b679",
-    textDecorationLine: "underline",
-  },
-
-  // popup styles
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.08)",
-  },
-  popup: {
-    position: "absolute",
-    left: 24,
-    right: 24,
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    paddingVertical: 4,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-  },
-  popupItem: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  popupItemSelected: {
-    backgroundColor: "#00b679",
-  },
-  popupItemText: {
-    fontSize: 14,
-    color: "#333",
-  },
-  popupItemTextSelected: {
-    color: "#fff",
-    fontWeight: "700",
-  },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', paddingHorizontal: 20 },
+  popup: { backgroundColor: '#fff', borderRadius: 28, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 30, elevation: 20, borderWidth: 1, borderColor: '#f0f0f0' },
+  popupHead: { padding: 20, borderBottomWidth: 1, borderBottomColor: '#f9f9f9' },
+  popupTitle: { fontSize: 16, fontWeight: '800', color: '#111' },
+  popupItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 },
+  popupItemText: { fontSize: 15, color: '#444' },
+  noData: { textAlign: 'center', padding: 30, color: '#bbb' },
 });

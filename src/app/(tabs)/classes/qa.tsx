@@ -1,184 +1,291 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { onValue, push, ref, set } from "firebase/database";
+import {
+  getDownloadURL,
+  getStorage,
+  ref as storageRef,
+  uploadBytes,
+} from "firebase/storage";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
+  ActivityIndicator,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { auth, db } from "../../../firebase/firebaseConfig";
+import { showAlert } from "../../../utils/alert";
 
 const P = (v: string | string[] | undefined, fb = "") =>
-  Array.isArray(v) ? v[0] : v ?? fb;
+  Array.isArray(v) ? v[0] : (v ?? fb);
+
+type QAFile = {
+  id: string;
+  name: string;
+  url: string;
+  type?: string;
+};
 
 export default function QAList() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
 
-  const className = P(params.name, "BSCS-4B");
-  const section = P(params.section, "GEM14-M");
-  const headerColor = P(params.color, "#C17CEB");
-  const title = P(params.title, "Quiz No. 1");
+  const classId = P(params.classId);
+  const activityId = P(params.activityId);
+  const className = P(params.name, "Class");
+  const section = P(params.section, "Section");
+  const headerColor = P(params.color, "#00b679");
+  const title = P(params.title, "Activity");
 
-  // file that was deleted from qa-view.tsx (if any)
-  const deletedFile = P(params.deletedFile, "");
+  const [qaFiles, setQaFiles] = useState<QAFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
 
-  // base list (could be fetched from backend later)
-  const BASE_FILES = ["Quiz No.1.pdf"];
-
-  // keep full list in state (base + uploads)
-  const [qaFiles, setQaFiles] = useState<string[]>(BASE_FILES);
-
-  // whenever deletedFile param changes, filter it out of the list
   useEffect(() => {
-    if (!deletedFile) return;
-    setQaFiles((prev) => prev.filter((f) => f !== deletedFile));
-  }, [deletedFile]);
+    const uid = auth.currentUser?.uid;
+    if (!uid || !classId || !activityId) return;
+
+    const filesRef = ref(db, `professors/${uid}/classes/${classId}/activities/${activityId}/files`);
+    const unsubscribe = onValue(filesRef, (snapshot) => {
+      if (!snapshot.exists()) {
+        setQaFiles([]);
+        setLoading(false);
+        return;
+      }
+
+      const data = snapshot.val();
+      const loadedFiles = Object.keys(data).map((key) => ({
+        id: key,
+        name: data[key].name,
+        url: data[key].url,
+        type: data[key].type,
+      }));
+
+      setQaFiles(loadedFiles);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [classId, activityId]);
 
   const handleUpload = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ["application/pdf", "application/msword", "*/*"],
+        type: [
+          "application/pdf",
+          "application/msword",
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "image/*",
+        ],
         copyToCacheDirectory: true,
       });
 
       if (result.canceled) return;
-
       const asset = result.assets?.[0];
       if (!asset) return;
 
-      const name = asset.name ?? "Selected file";
+      setUploading(true);
+      const uid = auth.currentUser?.uid;
+      if (!uid) throw new Error("User not logged in");
 
-      setQaFiles((prev) => [...prev, name]);
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+      const storage = getStorage();
+
+      const fileRef = storageRef(
+        storage,
+        `qa_uploads/${uid}/${classId}/${activityId}/${asset.name}`,
+      );
+
+      await uploadBytes(fileRef, blob);
+      const downloadUrl = await getDownloadURL(fileRef);
+
+      const dbRef = ref(db, `professors/${uid}/classes/${classId}/activities/${activityId}/files`);
+      const newFileRef = push(dbRef);
+
+      await set(newFileRef, {
+        name: asset.name,
+        url: downloadUrl,
+        type: asset.mimeType || "application/pdf",
+        uploadedAt: new Date().toISOString(),
+      });
+
+      showAlert("Success", "Answer key uploaded successfully!");
     } catch (e) {
-      console.log("Document pick error", e);
-      Alert.alert("Error", "Unable to pick file. Please try again.");
+      console.error("Upload error", e);
+      showAlert("Error", "Failed to upload file. Please try again.");
+    } finally {
+      setUploading(false);
     }
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#fff" }}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: headerColor }, {paddingTop: insets.top + 20}]}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      <View style={[styles.header, { backgroundColor: headerColor, paddingTop: insets.top + 15 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={22} color="#fff" />
+          <Feather name="chevron-left" size={26} color="#fff" />
         </TouchableOpacity>
-        <View>
-          <Text style={styles.headerSmall}>{className}</Text>
-          <Text style={styles.headerBig}>{section}</Text>
+        <View style={styles.headerInfo}>
+          <Text style={styles.headerSmall}>{className} • {section}</Text>
+          <Text style={styles.headerBig} numberOfLines={1}>{title}</Text>
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Section title */}
-        <Text style={styles.bigLabel}>Question and answer</Text>
-
-        {/* Upload card */}
-        <TouchableOpacity
-          style={styles.uploadCard}
-          activeOpacity={0.9}
-          onPress={handleUpload}
-        >
-          <Ionicons name="cloud-upload-outline" size={20} color="#111" />
-          <Text style={styles.uploadText}>
-            Upload Question and{"\n"}Answer
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.infoSection}>
+          <Text style={styles.sectionLabel}>Grading Method</Text>
+          <Text style={styles.sectionTitle}>Objective Answer Keys</Text>
+          <Text style={styles.sectionDesc}>
+            Upload PDF, Word, or Image files containing the correct answers. Our AI will use these to grade objective portions.
           </Text>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.uploadCard, uploading && styles.uploadingCard]}
+          activeOpacity={0.8}
+          onPress={handleUpload}
+          disabled={uploading}
+        >
+          <View style={[styles.uploadIconBox, { backgroundColor: headerColor + '15' }]}>
+            {uploading ? (
+              <ActivityIndicator color={headerColor} />
+            ) : (
+              <Feather name="upload-cloud" size={28} color={headerColor} />
+            )}
+          </View>
+          <View style={styles.uploadInfo}>
+            <Text style={styles.uploadTitle}>{uploading ? "Uploading File..." : "Tap to Upload Key"}</Text>
+            <Text style={styles.uploadSub}>Supports PDF, DOCX, and JPG/PNG</Text>
+          </View>
+          {!uploading && <Feather name="plus" size={20} color="#ccc" />}
         </TouchableOpacity>
 
-        {/* Uploaded list */}
-        <Text style={[styles.bigLabel, { marginTop: 22 }]}>Uploaded Q&A</Text>
+        <View style={styles.listSection}>
+          <View style={styles.listHeaderRow}>
+            <Text style={styles.listHeader}>UPLOADED KEYS</Text>
+            <View style={[styles.badge, { backgroundColor: headerColor + '15' }]}>
+              <Text style={[styles.badgeText, { color: headerColor }]}>{qaFiles.length}</Text>
+            </View>
+          </View>
 
-        {qaFiles.length === 0 ? (
-          <Text style={{ color: "#888", fontSize: 13 }}>
-            No files uploaded yet.
-          </Text>
-        ) : (
-          qaFiles.map((fileName) => (
-            <TouchableOpacity
-              key={fileName}
-              style={[styles.item, { marginBottom: 8 }]}
-              activeOpacity={0.85}
-              onPress={() =>
-                router.push({
-                  pathname: "/(tabs)/classes/qa-view",
-                  params: {
-                    name: className,
-                    section,
-                    color: headerColor,
-                    title,
-                    fileName,
-                  },
-                })
-              }
-            >
-              <Text style={styles.itemText}>{fileName}</Text>
-              <Ionicons name="chevron-forward" size={18} color="#9AA0A6" />
-            </TouchableOpacity>
-          ))
-        )}
+          {loading ? (
+            <ActivityIndicator size="small" color="#888" style={{ marginTop: 30 }} />
+          ) : qaFiles.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Feather name="file-minus" size={40} color="#eee" />
+              <Text style={styles.emptyText}>No files uploaded for this activity.</Text>
+            </View>
+          ) : (
+            <View style={styles.fileList}>
+              {qaFiles.map((file) => (
+                <TouchableOpacity
+                  key={file.id}
+                  style={styles.fileItem}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(tabs)/classes/qa-view",
+                      params: {
+                        name: className,
+                        section,
+                        color: headerColor,
+                        title,
+                        fileId: file.id,
+                        fileName: file.name,
+                        classId,
+                        activityId,
+                        fileUrl: encodeURIComponent(file.url),
+                      },
+                    })
+                  }
+                >
+                  <View style={styles.fileIconBox}>
+                    <Feather
+                      name={file.name.match(/\.(jpg|jpeg|png|gif)$/i) ? "image" : "file-text"}
+                      size={20}
+                      color="#666"
+                    />
+                  </View>
+                  <View style={styles.fileInfo}>
+                    <Text style={styles.fileName} numberOfLines={1}>{file.name}</Text>
+                    <Text style={styles.fileType}>Tap to open and review</Text>
+                  </View>
+                  <Feather name="chevron-right" size={18} color="#ccc" />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
       </ScrollView>
     </View>
   );
 }
 
-const R = 12;
-
 const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  backBtn: { padding: 10, marginLeft: -10 },
-  headerSmall: { color: "#fff", fontSize: 14, opacity: 0.85 },
-  headerBig: { color: "#fff", fontSize: 18, fontWeight: "bold" },
+  container: { flex: 1, backgroundColor: "#f8f9fa" },
+  header: { paddingHorizontal: 20, paddingBottom: 25, flexDirection: "row", alignItems: "center", elevation: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
+  backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
+  headerInfo: { flex: 1, paddingHorizontal: 10 },
+  headerSmall: { color: "#fff", fontSize: 11, opacity: 0.8, fontWeight: '700', textTransform: 'uppercase' },
+  headerBig: { color: "#fff", fontSize: 18, fontWeight: "800" },
 
-  content: { padding: 16, paddingBottom: 40 },
-
-  bigLabel: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#111",
-    marginBottom: 10,
-  },
+  content: { padding: 20 },
+  infoSection: { marginBottom: 30, paddingHorizontal: 5 },
+  sectionLabel: { fontSize: 13, fontWeight: '700', color: '#bbb', textTransform: 'uppercase', marginBottom: 8 },
+  sectionTitle: { fontSize: 24, fontWeight: '800', color: '#111', marginBottom: 12 },
+  sectionDesc: { fontSize: 15, color: '#666', lineHeight: 22 },
 
   uploadCard: {
-    backgroundColor: "#fff",
-    borderRadius: R,
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: "#E8E8E8",
-    paddingVertical: 16,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
+    borderColor: '#f0f0f0',
     elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 15,
+    marginBottom: 35,
   },
-  uploadText: { fontWeight: "500", color: "#111", lineHeight: 18 },
+  uploadingCard: { opacity: 0.8 },
+  uploadIconBox: { width: 64, height: 64, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  uploadInfo: { flex: 1, marginLeft: 20 },
+  uploadTitle: { fontSize: 17, fontWeight: '800', color: '#111' },
+  uploadSub: { fontSize: 13, color: '#999', marginTop: 4, fontWeight: '500' },
 
-  item: {
-    backgroundColor: "#fff",
-    borderRadius: R,
+  listSection: { paddingHorizontal: 5 },
+  listHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  listHeader: { fontSize: 12, fontWeight: '800', color: '#bbb', letterSpacing: 1 },
+  badge: { marginLeft: 10, paddingHorizontal: 10, paddingVertical: 2, borderRadius: 10 },
+  badgeText: { fontSize: 12, fontWeight: '800' },
+
+  emptyState: { alignItems: 'center', paddingVertical: 50 },
+  emptyText: { fontSize: 15, color: '#ccc', marginTop: 15, fontWeight: '500' },
+
+  fileList: { gap: 12 },
+  fileItem: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: "#E8E8E8",
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    borderColor: '#f0f0f0',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
   },
-  itemText: { color: "#111", fontWeight: "500" },
+  fileIconBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#f8f9fa', justifyContent: 'center', alignItems: 'center' },
+  fileInfo: { flex: 1, marginLeft: 15 },
+  fileName: { fontSize: 15, fontWeight: '700', color: '#222' },
+  fileType: { fontSize: 12, color: '#aaa', marginTop: 2 },
 });

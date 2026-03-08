@@ -1,29 +1,26 @@
-// app/(tabs)/classes/activities.tsx
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-// FIREBASE IMPORTS
 import { auth } from "../../../firebase/firebaseConfig";
 import {
   addActivity,
   deleteActivity,
   listenToActivities
 } from "../../../services/class.service";
+import { showAlert } from "../../../utils/alert";
 
-// normalize expo-router params
 const P = (v: string | string[] | undefined, fb = "") =>
   Array.isArray(v) ? v[0] : v ?? fb;
 
@@ -34,29 +31,26 @@ export default function ActivitiesScreen() {
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
 
-  const classId = P(params.classId); // We need the ID for DB operations
-  const className = P(params.name, "BSCS-4B");
-  const section = P(params.section, "GEM14-M");
-  const headerColor = P(params.color, "#BB73E0");
+  const classId = P(params.classId);
+  const className = P(params.name, "Class");
+  const section = P(params.section, "Section");
+  const headerColor = P(params.color, "#00b679");
 
   const [items, setItems] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // Add activity modal
   const [addOpen, setAddOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [isAdding, setIsAdding] = useState(false);
 
-  // Delete confirmation modal
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const anySelected = selected.size > 0;
   const displayItems = useMemo(() => items, [items]);
 
-  // 🔹 1. LISTEN TO DATA
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid || !classId) return;
@@ -77,12 +71,15 @@ export default function ActivitiesScreen() {
   function toggleSelect(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   }
 
-  // 🔹 2. HANDLE ADD
   async function handleAdd() {
     const title = newTitle.trim();
     if (!title) return;
@@ -95,37 +92,29 @@ export default function ActivitiesScreen() {
       await addActivity(uid, classId, title);
       setNewTitle("");
       setAddOpen(false);
-    } catch (error: any) {
-      Alert.alert("Error", "Failed to add activity.");
+    } catch {
+      showAlert("Error", "Failed to add activity.");
     } finally {
       setIsAdding(false);
     }
   }
 
-  function confirmDelete() {
-    if (!anySelected) return;
-    setConfirmOpen(true);
-  }
-
-  // 🔹 3. HANDLE DELETE
   async function doDelete() {
     const uid = auth.currentUser?.uid;
     if (!uid || !classId) return;
 
     try {
       setIsDeleting(true);
-      // Delete all selected items concurrently
-      const deletePromises = Array.from(selected).map((id) => 
+      const deletePromises = Array.from(selected).map((id) =>
         deleteActivity(uid, classId, id)
       );
-      
+
       await Promise.all(deletePromises);
-      
       setSelected(new Set());
       setConfirmOpen(false);
       setEditMode(false);
-    } catch (error: any) {
-      Alert.alert("Error", "Failed to delete activities.");
+    } catch {
+      showAlert("Error", "Failed to delete activities.");
     } finally {
       setIsDeleting(false);
     }
@@ -133,198 +122,168 @@ export default function ActivitiesScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header (solid class color) */}
-      <View style={[styles.header, { backgroundColor: headerColor, paddingTop: insets.top + 20 }]}>
+      <View style={[styles.header, { backgroundColor: headerColor, paddingTop: insets.top + 15 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={22} color="#fff" />
+          <Feather name="chevron-left" size={26} color="#fff" />
         </TouchableOpacity>
-        <View style={{ justifyContent: "center" }}>
+        <View style={styles.headerInfo}>
           <Text style={styles.headerSmall}>{className}</Text>
-          <Text style={styles.headerBig}>{section}</Text>
+          <Text style={styles.headerBig} numberOfLines={1}>{section}</Text>
         </View>
+        <TouchableOpacity onPress={toggleEdit} style={styles.editHeaderBtn}>
+          <Feather name={editMode ? "check" : "trash-2"} size={20} color="#fff" />
+        </TouchableOpacity>
       </View>
 
-      {/* Scrollable content */}
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 120 }]}>
-        {/* Title row */}
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 120 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.titleRow}>
-          <Text style={styles.title}>Class Activities</Text>
-
-          <TouchableOpacity
-            onPress={toggleEdit}
-            style={[styles.pill, editMode && styles.pillDone]}
-            activeOpacity={0.85}
-          >
-            <Text style={[styles.pillText, editMode && { color: "#fff" }]}>
-              {editMode ? "Done" : "Edit"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Loading State */}
-        {loading ? (
-           <View style={{ marginTop: 50 }}>
-             <ActivityIndicator size="large" color={headerColor} />
-           </View>
-        ) : (
-          /* Activity cards */
-          <View style={{ gap: 14 }}>
-            {displayItems.length === 0 && (
-                <Text style={{ textAlign: "center", color: "#999", marginTop: 20 }}>
-                    No activities yet. Tap + to add one.
-                </Text>
-            )}
-
-            {displayItems.map((a) => (
-              <TouchableOpacity
-                key={a.id}
-                activeOpacity={0.9}
-                onPress={() => {
-                  if (editMode) {
-                    toggleSelect(a.id);
-                  } else {
-                    router.push({
-                      pathname: "/(tabs)/classes/activity-details",
-                      params: {
-                        classId: classId,
-                        activityId: a.id,
-                        name: className,
-                        section,
-                        color: headerColor,
-                        activityTitle: a.title,
-                      },
-                    });
-                  }
-                }}
-                style={styles.activityCard}
-              >
-                <View style={styles.left}>
-                  {editMode ? (
-                    selected.has(a.id) ? (
-                      <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />
-                    ) : (
-                      <Ionicons name="ellipse-outline" size={20} color="#2E7D32" />
-                    )
-                  ) : (
-                    <Ionicons name="checkbox-outline" size={20} color="#2E7D32" />
-                  )}
-                  <Text style={styles.activityText} numberOfLines={1}>
-                    {a.title}
-                  </Text>
-                </View>
-
-                <Ionicons name="chevron-forward" size={18} color="#9AA0A6" />
-              </TouchableOpacity>
-            ))}
+          <View>
+            <Text style={styles.title}>Activities</Text>
+            <Text style={styles.subtitle}>{items.length} total items</Text>
           </View>
-        )}
 
-        {/* Add activity (only when not editing) */}
-        {!editMode && !loading && (
-          <View style={styles.addWrap}>
+          {!editMode && (
             <TouchableOpacity
-              style={styles.addCircle}
+              style={[styles.addBtn, { backgroundColor: headerColor }]}
               onPress={() => setAddOpen(true)}
             >
-              <Ionicons name="add" size={22} color="#0B8E62" />
+              <Feather name="plus" size={18} color="#fff" />
+              <Text style={styles.addBtnText}>New</Text>
             </TouchableOpacity>
-            <Text style={styles.addLabel}>
-              Add Class{"\n"}Activities
-            </Text>
+          )}
+        </View>
+
+        {loading ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="large" color={headerColor} />
+          </View>
+        ) : (
+          <View style={styles.listContainer}>
+            {displayItems.length === 0 ? (
+              <View style={styles.emptyBox}>
+                <View style={styles.emptyIconBox}>
+                  <Feather name="book-open" size={40} color="#ccc" />
+                </View>
+                <Text style={styles.emptyText}>No activities created yet.</Text>
+                <TouchableOpacity style={styles.emptyAddBtn} onPress={() => setAddOpen(true)}>
+                  <Text style={[styles.emptyAddText, { color: headerColor }]}>Add your first activity</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              displayItems.map((a) => (
+                <TouchableOpacity
+                  key={a.id}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    if (editMode) toggleSelect(a.id);
+                    else router.push({
+                      pathname: "/(tabs)/classes/activity-details",
+                      params: { classId, activityId: a.id, name: className, section, color: headerColor, title: a.title },
+                    });
+                  }}
+                  style={[styles.activityCard, selected.has(a.id) && styles.selectedCard]}
+                >
+                  <View style={styles.cardContent}>
+                    {editMode ? (
+                      <View style={[styles.checkCircle, selected.has(a.id) && { backgroundColor: '#ff3b30', borderColor: '#ff3b30' }]}>
+                        {selected.has(a.id) && <Feather name="check" size={12} color="#fff" />}
+                      </View>
+                    ) : (
+                      <View style={[styles.iconBox, { backgroundColor: headerColor + '10' }]}>
+                        <Feather name="file-text" size={18} color={headerColor} />
+                      </View>
+                    )}
+                    <View style={styles.activityInfo}>
+                      <Text style={[styles.activityText, selected.has(a.id) && { color: '#ff3b30' }]} numberOfLines={1}>
+                        {a.title}
+                      </Text>
+                      {!editMode && <Text style={styles.tapToView}>Tap to view details</Text>}
+                    </View>
+                  </View>
+                  {!editMode && <Feather name="chevron-right" size={18} color="#ccc" />}
+                </TouchableOpacity>
+              ))
+            )}
           </View>
         )}
       </ScrollView>
 
-      {/* FIXED BOTTOM DELETE BAR (only when editing) */}
       {editMode && (
-        <View style={styles.deleteBarWrapper}>
+        <View style={[styles.deleteBarWrapper, { paddingBottom: insets.bottom + 20 }]}>
           <TouchableOpacity
             disabled={!anySelected || isDeleting}
-            onPress={confirmDelete}
+            onPress={() => setConfirmOpen(true)}
             style={[styles.deleteBar, (!anySelected || isDeleting) && { opacity: 0.5 }]}
           >
+            <Feather name="trash-2" size={18} color="#fff" style={{ marginRight: 8 }} />
             <Text style={styles.deleteText}>
-              {isDeleting ? "Deleting..." : `Delete ${selected.size} activit${selected.size > 1 ? "ies" : "y"}`}
+              {isDeleting ? "Deleting..." : `Delete ${selected.size} Item${selected.size > 1 ? "s" : ""}`}
             </Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={toggleEdit} style={styles.cancelEditBtn}>
+            <Text style={styles.cancelEditText}>Cancel</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Add Activity Modal */}
-      <Modal
-        visible={addOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setAddOpen(false)}
-      >
+      {/* Add Modal */}
+      <Modal visible={addOpen} transparent animationType="fade" onRequestClose={() => setAddOpen(false)}>
         <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setAddOpen(false)} />
           <View style={styles.modalCard}>
-            <View style={styles.modalHeaderRow}>
-              <Text style={[styles.modalTitle, { color: "#01B468" }]}>
-                Add class Activity
-              </Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>New Activity</Text>
               <TouchableOpacity onPress={() => setAddOpen(false)}>
-                <Ionicons name="close" size={20} color="#2E7D32" />
+                <Feather name="x" size={20} color="#999" />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.inputLabel}>Activity Name</Text>
-            <TextInput
-              value={newTitle}
-              onChangeText={setNewTitle}
-              placeholder="e.g. Quiz #1"
-              style={styles.modalInput}
-              autoFocus
-            />
-
-            <View style={styles.modalActionsRow}>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.modalCancel]}
-                onPress={() => setAddOpen(false)}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.modalSave, isAdding && { opacity: 0.7 }]}
-                onPress={handleAdd}
-                disabled={isAdding}
-              >
-                <Text style={styles.modalSaveText}>{isAdding ? "Adding..." : "Add"}</Text>
-              </TouchableOpacity>
+            <View style={styles.inputBox}>
+              <Text style={styles.inputLabel}>Activity Title</Text>
+              <TextInput
+                value={newTitle}
+                onChangeText={setNewTitle}
+                placeholder="e.g. Midterm Quiz 1"
+                style={styles.modalInput}
+                autoFocus
+                placeholderTextColor="#999"
+              />
             </View>
+
+            <TouchableOpacity
+              style={[styles.modalSave, { backgroundColor: headerColor }, isAdding && { opacity: 0.7 }]}
+              onPress={handleAdd}
+              disabled={isAdding}
+            >
+              {isAdding ? <ActivityIndicator color="#fff" size="small" /> : (
+                <>
+                  <Text style={styles.modalSaveText}>Create Activity</Text>
+                  <Feather name="plus" size={18} color="#fff" style={{ marginLeft: 8 }} />
+                </>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* Confirm Delete Modal */}
-      <Modal
-        visible={confirmOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setConfirmOpen(false)}
-      >
+      {/* Delete Confirmation */}
+      <Modal visible={confirmOpen} transparent animationType="fade" onRequestClose={() => setConfirmOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Delete Activity?</Text>
-            <Text style={styles.modalBody}>
-              Are you sure you want to delete the selected activit
-              {selected.size > 1 ? "ies" : "y"}?
+          <View style={[styles.modalCard, { alignItems: 'center', padding: 30 }]}>
+            <View style={styles.warningIconBox}>
+              <Feather name="alert-triangle" size={32} color="#ff3b30" />
+            </View>
+            <Text style={styles.confirmTitle}>Delete Activity?</Text>
+            <Text style={styles.confirmBody}>
+              This will permanently delete {selected.size} item{selected.size > 1 ? "s" : ""} and all associated grades.
             </Text>
 
-            <View style={styles.modalActionsRow}>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.modalCancel]}
-                onPress={() => setConfirmOpen(false)}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
+            <View style={styles.confirmActions}>
+              <TouchableOpacity style={styles.confirmCancel} onPress={() => setConfirmOpen(false)}>
+                <Text style={styles.confirmCancelText}>Keep it</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.modalDelete]}
-                onPress={doDelete}
-              >
-                <Text style={styles.modalDeleteText}>Delete</Text>
+              <TouchableOpacity style={styles.confirmDelete} onPress={doDelete}>
+                <Text style={styles.confirmDeleteText}>Delete</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -334,157 +293,74 @@ export default function ActivitiesScreen() {
   );
 }
 
-const R = 12;
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  backBtn: { padding: 10, marginLeft: -10 },
-  headerSmall: { color: "#fff", fontSize: 14, opacity: 0.85 },
-  headerBig: { color: "#fff", fontSize: 18, fontWeight: "bold" },
+  container: { flex: 1, backgroundColor: "#f8f9fa" },
+  header: { paddingHorizontal: 20, paddingBottom: 20, flexDirection: "row", alignItems: "center", elevation: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
+  backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
+  headerInfo: { flex: 1, paddingHorizontal: 10 },
+  headerSmall: { color: "#fff", fontSize: 12, opacity: 0.8, fontWeight: '600', textTransform: 'uppercase' },
+  headerBig: { color: "#fff", fontSize: 18, fontWeight: "800" },
+  editHeaderBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
 
   content: { padding: 20 },
+  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 25 },
+  title: { fontSize: 22, fontWeight: "800", color: "#111" },
+  subtitle: { fontSize: 13, color: "#999", marginTop: 2 },
+  addBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 10, borderRadius: 12, elevation: 2 },
+  addBtnText: { color: "#fff", fontWeight: "700", marginLeft: 6, fontSize: 14 },
 
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-    marginTop: -6,
-  },
-  title: { color: "#01B468", fontSize: 18, fontWeight: "800" },
-
-  pill: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#01B468",
-  },
-  pillDone: { backgroundColor: "#01B468", borderWidth: 0 },
-  pillText: { fontWeight: "500", color: "#333" },
-
+  loadingBox: { marginTop: 100 },
+  listContainer: { gap: 12 },
   activityCard: {
     backgroundColor: "#fff",
-    borderRadius: R,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: "#EBEBEB",
+    borderRadius: 20,
+    padding: 18,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  left: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
-  activityText: { fontSize: 15, fontWeight: "600", color: "#222", flexShrink: 1 },
-
-  addWrap: { alignItems: "center", marginTop: 24 },
-  addCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#E8F7F0",
     borderWidth: 1,
-    borderColor: "#BDE6D2",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  addLabel: {
-    marginTop: 8,
-    color: "#111",
-    fontWeight: "700",
-    textAlign: "center",
-    lineHeight: 20,
-  },
-
-  deleteBarWrapper: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderColor: "#e5e5e5",
-  },
-  deleteBar: {
-    backgroundColor: "#D62020",
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  deleteText: { color: "#fff", fontWeight: "800" },
-
-  // Modals
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
-    justifyContent: "center",
-    padding: 20,
-  },
-  modalCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
+    borderColor: "#f0f0f0",
+    elevation: 1,
     shadowColor: "#000",
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.03,
     shadowRadius: 10,
-    elevation: 5,
   },
-  modalTitle: { fontSize: 18, fontWeight: "700", color: "#111" },
-  modalBody: { color: "#111", marginTop: 8, marginBottom: 8 },
+  selectedCard: { borderColor: '#ffccd0', backgroundColor: '#fff5f5' },
+  cardContent: { flexDirection: "row", alignItems: "center", flex: 1 },
+  iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  checkCircle: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#eee', justifyContent: 'center', alignItems: 'center', marginRight: 15 },
+  activityInfo: { flex: 1, marginLeft: 15 },
+  activityText: { fontSize: 16, fontWeight: "700", color: "#1f1f1f" },
+  tapToView: { fontSize: 12, color: '#aaa', marginTop: 2 },
 
-  modalHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
+  emptyBox: { alignItems: "center", marginTop: 60 },
+  emptyIconBox: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  emptyText: { fontSize: 16, color: "#999", fontWeight: "500" },
+  emptyAddBtn: { marginTop: 15 },
+  emptyAddText: { fontWeight: "700", fontSize: 15 },
 
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#111",
-    marginTop: 6,
-    marginBottom: 6,
-  },
-  modalInput: {
-    borderWidth: 1,
-    borderColor: "#e6e6e6",
-    borderRadius: 8,
-    padding: 10,
-    backgroundColor: "#fff",
-  },
+  deleteBarWrapper: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 20, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#f0f0f0", elevation: 20 },
+  deleteBar: { backgroundColor: "#ff3b30", paddingVertical: 18, borderRadius: 16, alignItems: "center", flexDirection: 'row', justifyContent: 'center', elevation: 4 },
+  deleteText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  cancelEditBtn: { marginTop: 15, alignItems: 'center' },
+  cancelEditText: { color: '#666', fontWeight: '600', fontSize: 14 },
 
-  modalActionsRow: {
-    marginTop: 14,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  modalBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  modalCancel: { backgroundColor: "#eee",  borderWidth: 1,  borderColor: "#111", paddingVertical: 12, borderRadius: 12, elevation: 3, },
-  modalCancelText: { color: "#333", fontWeight: "700" },
-  modalDelete: { backgroundColor: "#D62020" },
-  modalDeleteText: { color: "#fff", fontWeight: "700" },
-  modalSave: { backgroundColor: "#01B468" },
-  modalSaveText: { color: "#fff", fontWeight: "700" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "center", padding: 25 },
+  modalCard: { backgroundColor: "#fff", borderRadius: 24, padding: 24, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 },
+  modalTitle: { fontSize: 20, fontWeight: "800", color: "#111" },
+  inputBox: { marginBottom: 25 },
+  inputLabel: { fontSize: 13, fontWeight: "700", color: "#666", marginBottom: 10, textTransform: 'uppercase' },
+  modalInput: { backgroundColor: '#f9f9f9', padding: 16, borderRadius: 14, fontSize: 16, color: '#111', borderWidth: 1, borderColor: '#f0f0f0' },
+  modalSave: { paddingVertical: 18, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  modalSaveText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+
+  warningIconBox: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#fff5f5', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  confirmTitle: { fontSize: 20, fontWeight: "800", color: "#111", marginBottom: 12 },
+  confirmBody: { fontSize: 15, color: "#666", textAlign: "center", lineHeight: 22, marginBottom: 30 },
+  confirmActions: { flexDirection: "row", gap: 12 },
+  confirmCancel: { flex: 1, paddingVertical: 16, borderRadius: 14, backgroundColor: '#f0f0f0', alignItems: 'center' },
+  confirmCancelText: { color: "#666", fontWeight: "700" },
+  confirmDelete: { flex: 1, paddingVertical: 16, borderRadius: 14, backgroundColor: '#ff3b30', alignItems: 'center' },
+  confirmDeleteText: { color: "#fff", fontWeight: "700" },
 });

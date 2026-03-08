@@ -1,56 +1,61 @@
-// app/(tabs)/classes/essay-view.tsx
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  Linking,
   Modal,
+  Pressable,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { showAlert } from "../../../utils/alert";
 
 const P = (v: string | string[] | undefined, fb = "") =>
-  Array.isArray(v) ? v[0] : v ?? fb;
+  Array.isArray(v) ? v[0] : (v ?? fb);
 
 export default function EssayView() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
 
-  const id = P(params.id, ""); // 👈 ID of this instruction (must be passed from essay.tsx)
-  const className = P(params.name, "BSCS-4B");
-  const section = P(params.section, "GEM14-M");
-  const headerColor = P(params.color, "#C17CEB");
-  const title = P(params.title, "Quiz 1 Essay Instructions");
+  const id = P(params.id, "");
+  const classId = P(params.classId);
+  const activityId = P(params.activityId);
+  const className = P(params.name, "Class");
+  const section = P(params.section, "Section");
+  const headerColor = P(params.color, "#00b679");
+  const title = P(params.title, "Essay Rubric");
 
-  const lessonRefParam = P(params.lessonRef, "");
-  const rubricsParam = P(params.rubrics, "");
-
-  const [lessonRef] = useState(
-    lessonRefParam || "lesson1_noli_me_tangere.pdf"
-  );
-  const [rubrics] = useState(rubricsParam || "Quiz1_Rubrics.pdf");
+  const lessonRef = P(params.lessonRef, "No file attached");
+  const rubrics = P(params.rubrics, "No file attached");
+  const lessonUrl = P(params.lessonUrl, "");
+  const rubricsUrl = P(params.rubricsUrl, "");
 
   const [confirmVisible, setConfirmVisible] = useState(false);
 
-  function handleOpenFile(fileName: string) {
-    // UI-only for now
-    console.log("Open file:", fileName);
+  function handleOpenFile(url: string, name: string) {
+    if (url && url.startsWith("http")) {
+      Linking.openURL(url).catch(() => {
+        showAlert("Error", "Could not open file link.");
+      });
+    } else {
+      showAlert("No File", `No downloadable file found for "${name}".`);
+    }
   }
 
   function handleConfirmDelete() {
     setConfirmVisible(false);
-
-    // 🔴 IMPORTANT:
-    // Go back to essay.tsx and tell it which ID to remove
-    router.push({
-      pathname: "/(tabs)/classes/essay", // adjust if your path is different
+    router.replace({
+      pathname: "/(tabs)/classes/essay",
       params: {
         deletedId: id,
+        classId,
+        activityId,
         name: className,
         section,
         color: headerColor,
@@ -59,87 +64,87 @@ export default function EssayView() {
   }
 
   return (
-    <View style={styles.page}>
-      {/* HEADER */}
-      <View style={[styles.header, { backgroundColor: headerColor }, {paddingTop: insets.top + 20}]}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      <View style={[styles.header, { backgroundColor: headerColor, paddingTop: insets.top + 15 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={22} color="#fff" />
+          <Feather name="chevron-left" size={26} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{title}</Text>
+        <View style={styles.headerInfo}>
+          <Text style={styles.headerSmall}>{className} • {section}</Text>
+          <Text style={styles.headerBig} numberOfLines={1}>Review Rubric</Text>
+        </View>
+        <TouchableOpacity onPress={() => setConfirmVisible(true)} style={styles.headerActionBtn}>
+          <Feather name="trash-2" size={20} color="#fff" />
+        </TouchableOpacity>
       </View>
 
-      {/* SCROLL CONTENT */}
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.label}>Essay Grading Instructions</Text>
-        <View style={styles.box}>
-          <Text style={{ color: "#333" }}>
-            e.g., Use keywords such as "propagandist", "Ambeth Ocampo", and
-            "sketch". Refer to Lesson 3 of Noli Me Tangere. Partial credit
-            allowed for logical coherence. Bonus points for historical
-            connections to La Liga Filipina.
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.label}>Instructions</Text>
+            <Feather name="info" size={14} color="#ccc" />
+          </View>
+          <Text style={styles.titleText}>{title}</Text>
+          <View style={styles.divider} />
+          <Text style={styles.bodyText}>
+            This rubric specifies the criteria for grading this essay. The AI model will prioritize these instructions during the evaluation process.
           </Text>
         </View>
 
-        {/* Lesson Reference */}
-        <Text style={styles.label}>Lesson Reference</Text>
-        <TouchableOpacity
-          style={styles.inputLike}
-          activeOpacity={0.8}
-          onPress={() => handleOpenFile(lessonRef)}
-        >
-          <Ionicons name="document-attach-outline" size={16} color="#777" />
-          <TextInput editable={false} value={lessonRef} style={styles.roInput} />
-        </TouchableOpacity>
+        <View style={[styles.card, { marginTop: 25 }]}>
+          <Text style={styles.label}>Material Links</Text>
 
-        {/* Rubrics Criteria */}
-        <Text style={[styles.label, { marginTop: 12 }]}>Rubrics Criteria</Text>
-        <TouchableOpacity
-          style={styles.inputLike}
-          activeOpacity={0.8}
-          onPress={() => handleOpenFile(rubrics)}
-        >
-          <Ionicons name="document-attach-outline" size={16} color="#777" />
-          <TextInput editable={false} value={rubrics} style={styles.roInput} />
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.fileLink}
+            onPress={() => handleOpenFile(lessonUrl, "Lesson Reference")}
+          >
+            <View style={[styles.iconBox, { backgroundColor: '#f0f0ff' }]}>
+              <Feather name="book" size={20} color="#6c63ff" />
+            </View>
+            <View style={styles.fileInfo}>
+              <Text style={styles.fileLabel}>Lesson Reference</Text>
+              <Text style={styles.fileName} numberOfLines={1}>{lessonRef}</Text>
+            </View>
+            <Feather name="external-link" size={16} color="#ccc" />
+          </TouchableOpacity>
+
+          <View style={[styles.divider, { marginVertical: 15 }]} />
+
+          <TouchableOpacity
+            style={styles.fileLink}
+            onPress={() => handleOpenFile(rubricsUrl, "Score Rubrics")}
+          >
+            <View style={[styles.iconBox, { backgroundColor: '#f0fdf4' }]}>
+              <Feather name="list" size={20} color="#00b679" />
+            </View>
+            <View style={styles.fileInfo}>
+              <Text style={styles.fileLabel}>Score Rubrics</Text>
+              <Text style={styles.fileName} numberOfLines={1}>{rubrics}</Text>
+            </View>
+            <Feather name="external-link" size={16} color="#ccc" />
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
-      {/* FIXED BOTTOM DELETE BUTTON */}
-      <View style={styles.bottomContainer}>
-        <TouchableOpacity
-          style={styles.deleteBtn}
-          onPress={() => setConfirmVisible(true)}
-        >
-          <Text style={styles.deleteText}>Delete Instruction</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* CONFIRM DELETE MODAL */}
-      <Modal
-        visible={confirmVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setConfirmVisible(false)}
-      >
+      {/* Delete Confirmation Modal */}
+      <Modal visible={confirmVisible} transparent animationType="fade" onRequestClose={() => setConfirmVisible(false)}>
         <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setConfirmVisible(false)} />
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Delete Instruction?</Text>
-            <Text style={styles.modalBody}>
-              Are you sure you want to delete this instruction?
+            <View style={styles.warnIcon}>
+              <Feather name="alert-triangle" size={32} color="#ff3b30" />
+            </View>
+            <Text style={styles.modalTitle}>Delete Rubric?</Text>
+            <Text style={styles.modalSub}>
+              Are you sure you want to remove this grading instruction? This cannot be undone.
             </Text>
-
-            <View style={styles.modalActionsRow}>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.modalCancel]}
-                onPress={() => setConfirmVisible(false)}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setConfirmVisible(false)}>
+                <Text style={styles.cancelBtnText}>Keep it</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.modalDelete]}
-                onPress={handleConfirmDelete}
-              >
-                <Text style={styles.modalDeleteText}>Delete</Text>
+              <TouchableOpacity style={styles.deleteBtn} onPress={handleConfirmDelete}>
+                <Text style={styles.deleteBtnText}>Delete Forever</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -149,90 +154,37 @@ export default function EssayView() {
   );
 }
 
-const R = 12;
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#fff" },
+  container: { flex: 1, backgroundColor: "#f8f9fa" },
+  header: { paddingHorizontal: 20, paddingBottom: 25, flexDirection: "row", alignItems: "center", elevation: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
+  backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
+  headerInfo: { flex: 1, paddingHorizontal: 10 },
+  headerSmall: { color: "#fff", fontSize: 11, opacity: 0.8, fontWeight: '700', textTransform: 'uppercase' },
+  headerBig: { color: "#fff", fontSize: 18, fontWeight: "800" },
+  headerActionBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
 
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  backBtn: { padding: 10, marginLeft: -10 },
-  headerTitle: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  content: { padding: 20 },
+  card: { backgroundColor: '#fff', borderRadius: 24, padding: 24, elevation: 1, shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 15 },
+  cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+  label: { fontSize: 12, fontWeight: '800', color: '#bbb', textTransform: 'uppercase', letterSpacing: 1 },
+  titleText: { fontSize: 22, fontWeight: '800', color: '#111', marginBottom: 15 },
+  divider: { height: 1, backgroundColor: '#f0f0f0' },
+  bodyText: { fontSize: 16, color: '#666', lineHeight: 26, marginTop: 15 },
 
-  content: { padding: 16, paddingBottom: 100 },
+  fileLink: { flexDirection: 'row', alignItems: 'center' },
+  iconBox: { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  fileInfo: { flex: 1, marginLeft: 15 },
+  fileLabel: { fontSize: 11, fontWeight: '800', color: '#999', textTransform: 'uppercase', marginBottom: 2 },
+  fileName: { fontSize: 15, fontWeight: '700', color: '#333' },
 
-  label: { fontWeight: "800", color: "#444", marginBottom: 6 },
-  box: {
-    borderRadius: R,
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#E8E8E8",
-    padding: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-    marginBottom: 12,
-  },
-
-  inputLike: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    borderWidth: 1,
-    borderColor: "#E1E1E1",
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    height: 42,
-  },
-  roInput: { flex: 1, color: "#111" },
-
-  bottomContainer: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderColor: "#eee",
-    backgroundColor: "#fff",
-  },
-
-  deleteBtn: {
-    backgroundColor: "#D32F2F",
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  deleteText: { color: "#fff", fontWeight: "800" },
-
-  // modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    justifyContent: "center",
-    padding: 24,
-  },
-  modalCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-  },
-  modalTitle: { fontSize: 18, fontWeight: "700", marginBottom: 8 },
-  modalBody: { color: "#111", marginBottom: 18 },
-  modalActionsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  modalBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  modalCancel: { backgroundColor: "#eee",  borderWidth: 1,  borderColor: "#111",paddingVertical: 12, borderRadius: 12, elevation: 3, },
-  modalCancelText: { color: "#333", fontWeight: "700" },
-  modalDelete: { backgroundColor: "#D32F2F" },
-  modalDeleteText: { color: "#fff", fontWeight: "700" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "center", padding: 25 },
+  modalCard: { backgroundColor: "#fff", borderRadius: 28, padding: 30, alignItems: 'center', shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 30, elevation: 20 },
+  warnIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#fff5f5', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 22, fontWeight: "800", color: "#111", marginBottom: 12 },
+  modalSub: { fontSize: 15, color: '#888', textAlign: 'center', marginBottom: 30, lineHeight: 22 },
+  modalButtons: { flexDirection: 'row', gap: 12, width: '100%', justifyContent: 'center' },
+  cancelBtn: { flex: 1, paddingVertical: 16, borderRadius: 16, backgroundColor: '#f5f5f5', alignItems: 'center' },
+  cancelBtnText: { color: '#666', fontWeight: '800', fontSize: 15 },
+  deleteBtn: { flex: 1, paddingVertical: 16, borderRadius: 16, backgroundColor: '#ff3b30', alignItems: 'center' },
+  deleteBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 });

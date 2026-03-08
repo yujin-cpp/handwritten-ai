@@ -1,18 +1,21 @@
-// app/(tabs)/classes/essay.tsx
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo } from "react";
+import { onValue, push, ref, remove, set } from "firebase/database";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { auth, db } from "../../../firebase/firebaseConfig";
 
 const P = (v: string | string[] | undefined, fb = "") =>
-  Array.isArray(v) ? v[0] : v ?? fb;
+  Array.isArray(v) ? v[0] : (v ?? fb);
 
 type Instruction = {
   id: string;
@@ -21,239 +24,238 @@ type Instruction = {
   rubrics: string;
 };
 
-const DEFAULT_INSTRUCTION: Instruction = {
-  id: "1",
-  title: "Quiz 1 Essay Instructions",
-  lessonRef: "lesson1_noli_me_tangere.pdf",
-  rubrics: "Quiz1_Rubrics.pdf",
-};
-
 export default function EssayScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
 
-  const className = P(params.name, "BSCS-4B");
-  const section = P(params.section, "GEM14-M");
-  const headerColor = P(params.color, "#C17CEB");
+  const classId = P(params.classId);
+  const activityId = P(params.activityId);
+  const className = P(params.name, "Class");
+  const section = P(params.section, "Section");
+  const headerColor = P(params.color, "#00b679");
 
-  // from delete (essay-view.tsx)
   const deletedId = P(params.deletedId, "");
-
-  // from add new (essay-edit.tsx)
-  const newId = P(params.newId, "");
   const newTitle = P(params.newTitle, "");
   const newLessonRef = P(params.newLessonRef, "");
   const newRubrics = P(params.newRubrics, "");
 
-  const instructions = useMemo<Instruction[]>(() => {
-    let list: Instruction[] = [DEFAULT_INSTRUCTION];
+  const [instructions, setInstructions] = useState<Instruction[]>([]);
+  const [loading, setLoading] = useState(true);
 
-    // append newly added instruction if provided
-    if (newId) {
-      list.push({
-        id: newId,
-        title: newTitle || "Custom Essay Instruction",
-        lessonRef: newLessonRef || "lesson_reference.pdf",
-        rubrics: newRubrics || "rubrics.pdf",
-      });
-    }
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || !classId || !activityId) return;
 
-    // apply deletion if any
-    if (deletedId) {
-      list = list.filter((i) => i.id !== deletedId);
-    }
+    const instructionsRef = ref(db, `professors/${uid}/classes/${classId}/activities/${activityId}/essayInstructions`);
+    const unsubscribe = onValue(instructionsRef, (snapshot) => {
+      if (!snapshot.exists()) {
+        setInstructions([]);
+        setLoading(false);
+        return;
+      }
+      const data = snapshot.val();
+      const list = Object.keys(data).map((key) => ({
+        id: key,
+        title: data[key].title,
+        lessonRef: data[key].lessonRef,
+        rubrics: data[key].rubrics,
+      }));
+      setInstructions(list);
+      setLoading(false);
+    });
 
-    return list;
-  }, [deletedId, newId, newTitle, newLessonRef, newRubrics]);
+    return () => unsubscribe();
+  }, [classId, activityId]);
+
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || !classId || !activityId) return;
+
+    const syncChanges = async () => {
+      if (newTitle) {
+        try {
+          const instructionsRef = ref(db, `professors/${uid}/classes/${classId}/activities/${activityId}/essayInstructions`);
+          const newRef = push(instructionsRef);
+          await set(newRef, {
+            title: newTitle,
+            lessonRef: newLessonRef || "No lesson attached",
+            rubrics: newRubrics || "No rubrics attached",
+          });
+          router.setParams({ newId: "", newTitle: "", newLessonRef: "", newRubrics: "" });
+        } catch (e) {
+          console.error("Failed to add instruction", e);
+        }
+      }
+
+      if (deletedId) {
+        try {
+          const itemRef = ref(db, `professors/${uid}/classes/${classId}/activities/${activityId}/essayInstructions/${deletedId}`);
+          await remove(itemRef);
+          router.setParams({ deletedId: "" });
+        } catch (e) {
+          console.error("Failed to delete instruction", e);
+        }
+      }
+    };
+
+    syncChanges();
+  }, [newTitle, deletedId, classId, activityId, newLessonRef, newRubrics, router]);
 
   return (
-    <View style={styles.page}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: headerColor }, {paddingTop: insets.top + 20}]}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      <View style={[styles.header, { backgroundColor: headerColor, paddingTop: insets.top + 15 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={22} color="#fff" />
+          <Feather name="chevron-left" size={26} color="#fff" />
         </TouchableOpacity>
-        <View>
-          <Text style={styles.headerSmall}>{className}</Text>
-          <Text style={styles.headerBig}>{section}</Text>
+        <View style={styles.headerInfo}>
+          <Text style={styles.headerSmall}>{className} • {section}</Text>
+          <Text style={styles.headerBig} numberOfLines={1}>Essay Rubrics</Text>
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Title row */}
-        <View style={styles.titleRow}>
-          <Text style={styles.title}>Essay Instructions</Text>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.infoSection}>
+          <Text style={styles.sectionLabel}>Grading Method</Text>
+          <Text style={styles.sectionTitle}>Subjective Rubrics</Text>
+          <Text style={styles.sectionDesc}>
+            Define specific criteria and lesson references for essay questions. Our AI will grade based on these instructions.
+          </Text>
         </View>
 
-        {/* Instruction cards */}
-        {instructions.length === 0 ? (
-          <Text style={styles.emptyText}>
-            No essay instructions yet. Add one below.
-          </Text>
-        ) : (
-          instructions.map((inst) => (
-            <TouchableOpacity
-              key={inst.id}
-              activeOpacity={0.9}
-              style={styles.card}
-              onPress={() =>
-                router.push({
-                  pathname: "/(tabs)/classes/essay-view",
-                  params: {
-                    id: inst.id,
-                    name: className,
-                    section,
-                    color: headerColor,
-                    title: inst.title,
-                    lessonRef: inst.lessonRef,
-                    rubrics: inst.rubrics,
-                  },
-                })
-              }
-            >
-              <View style={styles.cardLeft}>
-                <Ionicons
-                  name="document-text-outline"
-                  size={22}
-                  color="#01B468"
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.cardTitle} numberOfLines={1}>
-                    {inst.title}
-                  </Text>
-                  <Text style={styles.cardSub} numberOfLines={1}>
-                    Lesson: {inst.lessonRef}
-                  </Text>
-                </View>
+        <View style={styles.listSection}>
+          <View style={styles.listHeaderRow}>
+            <Text style={styles.listHeader}>ACTIVE INSTRUCTIONS</Text>
+            <View style={[styles.badge, { backgroundColor: headerColor + '15' }]}>
+              <Text style={[styles.badgeText, { color: headerColor }]}>{instructions.length}</Text>
+            </View>
+          </View>
+
+          {loading ? (
+            <ActivityIndicator size="large" color={headerColor} style={{ marginTop: 40 }} />
+          ) : instructions.length === 0 ? (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIconBox}>
+                <Feather name="file-text" size={40} color="#ddd" />
               </View>
-
-              <Ionicons name="chevron-forward" size={18} color="#9AA0A6" />
-            </TouchableOpacity>
-          ))
-        )}
-
-        {/* Spacer so button feels lower */}
-        <View style={{ height: 40 }} />
-
-        {/* Add New Instruction (KEEP) */}
-        <View style={styles.addWrap}>
-          <TouchableOpacity
-            style={styles.addCircle}
-            onPress={() =>
-              router.push({
-                pathname: "/(tabs)/classes/essay-edit",
-                params: {
-                  name: className,
-                  section,
-                  color: headerColor,
-                },
-              })
-            }
-          >
-            <Ionicons name="add" size={22} color="#0B8E62" />
-          </TouchableOpacity>
-          <Text style={styles.addLabel}>
-            Add New{"\n"}Instruction
-          </Text>
+              <Text style={styles.emptyText}>No rubrics configured yet.</Text>
+            </View>
+          ) : (
+            <View style={styles.instructionList}>
+              {instructions.map((inst) => (
+                <TouchableOpacity
+                  key={inst.id}
+                  activeOpacity={0.7}
+                  style={styles.instCard}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(tabs)/classes/essay-view",
+                      params: {
+                        id: inst.id,
+                        name: className,
+                        section,
+                        color: headerColor,
+                        title: inst.title,
+                        lessonRef: inst.lessonRef,
+                        rubrics: inst.rubrics,
+                        classId,
+                        activityId,
+                      },
+                    })
+                  }
+                >
+                  <View style={[styles.iconBox, { backgroundColor: headerColor + '10' }]}>
+                    <Feather name="book-open" size={20} color={headerColor} />
+                  </View>
+                  <View style={styles.instInfo}>
+                    <Text style={styles.instTitle} numberOfLines={1}>{inst.title}</Text>
+                    <Text style={styles.instSub} numberOfLines={1}>Ref: {inst.lessonRef}</Text>
+                  </View>
+                  <Feather name="chevron-right" size={18} color="#ccc" />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
+
+        <TouchableOpacity
+          style={styles.addBtn}
+          onPress={() =>
+            router.push({
+              pathname: "/(tabs)/classes/essay-edit",
+              params: {
+                name: className,
+                section,
+                color: headerColor,
+                classId,
+                activityId,
+              },
+            })
+          }
+        >
+          <View style={[styles.addIconBox, { backgroundColor: headerColor }]}>
+            <Feather name="plus" size={24} color="#fff" />
+          </View>
+          <Text style={styles.addBtnText}>Add New Instruction</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
 }
 
-const R = 12;
-
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#fff" },
+  container: { flex: 1, backgroundColor: "#f8f9fa" },
+  header: { paddingHorizontal: 20, paddingBottom: 25, flexDirection: "row", alignItems: "center", elevation: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
+  backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
+  headerInfo: { flex: 1, paddingHorizontal: 10 },
+  headerSmall: { color: "#fff", fontSize: 11, opacity: 0.8, fontWeight: '700', textTransform: 'uppercase' },
+  headerBig: { color: "#fff", fontSize: 18, fontWeight: "800" },
 
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  backBtn: { padding: 10, marginLeft: -10 },
-  headerSmall: { color: "#fff", fontSize: 14, opacity: 0.85 },
-  headerBig: { color: "#fff", fontSize: 18, fontWeight: "bold" },
+  content: { padding: 20 },
+  infoSection: { marginBottom: 30, paddingHorizontal: 5 },
+  sectionLabel: { fontSize: 13, fontWeight: '700', color: '#bbb', textTransform: 'uppercase', marginBottom: 8 },
+  sectionTitle: { fontSize: 24, fontWeight: '800', color: '#111', marginBottom: 12 },
+  sectionDesc: { fontSize: 15, color: '#666', lineHeight: 22 },
 
-  content: {
+  listSection: { paddingHorizontal: 5, marginBottom: 30 },
+  listHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  listHeader: { fontSize: 12, fontWeight: '800', color: '#bbb', letterSpacing: 1 },
+  badge: { marginLeft: 10, paddingHorizontal: 10, paddingVertical: 2, borderRadius: 10 },
+  badgeText: { fontSize: 12, fontWeight: '800' },
+
+  emptyState: { alignItems: 'center', paddingVertical: 40 },
+  emptyIconBox: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, marginBottom: 15 },
+  emptyText: { fontSize: 15, color: '#bbb', fontWeight: '500' },
+
+  instructionList: { gap: 12 },
+  instCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
     padding: 16,
-    paddingBottom: 40,
-  },
-
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-  title: {
-    color: "#01B468",
-    fontSize: 18,
-    fontWeight: "800",
-  },
-
-  emptyText: {
-    color: "#777",
-    fontStyle: "italic",
-    marginBottom: 16,
-  },
-
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: R,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-     marginVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: "#EBEBEB",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    borderColor: '#f0f0f0',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+  },
+  iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  instInfo: { flex: 1, marginLeft: 15 },
+  instTitle: { fontSize: 16, fontWeight: '700', color: '#222' },
+  instSub: { fontSize: 13, color: '#999', marginTop: 2 },
 
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cardLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#222",
-  },
-  cardSub: {
-    fontSize: 12,
-    color: "#777",
-    marginTop: 2,
-  },
-
-  addWrap: {
-    alignItems: "center",
-    marginTop: 24,
-  },
-  addCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#E8F7F0",
+  addBtn: {
+    alignItems: 'center',
+    marginTop: 10,
+    padding: 20,
+    backgroundColor: '#fff',
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: "#BDE6D2",
-    alignItems: "center",
-    justifyContent: "center",
+    borderColor: '#f0f0f0',
+    borderStyle: 'dashed',
   },
-  addLabel: {
-    marginTop: 8,
-    color: "#111",
-    fontWeight: "700",
-    textAlign: "center",
-    lineHeight: 20,
-  },
+  addIconBox: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  addBtnText: { fontSize: 14, fontWeight: '700', color: '#111' },
 });

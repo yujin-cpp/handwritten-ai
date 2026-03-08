@@ -1,180 +1,102 @@
-// app/(tabs)/capture/image-captured.tsx
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React from "react";
 import {
-  Alert,
   Image,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { showAlert } from "../../../utils/alert";
+
+// 1. Helper to safely extract string params
+const P = (v: string | string[] | undefined, fb = "") =>
+  Array.isArray(v) ? v[0] : (v ?? fb);
 
 export default function ImageCaptured() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
 
-  // 1. Capture Context IDs (Crucial for the final step)
-  const { classId, activityId, studentId } = params;
+  const classId = P(params.classId);
+  const activityId = P(params.activityId);
+  const studentId = P(params.studentId);
+  const imageUri = P(params.imageUri);
 
-  // 2. Parse uris array safely
-  const images: string[] = useMemo(() => {
-    const raw = params.uris;
-    const jsonStr = Array.isArray(raw) ? raw[0] : raw;
-    if (!jsonStr) return [];
-    try {
-      const parsed = JSON.parse(jsonStr);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }, [params.uris]);
-
-  const initialIndex = useMemo(() => {
-    const raw = params.index;
-    const indexStr = Array.isArray(raw) ? raw[0] : raw;
-    const idx = indexStr ? parseInt(indexStr, 10) : 0;
-    if (Number.isNaN(idx)) return 0;
-    return Math.min(Math.max(idx, 0), Math.max(images.length - 1, 0));
-  }, [params.index, images.length]);
-
-  const [currentIndex, setCurrentIndex] = useState(initialIndex);
-
-  const hasImages = images.length > 0;
-  const currentUri = hasImages ? images[currentIndex] : "";
-
-  const goPrev = () => {
-    if (currentIndex > 0) setCurrentIndex((i) => i - 1);
-  };
-  const goNext = () => {
-    if (currentIndex < images.length - 1) setCurrentIndex((i) => i + 1);
-  };
-
-  const pageText = hasImages 
-    ? `Page ${currentIndex + 1} of ${images.length}` 
-    : "No Images";
-
-  // --- ACTIONS ---
-
-  // A. Retake: Remove current image -> Go back to Camera
   const handleRetake = () => {
-    const newImages = images.filter((_, i) => i !== currentIndex);
-    router.push({
-      pathname: "/capture/photo-taking",
-      params: { 
-        uris: JSON.stringify(newImages),
-        classId, activityId, studentId 
-      },
-    });
+    router.back();
   };
 
-  // B. Take Another: Keep images -> Go back to Camera
-  const handleAddMore = () => {
-    router.push({
-      pathname: "/capture/photo-taking",
-      params: { 
-        uris: JSON.stringify(images),
-        classId, activityId, studentId 
-      },
-    });
-  };
-
-  // C. Proceed: Pass everything to Processing
   const handleProceed = () => {
-    if (images.length === 0) {
-        Alert.alert("No Images", "Please take at least one photo.");
-        return;
+    if (!imageUri) {
+      showAlert("Error", "No image data found.");
+      return;
     }
+
+    if (!classId || !activityId || !studentId || classId === "0" || activityId === "0") {
+      showAlert(
+        "Missing Data",
+        "Class or Student information was lost. Please go back and select again.",
+      );
+      return;
+    }
+
     router.push({
-      pathname: "/capture/processing", // Make sure you create this file next!
-      params: { 
-        uris: JSON.stringify(images),
-        classId, activityId, studentId 
-      },
+      pathname: "/(tabs)/capture/processing",
+      params: { imageUri, classId, activityId, studentId },
     });
   };
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <LinearGradient colors={["#00b679", "#009e60"]}  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.header, {paddingTop: insets.top + 20}]}>
+      <LinearGradient
+        colors={["#00b679", "#009e60"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={[styles.header, { paddingTop: insets.top + 20 }]}
+      >
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={22} color="#fff" />
+          <Feather name="x" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Image Captured</Text>
-        <View style={{ width: 22 }} />
+        <Text style={styles.headerTitle}>Review Scan</Text>
+        <View style={{ width: 24 }} />
       </LinearGradient>
 
-      {/* Page label */}
-      <View style={styles.topRow}>
-        <Text style={styles.pageLabel}>{pageText}</Text>
-      </View>
-
-      {/* Image viewer */}
-      <View style={styles.imageRow}>
-        {/* Left arrow */}
-        <TouchableOpacity
-          disabled={currentIndex === 0 || !hasImages}
-          onPress={goPrev}
-          style={[
-            styles.arrowBtn,
-            (currentIndex === 0 || !hasImages) && { opacity: 0.3 },
-          ]}
-        >
-          <Ionicons name="chevron-back" size={22} color="#555" />
-        </TouchableOpacity>
-
-        <View style={styles.imageFrame}>
-          {currentUri ? (
-            <Image source={{ uri: currentUri }} style={styles.capturedImage} />
+      <View style={styles.content}>
+        <View style={styles.imageContainer}>
+          {imageUri ? (
+            <Image
+              source={{ uri: imageUri }}
+              style={styles.image}
+              resizeMode="contain"
+            />
           ) : (
-            <View style={{ alignItems: "center", gap: 10 }}>
-                <Ionicons name="image-outline" size={70} color="#888" />
-                <Text style={{ color: "#999" }}>No image selected</Text>
+            <View style={styles.noImage}>
+              <Feather name="image" size={40} color="#333" />
+              <Text style={{ color: "#666", marginTop: 10 }}>No Image Captured</Text>
             </View>
           )}
         </View>
 
-        {/* Right arrow */}
-        <TouchableOpacity
-          disabled={currentIndex === images.length - 1 || images.length <= 1}
-          onPress={goNext}
-          style={[
-            styles.arrowBtn,
-            (currentIndex === images.length - 1 || images.length <= 1) && {
-              opacity: 0.3,
-            },
-          ]}
-        >
-          <Ionicons name="chevron-forward" size={22} color="#555" />
-        </TouchableOpacity>
+        <View style={styles.hintContainer}>
+          <Feather name="info" size={16} color="#00b679" style={{ marginRight: 8 }} />
+          <Text style={styles.hint}>
+            Check if all handwriting is clear and readable.
+          </Text>
+        </View>
       </View>
 
-      {/* Buttons */}
-      <View style={styles.buttons}>
-        <TouchableOpacity
-          style={styles.outlineBtn}
-          onPress={handleRetake}
-        >
-          <Text style={styles.outlineText}>Retake Photo</Text>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
+        <TouchableOpacity style={styles.retakeBtn} onPress={handleRetake}>
+          <Text style={styles.retakeText}>Retake</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.outlineBtn}
-          onPress={handleAddMore}
-        >
-          <Text style={styles.outlineText}>Take another Photo</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.primaryBtn}
-          onPress={handleProceed}
-        >
-          <Text style={styles.primaryText}>Upload and Proceed</Text>
+        <TouchableOpacity style={styles.confirmBtn} onPress={handleProceed}>
+          <Text style={styles.confirmText}>Proceed</Text>
+          <Feather name="arrow-right" size={18} color="#fff" style={{ marginLeft: 8 }} />
         </TouchableOpacity>
       </View>
     </View>
@@ -182,78 +104,104 @@ export default function ImageCaptured() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+  container: { flex: 1, backgroundColor: "#000" },
+
   header: {
+    paddingHorizontal: 18,
     paddingTop: 45,
-    paddingBottom: 12,
-    paddingHorizontal: 16,
+    paddingBottom: 25,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   backBtn: { padding: 4 },
-  headerTitle: { color: "#fff", fontSize: 20, fontWeight: "700", flex: 1 },
+  headerTitle: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+    flex: 1,
+    textAlign: "center",
+  },
 
-  topRow: {
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    alignItems: "center"
-  },
-  pageLabel: { fontWeight: "600", color: "#222" },
-
-  imageRow: {
-    marginTop: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 16,
-  },
-  arrowBtn: {
-    padding: 10,
-  },
-  imageFrame: {
-    width: "70%",
-    height: 350, // Made slightly taller for better visibility
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    backgroundColor: "#f9f9f9",
+  content: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    overflow: "hidden",
-    marginHorizontal: 8,
+    paddingHorizontal: 15,
+    paddingTop: 100,
   },
-  capturedImage: {
+  imageContainer: {
     width: "100%",
     height: "100%",
-    resizeMode: "contain",
+    maxHeight: '75%',
+    borderRadius: 24,
+    overflow: "hidden",
+    backgroundColor: "#111",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#222",
+  },
+  image: {
+    width: "100%",
+    height: "100%",
+  },
+  noImage: { alignItems: 'center' },
+  hintContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 25,
+    backgroundColor: 'rgba(0,182,121,0.1)',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  hint: {
+    color: "#00b679",
+    fontSize: 13,
+    fontWeight: '500',
   },
 
-  buttons: {
-    marginTop: 30,
-    paddingHorizontal: 20,
+  footer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 25,
+    paddingTop: 20,
+    backgroundColor: "#000",
   },
-  outlineBtn: {
-    borderWidth: 1,
-    borderColor: "#00b679",
-    borderRadius: 10,
-    paddingVertical: 14,
+  retakeBtn: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "#333",
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  retakeText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  confirmBtn: {
+    flex: 1.5,
+    backgroundColor: "#00b679",
+    paddingVertical: 16,
+    borderRadius: 16,
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 10,
+    justifyContent: 'center',
+    marginLeft: 10,
+    elevation: 4,
   },
-  outlineText: {
-    color: "#000",
-    fontWeight: "700",
-  },
-  primaryBtn: {
-    backgroundColor: "#CCFFE1",
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: "center",
-    marginTop: 10
-  },
-  primaryText: {
-    color: "#000",
+  confirmText: {
+    color: "#fff",
+    fontSize: 16,
     fontWeight: "700",
   },
 });

@@ -1,8 +1,6 @@
-// app/(tabs)/capture/photo-taking.tsx
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
-import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -13,84 +11,67 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { showAlert } from "../../../utils/alert";
 
 export default function PhotoTaking() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
 
-  const cameraRef = useRef<any>(null);
+  const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [isReady, setIsReady] = useState(false);
-
-  // 1. Robust Helper to parse URIs safely
-  const getExistingUris = (): string[] => {
-    try {
-      if (!params.uris) return [];
-      
-      const raw = params.uris;
-      // If it's already an array (rare but possible in some routers), return it
-      if (Array.isArray(raw)) return raw as string[];
-      
-      // If it's a string, try parsing it
-      if (typeof raw === 'string') {
-        return JSON.parse(raw);
-      }
-      return [];
-    } catch (e) {
-      console.warn("Failed to parse existing URIs", e);
-      return [];
-    }
-  };
+  const [facing, setFacing] = useState<"back" | "front">("back");
 
   // Ask for camera permission when screen loads
   useEffect(() => {
     if (permission && !permission.granted) {
       requestPermission();
     }
-  }, [permission]);
+  }, [permission, requestPermission]);
 
-  // 2. Updated Navigation Logic
-  const goToImageCaptured = (newUri: string) => {
-    const existing = getExistingUris();
-    const updated = [...existing, newUri];
-
+  // NAVIGATION: Go to Review Screen
+  const goToImageCaptured = (uri: string) => {
     router.push({
-      pathname: "/capture/image-captured",
-      params: { 
-        // Important: Re-stringify the array so it passes correctly
-        uris: JSON.stringify(updated), 
-        index: updated.length - 1,
-        // Pass forward IDs if they exist (so we don't lose context)
+      pathname: "/(tabs)/capture/image-captured",
+      params: {
+        imageUri: uri,
         classId: params.classId,
         activityId: params.activityId,
-        studentId: params.studentId
+        studentId: params.studentId,
       },
     });
   };
 
-  // Take a photo using the camera
+  // 1. Take a photo using the camera
   const handleTakePicture = async () => {
     if (!cameraRef.current) return;
 
     try {
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.8,
-        skipProcessing: true, // Faster capture
+        base64: false,
+        skipProcessing: true,
       });
-      goToImageCaptured(photo.uri);
+
+      if (photo?.uri) {
+        goToImageCaptured(photo.uri);
+      }
     } catch (err) {
       console.log("Error taking photo:", err);
+      showAlert("Error", "Failed to take photo.");
     }
   };
 
-  // Pick an image from the gallery
+  // 2. Pick an image from the gallery
   const handlePickFromGallery = async () => {
-    const { status } =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (status !== "granted") {
-      alert("Permission to access gallery is required.");
+      showAlert(
+        "Permission Required",
+        "We need access to your gallery to upload exams.",
+      );
       return;
     }
 
@@ -115,10 +96,14 @@ export default function PhotoTaking() {
   if (!permission.granted) {
     return (
       <View style={styles.centered}>
-        <Text style={{ color: "#000", marginBottom: 10 }}>
-          We need camera access to continue.
+        <Feather name="camera-off" size={60} color="#ccc" style={{ marginBottom: 20 }} />
+        <Text style={{ color: "#666", marginBottom: 20, textAlign: 'center', paddingHorizontal: 40 }}>
+          Camera access is required to scan and grade exam papers.
         </Text>
-        <TouchableOpacity style={styles.permissionBtn} onPress={requestPermission}>
+        <TouchableOpacity
+          style={styles.permissionBtn}
+          onPress={requestPermission}
+        >
           <Text style={styles.permissionText}>Grant Permission</Text>
         </TouchableOpacity>
       </View>
@@ -127,43 +112,54 @@ export default function PhotoTaking() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={["#00b679", "#009e60"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.header, {paddingTop: insets.top + 20}]}>
+      {/* Header Over Camera */}
+      <View style={[styles.header, { paddingTop: insets.top + 15 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={22} color="#fff" />
+          <Feather name="x" size={26} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Photo Taking</Text>
-        <View style={{ width: 22 }} />
-      </LinearGradient>
+        <Text style={styles.headerTitle}>Position Paper</Text>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => setFacing((f) => (f === "back" ? "front" : "back"))}
+        >
+          <Feather name="refresh-cw" size={22} color="#fff" />
+        </TouchableOpacity>
+      </View>
 
       {/* Real Camera Preview */}
       <CameraView
         ref={cameraRef}
         style={styles.camera}
-        facing="back"
+        facing={facing}
         onCameraReady={() => setIsReady(true)}
       />
 
-      <Text style={styles.hintText}>
-        Center the paper and make sure the photo is clear!
-      </Text>
+      {/* Overlay Guidelines */}
+      <View style={styles.overlay}>
+        <View style={styles.scanFrame} />
+        <Text style={styles.hintText}>
+          Align the exam paper within the frame
+        </Text>
+      </View>
 
       {/* Bottom controls */}
       <View style={styles.bottomBar}>
-        <View style={{ width: 40 }} />
-
-        {/* Shutter button */}
         <TouchableOpacity
-          style={[styles.shutterOuter, !isReady && { opacity: 0.4 }]}
+          style={styles.sideBtn}
+          onPress={handlePickFromGallery}
+        >
+          <Feather name="image" size={24} color="#fff" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.shutterOuter, !isReady && { opacity: 0.5 }]}
           disabled={!isReady}
           onPress={handleTakePicture}
         >
           <View style={styles.shutterInner} />
         </TouchableOpacity>
 
-        {/* Gallery button */}
-        <TouchableOpacity style={styles.galleryBtn} onPress={handlePickFromGallery}>
-          <Ionicons name="images-outline" size={26} color="#00b679" />
-        </TouchableOpacity>
+        <View style={{ width: 50 }} />
       </View>
     </View>
   );
@@ -174,65 +170,109 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#fff",
   },
-  container: { flex: 1, backgroundColor: "#fff" },
+  container: { flex: 1, backgroundColor: "#000" },
 
   header: {
-    paddingHorizontal: 18,
-    paddingTop: 45,
-    paddingBottom: 25,
+    paddingHorizontal: 20,
     flexDirection: "row",
     alignItems: "center",
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    paddingBottom: 15,
   },
-  
-  backBtn: { padding: 4 },
-  headerTitle: { color: "#fff", fontSize: 20, fontWeight: "700", flex: 1 },
+
+  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "600",
+    flex: 1,
+    textAlign: "center",
+  },
 
   camera: {
     flex: 1,
-    margin: 16,
-    borderRadius: 12,
-    overflow: "hidden",
   },
 
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  scanFrame: {
+    width: '85%',
+    height: '65%',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.5)',
+    borderRadius: 20,
+    borderStyle: 'dashed',
+  },
   hintText: {
+    position: 'absolute',
+    bottom: 160,
     textAlign: "center",
-    marginBottom: 10,
-    color: "#666",
-    fontSize: 12,
+    color: "#fff",
+    fontSize: 14,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    overflow: "hidden",
+    fontWeight: '500',
   },
 
   bottomBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingBottom: 50,
+    paddingTop: 30,
     paddingHorizontal: 40,
-    paddingBottom: 30,
+    backgroundColor: "black",
   },
 
   shutterOuter: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    borderWidth: 4,
-    borderColor: "#00b679",
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 5,
+    borderColor: "rgba(255,255,255,0.3)",
     alignItems: "center",
     justifyContent: "center",
   },
   shutterInner: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "#00b679",
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#fff",
   },
 
-  galleryBtn: { width: 40, alignItems: "center" },
+  sideBtn: {
+    width: 50,
+    height: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 25,
+  },
 
   permissionBtn: {
     backgroundColor: "#00b679",
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 30,
+    borderRadius: 12,
+    marginTop: 10,
   },
-  permissionText: { color: "#fff", fontSize: 16 },
+  permissionText: { color: "#fff", fontSize: 16, fontWeight: "700" },
 });

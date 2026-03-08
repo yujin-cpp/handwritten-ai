@@ -1,9 +1,8 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -14,10 +13,9 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-// 🔹 IMPORTS for Firebase
 import { auth } from "../../../firebase/firebaseConfig";
 import { createClass } from "../../../services/class.service";
+import { showAlert } from "../../../utils/alert";
 
 const YEARS = ["A.Y. 2025 - 2026", "A.Y. 2026 - 2027", "A.Y. 2027 - 2028"];
 const SWATCHES = [
@@ -37,26 +35,22 @@ export default function AddClass() {
   const [theme, setTheme] = useState<string>(SWATCHES[0]);
   const [themeModal, setThemeModal] = useState(false);
   const [yearOpen, setYearOpen] = useState(false);
-  
-  // 🔹 Loading State
   const [loading, setLoading] = useState(false);
 
   async function onCreate() {
     if (!name || !section) {
-      Alert.alert("Missing Info", "Please fill in class name and section.");
+      showAlert("Missing Info", "Please fill in class name and section.");
       return;
     }
 
     const uid = auth.currentUser?.uid;
     if (!uid) {
-        Alert.alert("Error", "You must be logged in.");
-        return;
+      showAlert("Error", "You must be logged in.");
+      return;
     }
 
     try {
       setLoading(true);
-      
-      // 🔹 Call the service (this uses the nested path we fixed earlier)
       const newClassId = await createClass(uid, {
         className: name,
         section: section,
@@ -67,119 +61,235 @@ export default function AddClass() {
       router.replace({
         pathname: "/(tabs)/classes/classinformation",
         params: {
-            classId: newClassId,
-            name: name,
-            section: section,
-            color: theme,
-            academicYear: year,
+          classId: newClassId,
+          name: name,
+          section: section,
+          color: theme,
+          academicYear: year,
         },
-    });
-      
+      });
+
     } catch (error: any) {
-      Alert.alert("Error", error.message);
+      showAlert("Error", error.message);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#fff" }}>
-      <LinearGradient colors={["#00b679", "#009e60"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.header, {paddingTop: insets.top + 20}]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={20} color="#fff" />
+    <View style={styles.page}>
+      <LinearGradient
+        colors={["#00b679", "#009e60"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={[styles.header, { paddingTop: insets.top + 20 }]}
+      >
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Feather name="chevron-left" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Add Class</Text>
+        <Text style={styles.headerTitle}>New Class</Text>
       </LinearGradient>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.sectionTitle}>Class Details</Text>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Basic Information</Text>
 
-        <TextInput style={styles.input} placeholder="Class Name" value={name} onChangeText={setName} />
-        <TextInput style={styles.input} placeholder="Section" value={section} onChangeText={setSection} />
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Class Name</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. Introduction to AI"
+              value={name}
+              onChangeText={setName}
+              placeholderTextColor="#999"
+            />
+          </View>
 
-        <Pressable style={styles.selectInput} onPress={() => setYearOpen(prev => !prev)}>
-          <Text style={{ color: year ? "#222" : "#999" }}>{year}</Text>
-          <Ionicons name="chevron-down" size={18} color="#666" />
-        </Pressable>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Section / Block</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. BSCS 4A"
+              value={section}
+              onChangeText={setSection}
+              placeholderTextColor="#999"
+            />
+          </View>
 
-        {yearOpen &&
-          YEARS.map(y => (
-            <Pressable key={y} style={styles.yearOption} onPress={() => { setYear(y); setYearOpen(false); }}>
-              <Text>{y}</Text>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Academic Year</Text>
+            <Pressable style={styles.selectInput} onPress={() => setYearOpen(!yearOpen)}>
+              <Text style={{ color: year ? "#333" : "#999", fontWeight: '500' }}>{year}</Text>
+              <Feather name={yearOpen ? "chevron-up" : "chevron-down"} size={18} color="#666" />
             </Pressable>
-          ))}
 
-        <Text style={[styles.sectionTitle, { marginTop: 18 }]}>Choose class theme:</Text>
-
-        <View style={styles.swatchRow}>
-          {SWATCHES.slice(0, 5).map(s => (
-            <TouchableOpacity key={s} style={[styles.swatch, { backgroundColor: s, borderWidth: theme === s ? 3 : 0 }]} onPress={() => setTheme(s)} />
-          ))}
-          <TouchableOpacity style={styles.selectThemeBtn} onPress={() => setThemeModal(true)}>
-            <Ionicons name="color-palette-outline" size={20} color="#333" />
-          </TouchableOpacity>
+            {yearOpen && (
+              <View style={styles.yearDropdown}>
+                {YEARS.map(y => (
+                  <TouchableOpacity
+                    key={y}
+                    style={[styles.yearOption, year === y && styles.yearOptionSelected]}
+                    onPress={() => { setYear(y); setYearOpen(false); }}
+                  >
+                    <Text style={[styles.yearOptionText, year === y && { color: '#00b679', fontWeight: '700' }]}>{y}</Text>
+                    {year === y && <Feather name="check" size={16} color="#00b679" />}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
         </View>
 
-        {/* 🔹 Updated Button with Loading State */}
-        <TouchableOpacity 
-          style={[styles.createBtn, loading && { opacity: 0.7 }]} 
+        <View style={[styles.card, { marginTop: 20 }]}>
+          <Text style={styles.sectionTitle}>Appearance</Text>
+          <Text style={styles.label}>Class Theme Color</Text>
+
+          <View style={styles.swatchRow}>
+            {SWATCHES.slice(0, 4).map(s => (
+              <TouchableOpacity
+                key={s}
+                style={[styles.swatch, { backgroundColor: s }]}
+                onPress={() => setTheme(s)}
+              >
+                {theme === s && <Feather name="check" size={20} color="#fff" />}
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={styles.moreColorsBtn} onPress={() => setThemeModal(true)}>
+              <Feather name="plus" size={20} color="#666" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.createBtn, loading && { opacity: 0.7 }]}
           onPress={onCreate}
           disabled={loading}
         >
-          <Text style={styles.createText}>{loading ? "Creating..." : "Create"}</Text>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Text style={styles.createText}>Create Class</Text>
+              <Feather name="arrow-right" size={18} color="#fff" style={{ marginLeft: 8 }} />
+            </>
+          )}
         </TouchableOpacity>
       </ScrollView>
-      
-      {/* ... (Theme Modal remains the same) ... */}
-       <Modal visible={themeModal} animationType="slide">
-        {/* ... modal content ... */}
-          <LinearGradient colors={["#0EA47A", "#17C08A"]} style={styles.header}>
-             {/* ... */}
+
+      {/* Theme Picker Modal */}
+      <Modal visible={themeModal} animationType="slide">
+        <View style={{ flex: 1, backgroundColor: "#f8f9fa" }}>
+          <LinearGradient
+            colors={["#00b679", "#009e60"]}
+            style={[styles.header, { paddingTop: insets.top + 20 }]}
+          >
+            <TouchableOpacity onPress={() => setThemeModal(false)} style={styles.backBtn}>
+              <Feather name="x" size={24} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Select Theme</Text>
           </LinearGradient>
-          {/* ... */}
-       </Modal>
+
+          <ScrollView contentContainerStyle={styles.themeGrid}>
+            {SWATCHES.map(s => (
+              <TouchableOpacity
+                key={s}
+                style={[styles.themeSwatch, { backgroundColor: s }]}
+                onPress={() => { setTheme(s); setThemeModal(false); }}
+              >
+                {theme === s && <Feather name="check" size={24} color="#fff" />}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          <View style={[styles.modalFooter, { paddingBottom: insets.bottom + 20 }]}>
+            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setThemeModal(false)}>
+              <Text style={styles.modalCloseText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { paddingTop: 44, paddingHorizontal: 16, paddingBottom: 14, flexDirection: "row", alignItems: "center", gap: 12 },
-  headerTitle: { color: "#fff", fontWeight: "700", fontSize: 18 },
+  page: { flex: 1, backgroundColor: "#f8f9fa" },
+  header: { paddingHorizontal: 18, paddingBottom: 20, flexDirection: "row", alignItems: "center" },
+  backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
+  headerTitle: { color: "#fff", fontWeight: "700", fontSize: 20, flex: 1 },
 
-  content: { padding: 18, paddingBottom: 40 },
-  sectionTitle: { fontWeight: "700", color: "#0C6B45", marginBottom: 10 },
+  content: { padding: 20, paddingBottom: 40 },
+  card: { backgroundColor: '#fff', borderRadius: 20, padding: 20, elevation: 2, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
+  sectionTitle: { fontSize: 16, fontWeight: "700", color: "#111", marginBottom: 20 },
 
+  inputGroup: { marginBottom: 20 },
+  label: { fontSize: 13, fontWeight: "600", color: "#666", marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
   input: {
+    backgroundColor: "#fafafa",
     borderWidth: 1,
-    borderColor: "#e6e6e6",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    backgroundColor: "#fff",
+    borderColor: "#f0f0f0",
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 15,
+    color: "#333",
   },
 
   selectInput: {
+    backgroundColor: "#fafafa",
     borderWidth: 1,
-    borderColor: "#e6e6e6",
-    borderRadius: 8,
-    padding: 12,
+    borderColor: "#f0f0f0",
+    borderRadius: 12,
+    padding: 14,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
+  yearDropdown: {
+    marginTop: 8,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+    overflow: 'hidden',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+  },
+  yearOption: {
+    padding: 15,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f8f8f8',
+  },
+  yearOptionSelected: { backgroundColor: '#f0fdf4' },
+  yearOptionText: { fontSize: 14, color: '#444' },
 
-  yearOption: { padding: 12, borderBottomWidth: 1, borderColor: "#f0f0f0" },
+  swatchRow: { flexDirection: "row", gap: 12, marginTop: 5, alignItems: "center" },
+  swatch: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4 },
+  moreColorsBtn: { width: 48, height: 48, borderRadius: 24, backgroundColor: "#f0f0f0", alignItems: "center", justifyContent: "center" },
 
-  swatchRow: { flexDirection: "row", gap: 10, marginTop: 12, alignItems: "center" },
-  swatch: { width: 44, height: 44, borderRadius: 22, marginRight: 10 },
-  selectThemeBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#ddd" },
+  createBtn: {
+    marginTop: 35,
+    backgroundColor: "#00b679",
+    paddingVertical: 18,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: "center",
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: "#00b679",
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  createText: { color: "#fff", fontWeight: "700", fontSize: 16 },
 
-  createBtn: { marginTop: 28, backgroundColor: "#09A85C", paddingVertical: 14, borderRadius: 10, alignItems: "center" },
-  createText: { color: "#fff", fontWeight: "800" },
+  themeGrid: { padding: 25, flexDirection: "row", flexWrap: "wrap", gap: 15, justifyContent: "space-between" },
+  themeSwatch: { width: "22%", aspectRatio: 1, borderRadius: 999, alignItems: 'center', justifyContent: 'center', marginBottom: 5, elevation: 3, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 5 },
 
-  themeGrid: { padding: 20, flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "space-between" },
-  themeSwatch: { width: "22%", aspectRatio: 1, borderRadius: 999, marginBottom: 12 },
-
-  saveBtn: { backgroundColor: "#09A85C", paddingVertical: 12, borderRadius: 10, alignItems: "center" },
-  saveText: { color: "#fff", fontWeight: "700" },
+  modalFooter: { padding: 20, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#eee' },
+  modalCloseBtn: { paddingVertical: 15, alignItems: 'center' },
+  modalCloseText: { color: "#ff3b30", fontWeight: "600", fontSize: 16 },
 });

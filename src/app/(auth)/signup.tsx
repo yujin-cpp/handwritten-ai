@@ -25,13 +25,13 @@ export default function SignUp() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState(''); 
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   // 🔹 MODAL STATE
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMessage, setModalMessage] = useState('');
 
-  const [request, response, promptAsync] = Google.useAuthRequest({
+  const [, response, promptAsync] = Google.useAuthRequest({
     androidClientId: "697036998946-jvtj1jbf839cfu3lij5bu161oididnke.apps.googleusercontent.com",
     webClientId: "697036998946-ia341ph7pidihf3r519ltr443u2k1a5l.apps.googleusercontent.com"
   });
@@ -61,6 +61,7 @@ export default function SignUp() {
       const credential = GoogleAuthProvider.credential(id_token || null, access_token || null);
       handleFirebaseGoogleSignUp(credential);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [response]);
 
   const handleFirebaseGoogleSignUp = async (credential: any) => {
@@ -150,8 +151,8 @@ export default function SignUp() {
             <Ionicons name="alert-circle" size={50} color="#D32F2F" />
             <Text style={styles.modalTitle}>Registration Error</Text>
             <Text style={styles.modalText}>{modalMessage}</Text>
-            <TouchableOpacity 
-              style={styles.modalCloseButton} 
+            <TouchableOpacity
+              style={styles.modalCloseButton}
               onPress={() => setModalVisible(false)}
             >
               <Text style={styles.modalCloseButtonText}>Close</Text>

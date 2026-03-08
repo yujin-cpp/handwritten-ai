@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -33,13 +33,13 @@ export default function HomeScreen() {
         if (currentUser) {
           // Force reload to get the latest photoURL if it just changed
           await currentUser.reload();
-          
+
           const profData = await getProfessorProfile(currentUser.uid);
-          
+
           setProfessor({
             ...profData, // Name, etc from DB
             // Use Auth photo first, then fallback to default
-            photoURL: currentUser.photoURL || DEFAULT_AVATAR 
+            photoURL: currentUser.photoURL || DEFAULT_AVATAR
           });
         }
       };
@@ -53,7 +53,7 @@ export default function HomeScreen() {
     if (!uid) return;
 
     const unsubscribe = listenToClasses(uid, (data) => {
-      setClasses(data); 
+      setClasses(data);
     });
 
     return () => unsubscribe();
@@ -123,10 +123,10 @@ export default function HomeScreen() {
                   router.push({
                     pathname: "/(tabs)/classes/classinformation",
                     params: {
-                      classId, 
+                      classId,
                       name: cls.className,
                       section: cls.section,
-                      color: cardColor, 
+                      color: cardColor,
                       academicYear: cls.semester,
                     },
                   })
@@ -142,11 +142,9 @@ export default function HomeScreen() {
   );
 }
 
-// ... (Rest of your StatCard, ClassCard, AddClassCard components and styles remain exactly the same) ...
-
 /* ===========================
    STAT CARD COMPONENT
-=========================== */
+ =========================== */
 function StatCard({ value, label }: { value: string; label: string }) {
   return (
     <View style={styles.statCard}>
@@ -158,7 +156,7 @@ function StatCard({ value, label }: { value: string; label: string }) {
 
 /* ===========================
    CLASS CARD COMPONENT
-=========================== */
+ =========================== */
 function ClassCard({
   name,
   section,
@@ -184,21 +182,21 @@ function ClassCard({
 
 /* ===========================
    ADD CLASS COMPONENT
-=========================== */
+ =========================== */
 function AddClassCard() {
   const router = useRouter();
 
   return (
-    <TouchableOpacity style={[styles.classCard, styles.addClass]} onPress={() => router.push("/classes/addclass")}>
-      <Ionicons name="add-circle-outline" size={25} color="#009e60" />
-      <Text style={{ color: "#009e60", fontWeight: "600" }}>Add Class</Text>
+    <TouchableOpacity style={[styles.classCard, styles.addClass]} onPress={() => router.push("/(tabs)/classes/addclass")}>
+      <Feather name="plus-circle" size={22} color="#009e60" />
+      <Text style={{ color: "#009e60", fontWeight: "600", marginLeft: 8 }}>Add Class</Text>
     </TouchableOpacity>
   );
 }
 
 /* ===========================
    STYLES
-=========================== */
+ =========================== */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -219,7 +217,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#fff', // Added bg color to look nice while loading
+    backgroundColor: '#fff',
   },
 
   welcomeText: {

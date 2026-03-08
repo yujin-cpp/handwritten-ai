@@ -1,5 +1,4 @@
-// app/(tabs)/capture/saved.tsx
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React from "react";
@@ -10,104 +9,142 @@ export default function SavedScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
+  const handleGradeAnother = () => {
+    router.dismissAll();
+    router.replace("/(tabs)/capture");
+  };
+
+  const handleGoToScores = () => {
+    router.dismissAll();
+    router.replace("/(tabs)/classes/quiz-score");
+  };
+
   return (
     <View style={styles.container}>
-      {/* HEADER */}
-      <LinearGradient colors={["#00b679", "#009e60"]}  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}  style={[styles.header, {paddingTop: insets.top + 20}]}>
-        <Text style={styles.headerTitle}>AI scorer</Text>
+      <LinearGradient
+        colors={["#00b679", "#009e60"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={[styles.header, { paddingTop: insets.top + 20 }]}
+      >
+        <Text style={styles.headerTitle}>AI Scorer</Text>
       </LinearGradient>
 
-      {/* CENTER CONTENT */}
       <View style={styles.body}>
         <View style={styles.checkCircle}>
-          <Ionicons name="checkmark" size={40} color="#fff" />
+          <Feather name="check" size={50} color="#fff" />
         </View>
 
-        <Text style={styles.mainText}>Score Saved{"\n"}Successfully!</Text>
+        <Text style={styles.mainText}>Grade Saved!</Text>
+        <Text style={styles.subText}>
+          The score has been recorded successfully.{"\n"}The AI is now processing the breakdown.
+        </Text>
       </View>
 
-      {/* BOTTOM BUTTON */}
-      <View style={styles.bottomWrapper}>
+      <View style={[styles.bottomWrapper, { paddingBottom: insets.bottom + 30 }]}>
         <TouchableOpacity
-  style={styles.backBtn}
-  onPress={() =>
-    router.push({
-      pathname: "/(tabs)/classes/quiz-score",
-    })
-  }
->
-  <Text style={styles.backText}>Go back to students score</Text>
-</TouchableOpacity>
+          style={styles.gradeAnotherBtn}
+          onPress={handleGradeAnother}
+        >
+          <Feather name="maximize" size={20} color="#fff" style={{ marginRight: 10 }} />
+          <Text style={styles.gradeAnotherText}>Grade Another Student</Text>
+        </TouchableOpacity>
 
+        <TouchableOpacity style={styles.backBtn} onPress={handleGoToScores}>
+          <Text style={styles.backText}>View Class Scores</Text>
+          <Feather name="chevron-right" size={18} color="#00b679" style={{ marginLeft: 5 }} />
+        </TouchableOpacity>
       </View>
     </View>
   );
 }
 
-const GREEN = "#00b679";
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-
+  container: { flex: 1, backgroundColor: "#f8f9fa" },
   header: {
     paddingHorizontal: 18,
     paddingTop: 45,
     paddingBottom: 25,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
   },
-
-
-  headerTitle: { color: "#fff", fontSize: 20, fontWeight: "700", flex: 1 },
+  headerTitle: { color: "#fff", fontSize: 20, fontWeight: "700" },
 
   body: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 24,
+    paddingHorizontal: 30,
+    marginBottom: 60,
   },
 
   checkCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: GREEN,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: "#00b679",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 24,
+    marginBottom: 30,
+    elevation: 8,
+    shadowColor: "#00b679",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
   },
 
   mainText: {
     textAlign: "center",
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: 26,
     fontWeight: "800",
-    color: "#000",
+    color: "#111",
+    marginBottom: 12,
+  },
+  subText: {
+    textAlign: "center",
+    color: "#777",
+    fontSize: 16,
+    lineHeight: 24,
   },
 
   bottomWrapper: {
-    paddingHorizontal: 20,
-    paddingBottom: 30,
+    paddingHorizontal: 25,
+    gap: 15,
+  },
+
+  gradeAnotherBtn: {
+    backgroundColor: "#00b679",
+    paddingVertical: 18,
+    borderRadius: 18,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    elevation: 4,
+    shadowColor: "#00b679",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  gradeAnotherText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16,
   },
 
   backBtn: {
-    backgroundColor: "#CCFFE1",
-    paddingVertical: 14,
-    borderRadius: 12,
+    backgroundColor: "#fff",
+    paddingVertical: 18,
+    borderRadius: 18,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: "#00b679",
   },
-
   backText: {
-    color: "#000",
+    color: "#00b679",
     fontWeight: "700",
-    fontSize: 14,
+    fontSize: 16,
   },
 });

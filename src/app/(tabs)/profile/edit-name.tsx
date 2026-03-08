@@ -21,7 +21,7 @@ import { auth, db } from "../../../firebase/firebaseConfig";
 export default function EditProfile() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  
+
   // 1. Get Current User Data
   const user = auth.currentUser;
 
@@ -57,7 +57,7 @@ export default function EditProfile() {
       await Promise.all([authUpdatePromise, dbUpdatePromise]);
 
       // Success Feedback & Navigation
-      router.replace("/profile/name-saved");
+      router.replace("/(tabs)/profile/name-saved");
 
     } catch (error: any) {
       Alert.alert("Error", "Failed to update profile: " + error.message);
@@ -82,10 +82,10 @@ export default function EditProfile() {
       />
 
       <Text style={styles.label}>Name</Text>
-      <TextInput 
-        style={styles.input} 
+      <TextInput
+        style={styles.input}
         value={name}
-        onChangeText={setName} 
+        onChangeText={setName}
         placeholder="Enter your full name"
         placeholderTextColor="#999"
       />
@@ -97,9 +97,9 @@ export default function EditProfile() {
         disabled={loading}
       >
         {loading ? (
-           <ActivityIndicator color="#fff" />
+          <ActivityIndicator color="#fff" />
         ) : (
-           <Text style={styles.saveText}>Save</Text>
+          <Text style={styles.saveText}>Save</Text>
         )}
       </TouchableOpacity>
     </View>
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
     borderRadius: 55,
     alignSelf: "center",
     marginVertical: 20,
-    backgroundColor: "#eee", 
+    backgroundColor: "#eee",
   },
   label: { fontSize: 14, marginBottom: 8, fontWeight: "600", color: "#333" },
   input: {

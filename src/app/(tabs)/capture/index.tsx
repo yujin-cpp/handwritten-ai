@@ -1,48 +1,40 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
-  Image,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-// FIREBASE IMPORTS
 import { auth } from "../../../firebase/firebaseConfig";
 import {
   getActivities,
   getStudentsInClass,
-  listenToClasses
+  listenToClasses,
 } from "../../../services/class.service";
+import { showAlert } from "../../../utils/alert";
 
 type PickerType = "section" | "activity" | "name" | null;
-
-// Helper to handle params safely
-const P = (v: string | string[] | undefined, fb = "") =>
-  Array.isArray(v) ? v[0] : v ?? fb;
 
 export default function Capture() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
 
-  // --- STATE FOR DATA LISTS ---
+  // --- DATA LISTS ---
   const [classesList, setClassesList] = useState<any[]>([]);
   const [activitiesList, setActivitiesList] = useState<any[]>([]);
   const [studentsList, setStudentsList] = useState<any[]>([]);
 
   // --- SELECTION STATE ---
-  // We store full objects or IDs to keep track of the real data
   const [selectedClassId, setSelectedClassId] = useState<string>("");
   const [selectedClassName, setSelectedClassName] = useState<string>("");
 
@@ -59,112 +51,199 @@ export default function Capture() {
   const [confirmed, setConfirmed] = useState(false);
   const [pickerType, setPickerType] = useState<PickerType>(null);
   const [pickerY, setPickerY] = useState(0);
-  const [imageUri, setImageUri] = useState<string | null>(null);
 
-  // 1. INITIAL LOAD: Fetch Classes (Sections)
+  // 1. INITIAL LOAD & DATA VALIDATION
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
 
-    // Listen to classes so the "Section" dropdown is populated
+    setConfirmed(false);
+    setLoading(true);
+
     const unsubscribe = listenToClasses(uid, (data) => {
-      // Convert object to array
-      const list = Object.keys(data).map(key => ({
+      if (!data) {
+        setClassesList([]);
+        setLoading(false);
+        return;
+      }
+
+      const list = Object.keys(data).map((key) => ({
         id: key,
-        name: `${data[key].className} - ${data[key].section}` // e.g. "BSCS-4B - GEM14"
+        name: `${data[key].className} - ${data[key].section}`,
       }));
       setClassesList(list);
-      
-      // If params exist (navigated from another screen), pre-fill
+
       if (params.classId) {
-        const found = list.find(c => c.id === params.classId);
-        if (found) {
-          handleSelectClass(found.id, found.name);
-          // If activity/student params exist, set them too (logic simplified for now)
-          setConfirmed(true); 
+        const pClassId = Array.isArray(params.classId) ? params.classId[0] : params.classId;
+        const foundClass = list.find((c) => c.id === pClassId);
+
+        if (foundClass) {
+          setSelectedClassId(foundClass.id);
+          setSelectedClassName(foundClass.name);
+
+          fetchSubData(foundClass.id).then((result) => {
+            let validActId = "";
+            let validActName = "";
+            let validStuId = "";
+            let validStuName = "";
+
+            if (params.activityId) {
+              const pActId = Array.isArray(params.activityId) ? params.activityId[0] : params.activityId;
+              const foundAct = result.activities.find((a: any) => a.id === pActId);
+              if (foundAct) {
+                validActId = foundAct.id;
+                validActName = foundAct.title;
+              }
+            }
+
+            if (params.studentId) {
+              const pStuId = Array.isArray(params.studentId) ? params.studentId[0] : params.studentId;
+              const foundStu = result.students.find((s: any) => s.id === pStuId);
+              if (foundStu) {
+                validStuId = foundStu.id;
+                validStuName = foundStu.name;
+              }
+            }
+
+            setSelectedActivityId(validActId);
+            setSelectedActivityName(validActName);
+            setSelectedStudentId(validStuId);
+            setSelectedStudentName(validStuName);
+
+            if (foundClass && validActId && validStuId) {
+              setConfirmed(true);
+            } else {
+              setConfirmed(false);
+            }
+          });
         }
       }
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [params.classId, params.activityId, params.studentId]);
 
-  // 2. FETCH SUB-DATA: When Class Changes
+  const fetchSubData = async (classId: string) => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return { activities: [], students: [] };
+
+    setFetchingSubData(true);
+    try {
+      const [activities, students] = await Promise.all([
+        getActivities(uid, classId),
+        getStudentsInClass(uid, classId),
+      ]);
+
+      const formattedActivities = activities
+        ? (Array.isArray(activities) ? activities : Object.keys(activities)
+          .map((k) => ({ id: k, ...(activities as Record<string, any>)[k] })))
+          .map((a: any) => ({
+            id: a.id || a.key,
+            title: a.title,
+          }))
+        : [];
+
+      const formattedStudents = students
+        ? (Array.isArray(students) ? students : Object.keys(students)
+          .map((k) => ({ id: k, ...(students as Record<string, any>)[k] })))
+          .map((s: any) => ({
+            id: s.id || s.key,
+            name: s.name,
+          }))
+        : [];
+
+      setActivitiesList(formattedActivities);
+      setStudentsList(formattedStudents);
+
+      return { activities: formattedActivities, students: formattedStudents };
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      return { activities: [], students: [] };
+    } finally {
+      setFetchingSubData(false);
+    }
+  };
+
   const handleSelectClass = async (classId: string, className: string) => {
-  setSelectedClassId(classId);
-  setSelectedClassName(className);
-  setPickerType(null);
-
-  // Reset dropdowns
-  setActivitiesList([]);
-  setStudentsList([]);
-  setSelectedActivityName("");
-  setSelectedStudentName("");
-  setFetchingSubData(true);
-
-  const uid = auth.currentUser?.uid;
-  if (!uid) return;
-
-  try {
-    // A. Fetch Activities (One-time await)
-    const activities = await getActivities(uid, classId);
-    setActivitiesList(activities);
-
-    // B. Fetch Students (One-time await)
-    const students = await getStudentsInClass(uid, classId);
-    setStudentsList(students);
-
-  } catch (error) {
-    console.error("Error fetching class data:", error);
-  } finally {
-    setFetchingSubData(false);
-  }
-};
+    setSelectedClassId(classId);
+    setSelectedClassName(className);
+    setPickerType(null);
+    setSelectedActivityId("");
+    setSelectedActivityName("");
+    setSelectedStudentId("");
+    setSelectedStudentName("");
+    setConfirmed(false);
+    await fetchSubData(classId);
+  };
 
   const handleSelectActivity = (id: string, name: string) => {
     setSelectedActivityId(id);
     setSelectedActivityName(name);
     setPickerType(null);
+    setConfirmed(false);
   };
 
   const handleSelectStudent = (id: string, name: string) => {
     setSelectedStudentId(id);
     setSelectedStudentName(name);
     setPickerType(null);
+    setConfirmed(false);
   };
 
-  // ---- Image Picker ----
+  const canConfirm = !!selectedClassId && !!selectedActivityId && !!selectedStudentId;
+
+  const handleNext = () => {
+    if (!canConfirm) {
+      showAlert("Incomplete", "Please select a Section, Activity, and Student.");
+      return;
+    }
+    setConfirmed(true);
+  };
+
   const handlePickImage = async () => {
+    if (!canConfirm) return;
+
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission required", "We need access to your gallery.");
+      showAlert("Permission required", "Gallery access is needed.");
       return;
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8, // Slightly reduce quality for faster uploads
+      quality: 0.8,
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      setImageUri(result.assets[0].uri);
+      router.push({
+        pathname: "/(tabs)/capture/image-captured",
+        params: {
+          imageUri: result.assets[0].uri,
+          classId: selectedClassId,
+          activityId: selectedActivityId,
+          studentId: selectedStudentId,
+        },
+      });
     }
   };
 
-  const handleNext = () => {
-    if (!selectedClassId || !selectedActivityId || !selectedStudentId) {
-        Alert.alert("Missing Fields", "Please select Section, Activity, and Name.");
-        return;
-    }
-    setConfirmed(true);
+  const handleTakePhoto = () => {
+    if (!canConfirm) return;
+    router.push({
+      pathname: "/(tabs)/capture/photo-taking",
+      params: {
+        classId: selectedClassId,
+        activityId: selectedActivityId,
+        studentId: selectedStudentId,
+      },
+    });
   };
 
-  // Helper to get options for the picker
   const getPickerOptions = () => {
-    if (pickerType === "section") return classesList.map(c => ({ id: c.id, label: c.name }));
-    if (pickerType === "activity") return activitiesList.map(a => ({ id: a.id, label: a.title }));
-    if (pickerType === "name") return studentsList.map(s => ({ id: s.id, label: s.name }));
+    if (pickerType === "section") return classesList.map((c) => ({ id: c.id, label: c.name }));
+    if (pickerType === "activity") return activitiesList.map((a) => ({ id: a.id, label: a.title }));
+    if (pickerType === "name") return studentsList.map((s) => ({ id: s.id, label: s.name }));
     return [];
   };
 
@@ -176,25 +255,26 @@ export default function Capture() {
 
   return (
     <View style={styles.page}>
-      {/* HEADER */}
-      <LinearGradient colors={["#00b679", "#009e60"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}  style={[styles.header, { paddingTop: insets.top + 20 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 10 }}>
-             <Ionicons name="chevron-back" size={24} color="#fff" />
+      <LinearGradient
+        colors={["#00b679", "#009e60"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={[styles.header, { paddingTop: insets.top + 20 }]}
+      >
+        <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12 }}>
+          <Feather name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>AI Scorer</Text>
+        <Text style={styles.headerTitle}>Capture Score</Text>
       </LinearGradient>
 
       <ScrollView contentContainerStyle={styles.content}>
-        
         {loading ? (
-           <ActivityIndicator size="large" color="#00b679" style={{marginTop: 50}} />
+          <ActivityIndicator size="large" color="#00b679" style={{ marginTop: 50 }} />
         ) : (
           <>
-            {/* FIELDS – editable (step 1) vs read-only (step 2) */}
             {!confirmed ? (
-              <>
-                {/* SECTION */}
-                <Text style={styles.label}>Section:</Text>
+              <View style={styles.selectionCard}>
+                <Text style={styles.label}>Select Section</Text>
                 <Pressable
                   style={styles.dropdownBtn}
                   onPress={(e) => {
@@ -202,14 +282,13 @@ export default function Capture() {
                     setPickerType("section");
                   }}
                 >
-                  <Text style={!selectedClassName && {color: "#999"}}>
-                    {selectedClassName || "Select Section"}
+                  <Text style={!selectedClassName ? { color: "#999" } : { color: "#333" }} numberOfLines={1}>
+                    {selectedClassName || "Choose a class..."}
                   </Text>
-                  <Ionicons name="chevron-down" size={20} color="#555" />
+                  <Feather name="chevron-down" size={18} color="#999" />
                 </Pressable>
 
-                {/* ACTIVITY */}
-                <Text style={styles.label}>Activity:</Text>
+                <Text style={styles.label}>Select Activity</Text>
                 <Pressable
                   style={[styles.dropdownBtn, !selectedClassId && { opacity: 0.5, backgroundColor: "#f9f9f9" }]}
                   disabled={!selectedClassId}
@@ -218,14 +297,13 @@ export default function Capture() {
                     setPickerType("activity");
                   }}
                 >
-                  <Text style={!selectedActivityName && {color: "#999"}}>
-                    {fetchingSubData ? "Loading..." : selectedActivityName || "Select Activity"}
+                  <Text style={!selectedActivityName ? { color: "#999" } : { color: "#333" }} numberOfLines={1}>
+                    {fetchingSubData ? "Loading..." : selectedActivityName || "Choose an activity..."}
                   </Text>
-                  <Ionicons name="chevron-down" size={20} color="#555" />
+                  <Feather name="chevron-down" size={18} color="#999" />
                 </Pressable>
 
-                {/* NAME */}
-                <Text style={styles.label}>Student Name:</Text>
+                <Text style={styles.label}>Select Student</Text>
                 <Pressable
                   style={[styles.dropdownBtn, !selectedClassId && { opacity: 0.5, backgroundColor: "#f9f9f9" }]}
                   disabled={!selectedClassId}
@@ -234,125 +312,93 @@ export default function Capture() {
                     setPickerType("name");
                   }}
                 >
-                  <Text style={!selectedStudentName && {color: "#999"}}>
-                    {fetchingSubData ? "Loading..." : selectedStudentName || "Select Student"}
+                  <Text style={!selectedStudentName ? { color: "#999" } : { color: "#333" }} numberOfLines={1}>
+                    {fetchingSubData ? "Loading..." : selectedStudentName || "Search student..."}
                   </Text>
-                  <Ionicons name="chevron-down" size={20} color="#555" />
+                  <Feather name="chevron-down" size={18} color="#999" />
                 </Pressable>
-              </>
+
+                <TouchableOpacity
+                  style={[styles.nextBtn, !canConfirm && { opacity: 0.5 }]}
+                  onPress={handleNext}
+                  disabled={!canConfirm}
+                >
+                  <Text style={styles.nextText}>Next Step</Text>
+                  <Feather name="arrow-right" size={20} color="#fff" />
+                </TouchableOpacity>
+              </View>
             ) : (
               <>
-                {/* READ-ONLY TEXTS */}
-                <View style={styles.readRow}>
-                  <Text style={styles.readLabel}>Section: </Text>
-                  <Text style={styles.readValue}>{selectedClassName}</Text>
+                <View style={styles.summaryCard}>
+                  <View style={styles.summaryRow}>
+                    <Feather name="map-pin" size={14} color="#00b679" />
+                    <Text style={styles.summaryLabel}>Section:</Text>
+                    <Text style={styles.summaryValue} numberOfLines={1}>{selectedClassName}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Feather name="hash" size={14} color="#00b679" />
+                    <Text style={styles.summaryLabel}>Activity:</Text>
+                    <Text style={styles.summaryValue} numberOfLines={1}>{selectedActivityName}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Feather name="user" size={14} color="#00b679" />
+                    <Text style={styles.summaryLabel}>Student:</Text>
+                    <Text style={styles.summaryValue} numberOfLines={1}>{selectedStudentName}</Text>
+                  </View>
+
+                  <TouchableOpacity onPress={() => setConfirmed(false)} style={styles.editSelectionBtn}>
+                    <Text style={styles.editSelectionText}>Change Selection</Text>
+                  </TouchableOpacity>
                 </View>
-                <View style={styles.readRow}>
-                  <Text style={styles.readLabel}>Activity: </Text>
-                  <Text style={styles.readValue}>{selectedActivityName}</Text>
+
+                <View style={[styles.cameraBox, confirmed && styles.cameraBoxFocused]}>
+                  <Feather name="maximize" size={60} color={confirmed ? "#00b679" : "#ccc"} />
+                  <Text style={[styles.cameraBoxLabel, { color: confirmed ? "#00b679" : "#999" }]}>
+                    Ready to Score
+                  </Text>
                 </View>
-                <View style={styles.readRow}>
-                  <Text style={styles.readLabel}>Name: </Text>
-                  <Text style={styles.readValue}>{selectedStudentName}</Text>
+
+                <View style={styles.actionContainer}>
+                  <TouchableOpacity style={styles.takePhotoBtn} onPress={handleTakePhoto}>
+                    <Feather name="camera" size={20} color="#fff" style={{ marginRight: 10 }} />
+                    <Text style={styles.takePhotoText}>Open Camera</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.galleryBtn} onPress={handlePickImage}>
+                    <Feather name="image" size={20} color="#00b679" style={{ marginRight: 10 }} />
+                    <Text style={styles.galleryText}>Upload from Gallery</Text>
+                  </TouchableOpacity>
                 </View>
-                
-                {/* Edit Button to go back */}
-                <TouchableOpacity onPress={() => setConfirmed(false)} style={{marginTop: 5}}>
-                    <Text style={{color: "#01B468", fontWeight: "600", fontSize: 13}}>Edit Details</Text>
-                </TouchableOpacity>
               </>
-            )}
-
-            {/* CAMERA / IMAGE BOX */}
-            <View style={[styles.cameraBox, confirmed && styles.cameraBoxFocused]}>
-              {imageUri ? (
-                <Image source={{ uri: imageUri }} style={styles.previewImage} />
-              ) : (
-                <Ionicons name="camera-outline" size={120} color="#ddd" />
-              )}
-            </View>
-
-            {/* NEXT BUTTON – only on step 1 */}
-            {!confirmed && (
-              <TouchableOpacity
-                style={styles.nextBtn}
-                onPress={handleNext}
-              >
-                <Text style={styles.nextText}>Next</Text>
-                <Ionicons name="arrow-forward" size={20} color="#01B468" />
-              </TouchableOpacity>
-            )}
-
-            {/* ACTION BUTTONS – only on step 2 */}
-            {confirmed && (
-              <View style={{ marginTop: 20 }}>
-                {/* Take Photo */}
-                <TouchableOpacity
-                  style={styles.actionBtn}
-                  onPress={() => router.push({
-                      pathname: "/(tabs)/capture/photo-taking",
-                      params: {
-                          classId: selectedClassId,
-                          activityId: selectedActivityId,
-                          studentId: selectedStudentId
-                      }
-                  })}
-                >
-                  <Text style={styles.actionText}>Take a picture</Text>
-                </TouchableOpacity>
-
-                {/* Upload Photo */}
-                <TouchableOpacity
-                  style={styles.uploadBtn}
-                  onPress={handlePickImage}
-                >
-                  <Text style={styles.uploadText}>Upload Image</Text>
-                </TouchableOpacity>
-                
-                {imageUri && (
-                    <TouchableOpacity
-                      style={[styles.nextBtn, { marginTop: 12, backgroundColor: "#01B468", borderWidth: 0 }]}
-                      onPress={() => {
-                          // Here you would typically process the uploaded image
-                          Alert.alert("Processing", "Sending image to AI for scoring...");
-                      }}
-                    >
-                      <Text style={[styles.nextText, { color: "#fff" }]}>Process Score</Text>
-                    </TouchableOpacity>
-                )}
-              </View>
             )}
           </>
         )}
       </ScrollView>
 
-      {/* POPUP PICKER MODAL */}
-      <Modal
-        visible={pickerType !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setPickerType(null)}
-      >
+      {/* CUSTOM PICKER MODAL */}
+      <Modal visible={pickerType !== null} transparent animationType="fade" onRequestClose={() => setPickerType(null)}>
         <View style={styles.modalBackdrop}>
-          <Pressable
-            style={StyleSheet.absoluteFillObject}
-            onPress={() => setPickerType(null)}
-          />
-          <View style={[styles.popup, { top: pickerY + 10 }]}>
-            <ScrollView style={{ maxHeight: 200 }}>
-                {getPickerOptions().length === 0 ? (
-                    <Text style={{padding: 15, color: "#999", textAlign: "center"}}>No items found.</Text>
-                ) : (
-                    getPickerOptions().map((opt) => (
-                    <TouchableOpacity
-                        key={opt.id}
-                        onPress={() => handlePickerSelect(opt.id, opt.label)}
-                        style={styles.popupItem}
-                    >
-                        <Text style={styles.popupItemText}>{opt.label}</Text>
-                    </TouchableOpacity>
-                    ))
-                )}
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setPickerType(null)} />
+          <View style={[styles.popup, { top: Math.min(pickerY + 12, 550) }]}>
+            <View style={styles.popupHeader}>
+              <Text style={styles.popupHeaderText}>
+                Select {pickerType === "section" ? "Class" : pickerType === "activity" ? "Activity" : "Student"}
+              </Text>
+            </View>
+            <ScrollView style={{ maxHeight: 300 }}>
+              {getPickerOptions().length === 0 ? (
+                <View style={{ padding: 30, alignItems: 'center' }}>
+                  <Feather name="search" size={24} color="#ccc" />
+                  <Text style={{ marginTop: 10, color: "#999" }}>No items found.</Text>
+                </View>
+              ) : (
+                getPickerOptions().map((opt) => (
+                  <TouchableOpacity key={opt.id} onPress={() => handlePickerSelect(opt.id, opt.label)} style={styles.popupItem}>
+                    <Text style={styles.popupItemText}>{opt.label}</Text>
+                    <Feather name="chevron-right" size={16} color="#eee" />
+                  </TouchableOpacity>
+                ))
+              )}
             </ScrollView>
           </View>
         </View>
@@ -362,147 +408,39 @@ export default function Capture() {
 }
 
 const styles = StyleSheet.create({
-  page: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  
-  header: {
-    paddingHorizontal: 18,
-    paddingTop: 45,
-    paddingBottom: 25,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
+  page: { flex: 1, backgroundColor: "#f8f9fa" },
+  header: { paddingHorizontal: 18, paddingTop: 45, paddingBottom: 25, flexDirection: "row", alignItems: "center" },
   headerTitle: { color: "#fff", fontSize: 20, fontWeight: "700", flex: 1 },
- 
-  content: {
-    padding: 18,
-    paddingBottom: 80,
-  },
+  content: { padding: 20, paddingBottom: 80 },
 
-  label: {
-    marginTop: 15,
-    marginBottom: 6,
-    fontWeight: "700",
-    color: "#0c6b45",
-  },
-  dropdownBtn: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    padding: 12,
-    borderRadius: 8,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    backgroundColor: "#fff",
-  },
+  selectionCard: { backgroundColor: '#fff', borderRadius: 20, padding: 20, elevation: 2, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
+  label: { marginTop: 15, marginBottom: 8, fontWeight: "600", color: "#444", fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 },
+  dropdownBtn: { borderWidth: 1, borderColor: "#f0f0f0", padding: 15, borderRadius: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#fafafa" },
 
-  // read-only labels
-  readRow: {
-    flexDirection: "row",
-    marginTop: 8,
-  },
-  readLabel: {
-    fontWeight: "700",
-    color: "#000",
-    width: 70,
-  },
-  readValue: {
-    fontWeight: "500",
-    color: "#333",
-    flex: 1
-  },
+  summaryCard: { backgroundColor: "#fff", padding: 20, borderRadius: 20, marginTop: 10, elevation: 1, shadowColor: "#000", shadowOpacity: 0.03, shadowRadius: 5 },
+  summaryRow: { flexDirection: "row", alignItems: 'center', marginBottom: 12 },
+  summaryLabel: { fontWeight: "700", color: "#666", width: 75, marginLeft: 8, fontSize: 13 },
+  summaryValue: { fontWeight: "500", color: "#111", flex: 1, fontSize: 14 },
+  editSelectionBtn: { marginTop: 5, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#f0f0f0', alignItems: 'center' },
+  editSelectionText: { color: "#00b679", fontWeight: "600", fontSize: 14 },
 
-  cameraBox: {
-    marginTop: 25,
-    width: "100%",
-    height: 240,
-    backgroundColor: "#f9f9f9",
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#eee"
-  },
-  cameraBoxFocused: {
-    borderWidth: 2,
-    borderColor: "#01B468",
-    backgroundColor: "#fff"
-  },
-  previewImage: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "contain",
-  },
+  cameraBox: { marginTop: 25, width: "100%", height: 180, backgroundColor: "#fff", borderRadius: 24, justifyContent: "center", alignItems: "center", borderWidth: 2, borderColor: "#f0f0f0", borderStyle: "dashed" },
+  cameraBoxFocused: { borderColor: "#00b679", backgroundColor: "#f0fdf4", borderStyle: "solid" },
+  cameraBoxLabel: { marginTop: 12, fontWeight: "700", fontSize: 15 },
 
-  nextBtn: {
-    marginTop: 25,
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 6,
-    borderWidth: 1.5,
-    borderColor: "#01B468",
-    paddingVertical: 14,
-    borderRadius: 10,
-  },
-  nextText: {
-    color: "#000",
-    fontWeight: "700",
-    fontSize: 16,
-  },
+  nextBtn: { marginTop: 30, backgroundColor: '#00b679', flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 10, paddingVertical: 16, borderRadius: 14, elevation: 3 },
+  nextText: { color: "#fff", fontWeight: "700", fontSize: 16 },
 
-  actionBtn: {
-    borderWidth: 1,
-    borderColor: "#01B468",
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: "center",
-    marginBottom: 12,
-    backgroundColor: "#fff"
-  },
-  actionText: {
-    color: "#01B468",
-    fontWeight: "700",
-  },
-  uploadBtn: {
-    backgroundColor: "#E8F7F0",
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  uploadText: {
-    color: "#006b45",
-    fontWeight: "700",
-  },
+  actionContainer: { marginTop: 30 },
+  takePhotoBtn: { backgroundColor: "#00b679", paddingVertical: 18, borderRadius: 16, flexDirection: "row", justifyContent: "center", alignItems: "center", marginBottom: 15, elevation: 4 },
+  takePhotoText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  galleryBtn: { backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#00b679", paddingVertical: 18, borderRadius: 16, flexDirection: "row", justifyContent: "center", alignItems: "center" },
+  galleryText: { color: "#00b679", fontWeight: "700", fontSize: 16 },
 
-  // popup modal
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.1)",
-  },
-  popup: {
-    position: "absolute",
-    left: 24,
-    right: 24,
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    paddingVertical: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 6,
-  },
-  popupItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0"
-  },
-  popupItemText: {
-    fontSize: 14,
-    color: "#333",
-  },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.2)" },
+  popup: { position: "absolute", left: 16, right: 16, backgroundColor: "#fff", borderRadius: 20, shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 15, overflow: "hidden" },
+  popupHeader: { backgroundColor: "#f9fcfb", padding: 15, borderBottomWidth: 1, borderBottomColor: "#f0f5f3" },
+  popupHeaderText: { fontWeight: "700", color: "#1a3d2e", fontSize: 16 },
+  popupItem: { paddingVertical: 16, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: "#f8f8f8", flexDirection: "row", justifyContent: "space-between", alignItems: 'center' },
+  popupItemText: { fontSize: 15, color: "#333", fontWeight: "500" },
 });

@@ -34,7 +34,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   // 🔹 GOOGLE AUTH CONFIG (For Android/iOS)
-  const [request, response, promptAsync] = Google.useAuthRequest({
+  const [, response, promptAsync] = Google.useAuthRequest({
     androidClientId: "697036998946-jvtj1jbf839cfu3lij5bu161oididnke.apps.googleusercontent.com",
     webClientId: "697036998946-ia341ph7pidihf3r519ltr443u2k1a5l.apps.googleusercontent.com",
   });
@@ -43,22 +43,23 @@ export default function Login() {
   useEffect(() => {
     if (response?.type === 'success') {
       const { id_token, access_token } = response.params;
-      
+
       // Create credential safely
       const credential = GoogleAuthProvider.credential(
         id_token || null,
         access_token || null
       );
-      
+
       handleFirebaseSignIn(credential);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [response]);
 
   // 🔹 SHARED SIGN-IN LOGIC
   const handleFirebaseSignIn = async (credential: any) => {
     try {
       setLoading(true);
-      
+
       // Authenticate
       const userCred = await signInWithCredential(auth, credential);
       const user = userCred.user;
@@ -169,8 +170,8 @@ export default function Login() {
         <Text style={styles.or}>Or login with</Text>
 
         {/* 🔹 GOOGLE BUTTON */}
-        <TouchableOpacity 
-          style={styles.googleButton} 
+        <TouchableOpacity
+          style={styles.googleButton}
           onPress={onGoogleButtonPress} // Call our new function
           disabled={loading}
         >

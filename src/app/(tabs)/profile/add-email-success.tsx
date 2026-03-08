@@ -8,7 +8,7 @@ export default function AddEmailSuccess() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams();
-  
+
   // Get the email passed from the previous screen (or fallback)
   const email = params.email as string || "your email";
 
@@ -18,11 +18,11 @@ export default function AddEmailSuccess() {
       router.replace("/(tabs)/profile");
     }, 3000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [router]);
 
   return (
-      <View style={[styles.container, { paddingTop: insets.top + 20 }]}>
-        <Text style={styles.title}>Add personal email</Text>
+    <View style={[styles.container, { paddingTop: insets.top + 20 }]}>
+      <Text style={styles.title}>Add personal email</Text>
 
       <View style={styles.circle}>
         <Ionicons name="checkmark" size={60} color="#0a8f6d" />
@@ -35,8 +35,8 @@ export default function AddEmailSuccess() {
         </Text>
       </Text>
 
-      <TouchableOpacity 
-        style={styles.doneBtn} 
+      <TouchableOpacity
+        style={styles.doneBtn}
         onPress={() => router.replace("/(tabs)/profile")}
       >
         <Text style={styles.doneText}>Done</Text>

@@ -1,37 +1,45 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ref as dbRef, onValue } from "firebase/database";
 import { getStorage, ref as storageRef, uploadBytes } from "firebase/storage";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { auth, db } from "../../../firebase/firebaseConfig"; // Ensure 'storage' is initialized in firebaseConfig or use getStorage()
+import { auth, db } from "../../../firebase/firebaseConfig";
+import { showAlert } from "../../../utils/alert";
+
+const P = (v: string | string[] | undefined, fb = "") =>
+  Array.isArray(v) ? v[0] : (v ?? fb);
 
 export default function Masterlist() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  
-  // 1. Get Params
   const params = useLocalSearchParams();
-  const getParam = (v: any) => (Array.isArray(v) ? v[0] : v || "");
 
-  const classId = getParam(params.classId);
-  const className = getParam(params.name) || "BSCS-4B";
-  const section = getParam(params.section) || "GEM14-M";
-  const headerColor = getParam(params.color) || "#BB73E0";
+  const classId = P(params.classId);
+  const className = P(params.name, "Class");
+  const section = P(params.section, "Section");
+  const headerColor = P(params.color, "#00b679");
 
   const [modalVisible, setModalVisible] = useState(false);
   const [hasFile, setHasFile] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  // 2. Listen for Masterlist Data (Students)
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid || !classId) return;
 
     const studentsRef = dbRef(db, `professors/${uid}/classes/${classId}/students`);
-    
     const unsubscribe = onValue(studentsRef, (snapshot) => {
       setHasFile(snapshot.exists() && snapshot.hasChildren());
     });
@@ -39,41 +47,32 @@ export default function Masterlist() {
     return () => unsubscribe();
   }, [classId]);
 
-  // 3. Handle File Pick & Upload
   const handleUpload = async () => {
     try {
-      // Pick the PDF
       const result = await DocumentPicker.getDocumentAsync({
-        type: "application/pdf", // STRICTLY PDF
+        type: "application/pdf",
         copyToCacheDirectory: true,
       });
 
       if (result.canceled) return;
-
       const fileAsset = result.assets[0];
       setUploading(true);
-      setModalVisible(false); // Close modal while uploading
+      setModalVisible(false);
 
-      // Prepare Upload
       const uid = auth.currentUser?.uid;
       if (!uid) throw new Error("User not authenticated");
 
-      // Fetch the file as a Blob (Required for React Native Firebase)
       const response = await fetch(fileAsset.uri);
       const blob = await response.blob();
 
-      // Upload to the path triggers the Cloud Function
-      // Path: masterlists/{uid}/{classId}/{filename}
       const storage = getStorage();
       const fileRef = storageRef(storage, `masterlists/${uid}/${classId}/${fileAsset.name}`);
-
       await uploadBytes(fileRef, blob);
 
-      Alert.alert("Success", "Masterlist uploaded! Processing student data...");
-
+      showAlert("Success", "Masterlist uploaded! Processing student data...");
     } catch (error) {
       console.error(error);
-      Alert.alert("Error", "Failed to upload masterlist.");
+      showAlert("Error", "Failed to upload masterlist.");
     } finally {
       setUploading(false);
     }
@@ -81,94 +80,106 @@ export default function Masterlist() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: headerColor, paddingTop: insets.top + 20 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={22} color="#fff" />
+      <StatusBar barStyle="light-content" />
+      <View style={[styles.header, { backgroundColor: headerColor, paddingTop: insets.top + 15 }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Feather name="chevron-left" size={26} color="#fff" />
         </TouchableOpacity>
-        <View style={styles.headerTextContainer}>
-          <Text style={styles.className}>{className}</Text>
-          <Text style={styles.sectionName}>{section}</Text>
+        <View style={styles.headerInfo}>
+          <Text style={styles.headerSmall}>{section}</Text>
+          <Text style={styles.headerBig} numberOfLines={1}>{className}</Text>
         </View>
       </View>
 
-      {/* Body */}
       <View style={styles.content}>
-        <Text style={styles.sectionTitle}>Class Masterlist</Text>
+        <View style={styles.infoSection}>
+          <Text style={styles.sectionLabel}>Student Roster</Text>
+          <Text style={styles.sectionTitle}>Class Masterlist</Text>
+          <Text style={styles.sectionDesc}>
+            Upload a PDF masterlist to automatically populate your class with students. Each page should follow the standard roster format.
+          </Text>
+        </View>
 
-        {/* LOADING STATE */}
         {uploading ? (
-           <View style={styles.emptyStateContainer}>
-             <ActivityIndicator size="large" color={headerColor} />
-             <Text style={styles.uploadedLabel}>Uploading & Parsing PDF...</Text>
-           </View>
+          <View style={styles.loadingCard}>
+            <ActivityIndicator size="large" color={headerColor} />
+            <Text style={styles.loadingText}>Processing PDF Roster...</Text>
+            <Text style={styles.loadingSub}>This might take a few seconds.</Text>
+          </View>
         ) : hasFile ? (
-          /* STATE: Masterlist Exists -> Show Filename Button */
-          <View style={{ marginTop: 10 }}>
-            <Text style={styles.uploadedLabel}>Uploaded Masterlist</Text>
-            
+          <View style={styles.statusSection}>
+            <View style={styles.listHeaderRow}>
+              <Text style={styles.listLabel}>CURRENT ROSTER</Text>
+              <View style={[styles.activeBadge, { backgroundColor: headerColor + '15' }]}>
+                <Text style={[styles.activeBadgeText, { color: headerColor }]}>ACTIVE</Text>
+              </View>
+            </View>
+
             <TouchableOpacity
               style={styles.fileCard}
               onPress={() =>
                 router.push({
                   pathname: "/(tabs)/classes/masterlist-view-section",
-                  params: {
-                    classId: classId,
-                    name: className,
-                    section: section,
-                    color: headerColor,
-                  },
+                  params: { classId, name: className, section, color: headerColor },
                 })
               }
             >
-              {/* Changed CSV to PDF label */}
-              <Text style={styles.fileName}>{className}.pdf</Text>
-              <Ionicons name="chevron-forward" size={18} color="#000" />
+              <View style={[styles.fileIconBox, { backgroundColor: headerColor + '10' }]}>
+                <Feather name="file-text" size={24} color={headerColor} />
+              </View>
+              <View style={styles.fileInfo}>
+                <Text style={styles.fileName}>{className}_Masterlist.pdf</Text>
+                <Text style={styles.fileDate}>Tap to manage students</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color="#ccc" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.replaceBtn} onPress={() => setModalVisible(true)}>
+              <Feather name="refresh-cw" size={14} color="#666" />
+              <Text style={styles.replaceText}>Upload New Masterlist</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          /* STATE: No Masterlist -> Show Upload Button + Indicator */
-          <View>
+          <View style={styles.emptyContainer}>
             <TouchableOpacity
-              style={styles.uploadButton}
+              style={styles.uploadMainBtn}
               onPress={() => setModalVisible(true)}
             >
-              <Ionicons name="cloud-upload-outline" size={20} color="#000" style={{ marginRight: 6 }} />
-              <Text style={styles.uploadText}>Upload a masterlist</Text>
+              <View style={[styles.largeIconBox, { backgroundColor: headerColor + '10' }]}>
+                <Feather name="upload-cloud" size={40} color={headerColor} />
+              </View>
+              <Text style={styles.uploadMainTitle}>No Masterlist Found</Text>
+              <Text style={styles.uploadMainSub}>Tap here to upload your student roster (PDF)</Text>
             </TouchableOpacity>
-
-            <View style={styles.emptyStateContainer}>
-                <Ionicons name="document-outline" size={40} color="#ccc" />
-                <Text style={styles.noFileText}>No masterlist uploaded.</Text>
-            </View>
           </View>
         )}
       </View>
 
       {/* Upload Modal */}
-      <Modal
-        transparent
-        animationType="fade"
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
+      <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <TouchableOpacity
-              style={styles.closeIcon}
-              onPress={() => setModalVisible(false)}
-            >
-              <Ionicons name="close" size={20} color="#2E7D32" />
-            </TouchableOpacity>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setModalVisible(false)} />
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitle}>Import Roster</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Feather name="x" size={20} color="#999" />
+              </TouchableOpacity>
+            </View>
 
-            <Text style={styles.modalTitle}>Upload a file</Text>
-            <Ionicons name="cloud-upload-outline" size={36} color="#000" style={{ marginVertical: 10 }} />
-            <Text style={styles.modalText}>Choose a PDF masterlist to upload.</Text>
+            <View style={styles.modalBody}>
+              <View style={styles.formatCard}>
+                <Feather name="alert-circle" size={18} color="#f97316" />
+                <Text style={styles.formatText}>Only PDF files are supported for automatic student extraction.</Text>
+              </View>
 
-            {/* Trigger Handle Upload directly */}
-            <TouchableOpacity style={styles.modalUploadBtn} onPress={handleUpload}>
-              <Text style={styles.modalUploadText}>Select PDF</Text>
-            </TouchableOpacity>
+              <TouchableOpacity style={[styles.selectBtn, { backgroundColor: headerColor }]} onPress={handleUpload}>
+                <Feather name="plus" size={20} color="#fff" />
+                <Text style={styles.selectBtnText}>Select PDF File</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.modalHelp}>Ensure names are clearly legible for accurate parsing.</Text>
+            </View>
           </View>
         </View>
       </Modal>
@@ -177,135 +188,64 @@ export default function Masterlist() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingBottom: 17,
-    paddingHorizontal: 16,
-  },
-  backButton: {
-    marginRight: 10,
-  },
-  headerTextContainer: {
-    flexDirection: "column",
-  },
-  className: {
-    color: "#fff",
-    fontSize: 14,
-    opacity: 0.8,
-  },
-  sectionName: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  content: {
-    padding: 20,
-  },
-  sectionTitle: {
-    color: "#01B468",
-    fontSize: 18,
-    fontWeight: "800",
-    marginBottom: 16,
-  },
-  
-  // Upload Styles
-  uploadButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    backgroundColor: "#fff",
-    elevation: 2,
-  },
-  uploadText: {
-    fontSize: 15,
-    color: "#000",
-  },
-  
-  // Empty State Styles
-  emptyStateContainer: {
-    marginTop: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-  },
-  noFileText: {
-    color: "#999",
-    fontSize: 14,
-    fontStyle: "italic",
-  },
+  container: { flex: 1, backgroundColor: "#f8f9fa" },
+  header: { paddingHorizontal: 20, paddingBottom: 25, flexDirection: "row", alignItems: "center", elevation: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
+  backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
+  headerInfo: { flex: 1, paddingHorizontal: 10 },
+  headerSmall: { color: "#fff", fontSize: 11, opacity: 0.8, fontWeight: '700', textTransform: 'uppercase' },
+  headerBig: { color: "#fff", fontSize: 18, fontWeight: "800" },
 
-  // File Card Styles
-  uploadedLabel: {
-    fontSize: 15,
-    color: "#000",
-    fontWeight: "500",
-    marginBottom: 8,
-  },
+  content: { padding: 20 },
+  infoSection: { marginBottom: 35, paddingHorizontal: 5 },
+  sectionLabel: { fontSize: 13, fontWeight: '700', color: '#bbb', textTransform: 'uppercase', marginBottom: 8 },
+  sectionTitle: { fontSize: 24, fontWeight: '800', color: '#111', marginBottom: 12 },
+  sectionDesc: { fontSize: 15, color: '#666', lineHeight: 22 },
+
+  statusSection: {},
+  listHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
+  listLabel: { fontSize: 12, fontWeight: '800', color: '#bbb', letterSpacing: 1 },
+  activeBadge: { marginLeft: 10, paddingHorizontal: 10, paddingVertical: 2, borderRadius: 10 },
+  activeBadgeText: { fontSize: 10, fontWeight: '900' },
+
   fileCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    backgroundColor: "#fff",
-    elevation: 2,
-  },
-  fileName: {
-    fontSize: 15,
-    color: "#000",
-    fontWeight: "600",
-  },
-
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalBox: {
-    width: "80%",
-    backgroundColor: "#fff",
-    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 24,
     padding: 20,
-    alignItems: "center",
-    elevation: 5,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 15,
+    borderWidth: 1,
+    borderColor: '#f0f0f0'
   },
-  closeIcon: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#2E7D32",
-  },
-  modalText: {
-    fontSize: 14,
-    color: "#000",
-    marginVertical: 8,
-  },
-  modalUploadBtn: {
-    backgroundColor: "#2E7D32",
-    borderRadius: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 30,
-    marginTop: 8,
-  },
-  modalUploadText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 15,
-  },
+  fileIconBox: { width: 56, height: 56, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+  fileInfo: { flex: 1, marginLeft: 15 },
+  fileName: { fontSize: 16, fontWeight: '700', color: '#111', marginBottom: 4 },
+  fileDate: { fontSize: 13, color: '#999', fontWeight: '500' },
+
+  replaceBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 20, gap: 8, opacity: 0.6 },
+  replaceText: { fontSize: 13, fontWeight: '700', color: '#666' },
+
+  loadingCard: { alignItems: 'center', paddingVertical: 50, backgroundColor: '#fff', borderRadius: 24 },
+  loadingText: { fontSize: 17, fontWeight: '800', color: '#111', marginTop: 20 },
+  loadingSub: { fontSize: 13, color: '#999', marginTop: 6 },
+
+  emptyContainer: { alignItems: 'center' },
+  uploadMainBtn: { width: '100%', alignItems: 'center', paddingVertical: 60, backgroundColor: '#fff', borderRadius: 32, borderWidth: 1, borderColor: '#f0f0f0', borderStyle: 'dashed' },
+  largeIconBox: { width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  uploadMainTitle: { fontSize: 20, fontWeight: '800', color: '#111' },
+  uploadMainSub: { fontSize: 14, color: '#999', marginTop: 8, textAlign: 'center', paddingHorizontal: 40 },
+
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "center", padding: 25 },
+  modalCard: { backgroundColor: "#fff", borderRadius: 28, padding: 24, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
+  modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 },
+  modalTitle: { fontSize: 20, fontWeight: "800", color: "#111" },
+  modalBody: {},
+  formatCard: { flexDirection: 'row', gap: 12, backgroundColor: '#fff7ed', padding: 15, borderRadius: 16, marginBottom: 20, alignItems: 'center' },
+  formatText: { flex: 1, fontSize: 13, color: '#c2410c', fontWeight: '600', lineHeight: 18 },
+  selectBtn: { paddingVertical: 18, borderRadius: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  selectBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  modalHelp: { textAlign: 'center', fontSize: 12, color: '#bbb', marginTop: 20, fontStyle: 'italic' },
 });

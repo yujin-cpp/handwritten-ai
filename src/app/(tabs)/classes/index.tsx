@@ -1,12 +1,9 @@
-// app/(tabs)/classes/index.tsx
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { ref, remove } from "firebase/database"; // 1. Import DB functions
+import { ref, remove } from "firebase/database";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Alert,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,15 +12,16 @@ import {
   View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { auth, db } from "../../../firebase/firebaseConfig"; // 2. Import Auth & DB
-import { listenToClasses } from "../../../services/class.service"; // 3. Import Listener
+import { auth, db } from "../../../firebase/firebaseConfig";
+import { listenToClasses } from "../../../services/class.service";
+import { showAlert, showConfirm } from "../../../utils/alert";
 
 type ClassItem = {
   id: string;
   name: string;
   section: string;
   color: string;
-  academicYear?: string; // Added optional field for passing to details
+  academicYear?: string;
 };
 
 export default function ClassesScreen() {
@@ -31,23 +29,20 @@ export default function ClassesScreen() {
   const [items, setItems] = useState<ClassItem[]>([]);
   const [editMode, setEditMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [confirmVisible, setConfirmVisible] = useState(false);
   const insets = useSafeAreaInsets();
 
-  // 4. REAL-TIME DATA FETCHING
+  // REAL-TIME DATA FETCHING
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
 
-    // Listen to changes
     const unsubscribe = listenToClasses(uid, (data) => {
       if (data) {
-        // Convert Object { id: { data } } -> Array [ { id, ...data } ]
         const classArray = Object.entries(data).map(([key, val]: any) => ({
           id: key,
           name: val.className,
           section: val.section,
-          color: val.themeColor || "#009e60", // Default color if missing
+          color: val.themeColor || "#009e60",
           academicYear: val.semester
         }));
         setItems(classArray);
@@ -73,66 +68,72 @@ export default function ClassesScreen() {
   function toggleSelect(id: string) {
     setSelected(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   }
 
-  // 5. DELETE FROM FIREBASE
+  // DELETE FROM FIREBASE
+  const handleDeleteRequest = () => {
+    const message = `Are you sure you want to delete ${selected.size === 1 ? selectedNames : "the selected classes"}? This action cannot be undone.`;
+    showConfirm(
+      "Delete Class?",
+      message,
+      handleDeleteConfirmed,
+      undefined,
+      "Delete",
+      "Cancel"
+    );
+  };
+
   async function handleDeleteConfirmed() {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
 
     try {
-      // 1. Point to the correct path: 'professors/UID/classes/CLASS_ID'
-      const deletePromises = Array.from(selected).map((classId) => 
-        remove(ref(db, `professors/${uid}/classes/${classId}`)) 
+      const deletePromises = Array.from(selected).map((classId) =>
+        remove(ref(db, `professors/${uid}/classes/${classId}`))
       );
-      
+
       await Promise.all(deletePromises);
 
-      // 2. Update UI
-      setItems(prevItems => prevItems.filter(item => !selected.has(item.id)));
-      
       console.log("✅ Delete successful");
       setSelected(new Set());
-      setConfirmVisible(false);
       setEditMode(false);
-      
+
     } catch (error) {
       console.error(error);
-      Alert.alert("Error", "Failed to delete selected classes.");
+      showAlert("Error", "Failed to delete selected classes.");
     }
   }
 
   return (
     <View style={styles.page}>
       {/* Header */}
-      <LinearGradient 
-        colors={["#00b679", "#009e60"]} 
-        start={{ x: 0, y: 0 }} 
-        end={{ x: 1, y: 0 }} 
+      <LinearGradient
+        colors={["#00b679", "#009e60"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
         style={[styles.header, { paddingTop: insets.top + 20 }]}
       >
         <Text style={styles.headerTitle}>Class List</Text>
 
-        {items.length > 0 && ( // Only show Edit if there are items
-          editMode ? (
-            <TouchableOpacity onPress={toggleEdit} style={[styles.pill, styles.pillDone]}>
-              <Text style={[styles.pillText, { color: "#fff" }]}>Done</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity onPress={toggleEdit} style={styles.pill}>
-              <Text style={styles.pillText}>Edit</Text>
-            </TouchableOpacity>
-          )
+        {items.length > 0 && (
+          <TouchableOpacity onPress={toggleEdit} style={[styles.pill, editMode && styles.pillActive]}>
+            <Text style={[styles.pillText, editMode && { color: "#fff" }]}>
+              {editMode ? "Done" : "Edit"}
+            </Text>
+          </TouchableOpacity>
         )}
       </LinearGradient>
 
       {/* Content */}
       <ScrollView contentContainerStyle={styles.content}>
-        
-        {/* Empty State */}
+
         {items.length === 0 && !editMode && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No classes found.</Text>
@@ -148,20 +149,20 @@ export default function ClassesScreen() {
               editMode
                 ? toggleSelect(item.id)
                 : router.push({
-                    pathname: "/(tabs)/classes/classinformation",
-                    params: {
-                      classId: item.id, // Important: Pass ID
-                      name: item.name,
-                      section: item.section,
-                      color: item.color,
-                      academicYear: item.academicYear
-                    },
-                  })
+                  pathname: "/(tabs)/classes/classinformation",
+                  params: {
+                    classId: item.id,
+                    name: item.name,
+                    section: item.section,
+                    color: item.color,
+                    academicYear: item.academicYear
+                  },
+                })
             }
           >
             {editMode && (
               <View style={styles.selectCircle}>
-                {selected.has(item.id) && <Ionicons name="checkmark" size={14} color="#fff" />}
+                {selected.has(item.id) && <Feather name="check" size={12} color="#fff" />}
               </View>
             )}
 
@@ -171,28 +172,26 @@ export default function ClassesScreen() {
             </View>
 
             {!editMode && (
-              <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.6)" />
+              <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.7)" />
             )}
           </Pressable>
         ))}
 
-        {/* Add Class Button (Hidden in Edit Mode) */}
         {!editMode && (
           <TouchableOpacity
             style={[styles.card, styles.addCard]}
             onPress={() => router.push("/(tabs)/classes/addclass")}
           >
-            <Ionicons name="add-circle-outline" size={24} color="#0EA47A" />
+            <Feather name="plus-circle" size={22} color="#0EA47A" />
             <Text style={styles.addText}>Add Class</Text>
           </TouchableOpacity>
         )}
 
-        {/* Danger bar when selecting */}
         {editMode && (
           <TouchableOpacity
             disabled={!anySelected}
             style={[styles.deleteBar, !anySelected && { opacity: 0.5 }]}
-            onPress={() => setConfirmVisible(true)}
+            onPress={handleDeleteRequest}
           >
             <Text style={styles.deleteBarText}>
               Delete {selected.size} selected {selected.size === 1 ? 'class' : 'classes'}
@@ -200,32 +199,6 @@ export default function ClassesScreen() {
           </TouchableOpacity>
         )}
       </ScrollView>
-
-      {/* Confirm Modal */}
-      <Modal visible={confirmVisible} transparent animationType="fade" onRequestClose={() => setConfirmVisible(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Delete Class?</Text>
-            <Text style={styles.modalSub}>
-              Are you sure you want to delete {selected.size === 1 ? selectedNames : "the selected classes"}?
-              {"\n\n"}This action cannot be undone.
-            </Text>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={[styles.modalBtn, styles.modalCancel]} onPress={() => setConfirmVisible(false)}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.modalDelete]}
-                onPress={handleDeleteConfirmed}
-              >
-                <Text style={styles.modalDeleteText}>Delete</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -250,7 +223,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "#fff",
   },
-  pillDone: { backgroundColor: "rgba(255,255,255,0.25)", borderWidth: 0 },
+  pillActive: { backgroundColor: "rgba(255,255,255,0.25)", borderWidth: 0 },
   pillText: { fontWeight: "600", color: "#333" },
 
   content: { padding: 16, paddingBottom: 28 },

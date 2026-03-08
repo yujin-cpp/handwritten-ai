@@ -1,10 +1,13 @@
-// app/(tabs)/classes/quiz-score.tsx
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import { onValue, ref, update } from "firebase/database";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Modal,
+  Pressable,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -12,14 +15,23 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { auth, db } from "../../../firebase/firebaseConfig";
+import { showAlert } from "../../../utils/alert";
 
 const P = (v: string | string[] | undefined, fb = "") =>
-  Array.isArray(v) ? v[0] : v ?? fb;
+  Array.isArray(v) ? v[0] : (v ?? fb);
 
 type Student = {
   id: string;
   name: string;
   score?: number;
+  total?: number;
+  images?: string[];
+  status?: string;
+  confidenceScore?: number;
+  legibility?: string;
+  verificationLog?: string;
+  transcribedText?: string;
 };
 
 type SortOption =
@@ -29,100 +41,124 @@ type SortOption =
   | "score-asc"
   | "score-desc";
 
-const INITIAL: Student[] = [
-  { id: "1", name: "Buenaflor, Sean Kurt", score: 30 },
-  { id: "2", name: "Capuz, Prince Aaron", score: 27 },
-  { id: "3", name: "Domingo, Princess Jade", score: 30 },
-  { id: "4", name: "Elle, Clarise Mae", score: 30 },
-  { id: "5", name: "Perez, Maria Angela Mae" },
-  { id: "6", name: "Toganon, Francesca" },
-];
-
 export default function QuizScore() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
 
-  const className = P(params.name, "BSCS-4B");
-  const section = P(params.section, "GEM14-M");
-  const headerColor = P(params.color, "#C17CEB");
-  const activityTitle = P(params.title, "Quiz no 1");
+  const classId = P(params.classId);
+  const activityId = P(params.activityId);
+  const className = P(params.name, "Class");
+  const section = P(params.section, "Section");
+  const headerColor = P(params.color, "#00b679");
+  const activityTitle = P(params.title, "Activity");
 
-  const [students, setStudents] = useState<Student[]>(INITIAL);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
 
-  // export UI
   const [exportOpen, setExportOpen] = useState(false);
-  const [exportDone, setExportDone] =
-    useState<null | ".CSV" | ".PDF" | ".XLSX">(null);
+  const [exportDone, setExportDone] = useState<null | ".CSV" | ".PDF" | ".XLSX">(null);
 
-  // edit score modal state
   const [editOpen, setEditOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Student | null>(null);
   const [tempName, setTempName] = useState("");
   const [tempScore, setTempScore] = useState<string>("");
+  const [saving, setSaving] = useState(false);
 
-  // sort modal
+  // --- NEW: AI Details Modal ---
+  const [aiDetailsOpen, setAiDetailsOpen] = useState(false);
+  const [aiTarget, setAiTarget] = useState<Student | null>(null);
+
   const [sortOpen, setSortOpen] = useState(false);
   const [sortOption, setSortOption] = useState<SortOption>("none");
 
-  // missing students modal
   const [missingOpen, setMissingOpen] = useState(false);
 
-  // list of students with no score
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || !classId || !activityId) return;
+
+    const studentsRef = ref(db, `professors/${uid}/classes/${classId}/students`);
+    const unsubscribe = onValue(studentsRef, (snapshot) => {
+      if (!snapshot.exists()) {
+        setStudents([]);
+        setLoading(false);
+        return;
+      }
+
+      const data = snapshot.val();
+      const parsedStudents: Student[] = Object.keys(data).map((key) => {
+        const studentData = data[key];
+        const activityRecord = studentData.activities?.[activityId];
+        return {
+          id: key,
+          name: studentData.name,
+          score: activityRecord?.score,
+          total: activityRecord?.total,
+          images: activityRecord?.images || [],
+          status: activityRecord?.status || "pending",
+          confidenceScore: activityRecord?.confidenceScore,
+          legibility: activityRecord?.legibility,
+          verificationLog: activityRecord?.verificationLog,
+          transcribedText: activityRecord?.transcribedText,
+        };
+      });
+
+      setStudents(parsedStudents);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [classId, activityId]);
+
   const missingStudents = useMemo(
-    () => students.filter((s) => s.score === undefined),
-    [students]
+    () => students.filter((s) => s.score === undefined && s.status !== "grading"),
+    [students],
   );
 
-  // SEARCH + SORT
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-
     let list = students;
-
-    // search by NAME only
-    if (q) {
-      list = list.filter((s) => s.name.toLowerCase().includes(q));
-    }
+    if (q) list = list.filter((s) => s.name.toLowerCase().includes(q));
 
     const sorted = [...list];
-
     switch (sortOption) {
-      case "name-asc":
-        sorted.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      case "name-desc":
-        sorted.sort((a, b) => b.name.localeCompare(a.name));
-        break;
-      case "score-asc":
-        sorted.sort((a, b) => (a.score ?? 0) - (b.score ?? 0));
-        break;
-      case "score-desc":
-        sorted.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-        break;
-      case "none":
-      default:
-        break;
+      case "name-asc": sorted.sort((a, b) => a.name.localeCompare(b.name)); break;
+      case "name-desc": sorted.sort((a, b) => b.name.localeCompare(a.name)); break;
+      case "score-asc": sorted.sort((a, b) => (a.score ?? -1) - (b.score ?? -1)); break;
+      case "score-desc": sorted.sort((a, b) => (b.score ?? -1) - (a.score ?? -1)); break;
     }
-
     return sorted;
   }, [students, query, sortOption]);
 
-  // summary
-  const highest = Math.max(...students.map((s) => s.score ?? 0));
-  const total = students.length;
-  const completed = students.filter((s) => s.score !== undefined).length;
-  const missing = total - completed;
-  const pending = 27;
+  const scoresOnly = students.map((s) => s.score).filter((s) => s !== undefined) as number[];
+  const highest = scoresOnly.length > 0 ? Math.max(...scoresOnly) : 0;
+  const totalStudents = students.length;
+  const completed = scoresOnly.length;
+  const missingCount = totalStudents - completed;
 
   function openCameraFor(student: Student) {
     router.push({
       pathname: "/(tabs)/capture",
+      params: { classId, activityId, studentId: student.id },
+    });
+    setMissingOpen(false);
+  }
+
+  function openViewImages(student: Student) {
+    if (!student.images || student.images.length === 0) {
+      showAlert("No Proof", "No images uploaded for this student.");
+      return;
+    }
+    router.push({
+      pathname: "/(tabs)/classes/uploaded-image",
       params: {
-        section: className,
-        activity: activityTitle,
-        name: student.name,
+        images: JSON.stringify(student.images),
+        student: student.name,
+        section: section,
+        title: activityTitle,
+        color: headerColor,
       },
     });
   }
@@ -130,675 +166,518 @@ export default function QuizScore() {
   function openEdit(student: Student) {
     setEditTarget(student);
     setTempName(student.name);
-    setTempScore(
-      typeof student.score === "number" ? String(student.score) : ""
-    );
+    setTempScore(typeof student.score === "number" ? String(student.score) : "");
     setEditOpen(true);
   }
 
-  function saveEdit() {
+  async function saveEdit() {
     if (!editTarget) return;
-    const parsed = parseInt(tempScore, 10);
-    const nextScore = isNaN(parsed) ? undefined : parsed;
-    setStudents((prev) =>
-      prev.map((s) =>
-        s.id === editTarget.id ? { ...s, score: nextScore } : s
-      )
-    );
-    setEditOpen(false);
-    setEditTarget(null);
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+
+    setSaving(true);
+    try {
+      const parsed = parseInt(tempScore, 10);
+      const nextScore = isNaN(parsed) ? null : parsed;
+      const gradePath = `professors/${uid}/classes/${classId}/students/${editTarget.id}/activities/${activityId}`;
+      await update(ref(db, gradePath), {
+        score: nextScore,
+        status: nextScore !== null ? "graded" : "pending",
+      });
+      setEditOpen(false);
+    } catch {
+      showAlert("Error", "Failed to update score.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openAIDetails(student: Student) {
+    setAiTarget(student);
+    setAiDetailsOpen(true);
   }
 
   const sortLabel = (() => {
     switch (sortOption) {
-      case "name-asc":
-        return "Name A–Z";
-      case "name-desc":
-        return "Name Z–A";
-      case "score-asc":
-        return "Score Low–High";
-      case "score-desc":
-        return "Score High–Low";
-      default:
-        return "Sort";
+      case "name-asc": return "Name A-Z";
+      case "name-desc": return "Name Z-A";
+      case "score-asc": return "Score Low-High";
+      case "score-desc": return "Score High-Low";
+      default: return "Sort By";
     }
   })();
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#fff" }}>
-      {/* Header (purple) */}
-      <View style={[styles.header, { backgroundColor: headerColor }, {paddingTop: insets.top + 20}]}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      <View style={[styles.header, { backgroundColor: headerColor, paddingTop: insets.top + 15 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={22} color="#fff" />
+          <Feather name="chevron-left" size={26} color="#fff" />
         </TouchableOpacity>
-        <View>
-          <Text style={styles.headerSmall}>{className}</Text>
-          <Text style={styles.headerBig}>{section}</Text>
+        <View style={styles.headerInfo}>
+          <Text style={styles.headerSmall}>{className} • {section}</Text>
+          <Text style={styles.headerBig} numberOfLines={1}>{activityTitle}</Text>
         </View>
+        <TouchableOpacity onPress={() => setExportOpen(true)} style={styles.headerActionBtn}>
+          <Feather name="download" size={20} color="#fff" />
+        </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Summary row */}
-        <View style={styles.topRow}>
-          <Text style={styles.summaryTitle}>Summary</Text>
-          <Text style={styles.activityTitle}>{activityTitle}</Text>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Statistics Widgets */}
+        <View style={styles.statsGrid}>
+          <View style={styles.statWidget}>
+            <View style={[styles.statIconBox, { backgroundColor: '#f0fdf4' }]}>
+              <Feather name="award" size={20} color="#00b679" />
+            </View>
+            <Text style={styles.statVal}>{highest}</Text>
+            <Text style={styles.statLab}>Highest Score</Text>
+          </View>
+
+          <View style={styles.statWidget}>
+            <View style={[styles.statIconBox, { backgroundColor: '#fff7ed' }]}>
+              <Feather name="clock" size={20} color="#f97316" />
+            </View>
+            <Text style={styles.statVal}>{missingCount}</Text>
+            <Text style={styles.statLab}>Pending Grades</Text>
+          </View>
         </View>
 
-        <View style={styles.summaryRow}>
-          <SummaryCard top={`${highest}/30`} bottom="Highest Score" />
-          <SummaryCard top={`${pending}/30`} bottom="Pending Grades" />
-        </View>
-
-        <View style={styles.summaryRow}>
-          <SummaryCard top={`${missing}`} bottom="Missing" />
-          <SummaryCard top={`${completed}/${total}`} bottom="Completed" />
-        </View>
-
-        {/* Missing list trigger */}
         <TouchableOpacity
-          style={[
-            styles.missingBtn,
-            missingStudents.length === 0 && { opacity: 0.6 },
-          ]}
-          activeOpacity={0.9}
-          disabled={missingStudents.length === 0}
+          style={[styles.progressCard, { borderColor: headerColor + '30' }]}
           onPress={() => setMissingOpen(true)}
+          disabled={missingStudents.length === 0}
         >
-          <Text style={styles.missingText}>View Students with Missing Scores</Text>
+          <View style={styles.progressHeader}>
+            <Text style={styles.progressTitle}>Grading Progress</Text>
+            <Text style={styles.progressVal}>{completed} / {totalStudents}</Text>
+          </View>
+          <View style={styles.progressBarBg}>
+            <View style={[styles.progressBarFill, { backgroundColor: headerColor, width: totalStudents ? `${(completed / totalStudents) * 100}%` : '0%' }]} />
+          </View>
+          {missingStudents.length > 0 && (
+            <View style={styles.missingBadge}>
+              <Feather name="alert-circle" size={14} color="#ff3b30" />
+              <Text style={styles.missingBadgeText}>{missingStudents.length} students missing scores</Text>
+              <Feather name="chevron-right" size={14} color="#ccc" style={{ marginLeft: 'auto' }} />
+            </View>
+          )}
         </TouchableOpacity>
 
-        {/* Search + Sort + Export */}
-        <View style={styles.actionsRow}>
-          {/* search */}
-          <View style={styles.searchBox}>
-            <Ionicons name="search" size={16} color="#666" />
+        {/* Toolbar */}
+        <View style={styles.toolbar}>
+          <View style={styles.searchContainer}>
+            <Feather name="search" size={16} color="#999" />
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder="Search name…"
-              placeholderTextColor="#999"
-              style={styles.searchInput}
+              placeholder="Filter by name..."
+              placeholderTextColor="#bbb"
+              style={styles.searchInp}
             />
           </View>
 
-          {/* sort button */}
-          <TouchableOpacity
-            style={styles.sortBtn}
-            onPress={() => setSortOpen(true)}
-          >
-            <Ionicons name="swap-vertical" size={16} color="#01B468" />
-            <Text style={styles.sortText}>{sortLabel}</Text>
-          </TouchableOpacity>
-
-          {/* export */}
-          <TouchableOpacity
-            style={styles.exportBtn}
-            onPress={() => setExportOpen(true)}
-          >
-            <Text style={styles.exportText}>Export</Text>
+          <TouchableOpacity style={styles.filterBtn} onPress={() => setSortOpen(true)}>
+            <Feather name="sliders" size={16} color="#444" />
+            <Text style={styles.filterText}>{sortLabel}</Text>
           </TouchableOpacity>
         </View>
 
-        {/* TABLE */}
-        <View style={styles.table}>
-          {/* head */}
-          <View style={[styles.row, styles.rowHeader]}>
-            <Text style={[styles.headerCell, { flex: 1.6 }]}>Name</Text>
-            <Text style={[styles.headerCell, styles.cellScore]}>Score</Text>
-            <Text style={[styles.headerCell, styles.cellManage]}>Manage</Text>
+        {/* Student List Table */}
+        <View style={styles.listSection}>
+          <View style={styles.listHeader}>
+            <Text style={[styles.headCell, { flex: 2 }]}>STUDENT NAME</Text>
+            <Text style={[styles.headCell, { flex: 1, textAlign: 'center' }]}>SCORE</Text>
+            <Text style={[styles.headCell, { flex: 1, textAlign: 'center' }]}>PROOF</Text>
+            <Text style={[styles.headCell, { width: 50 }]}></Text>
           </View>
 
-          {filtered.map((s, idx) => (
-            <View
-              key={s.id}
-              style={[
-                styles.row,
-                idx === filtered.length - 1 && { borderBottomWidth: 0 },
-              ]}
-            >
-              {/* NAME */}
-              <View style={styles.cellNameWrap}>
-                <Text style={styles.nameText} numberOfLines={1}>
-                  {s.name}
-                </Text>
-              </View>
+          {loading ? (
+            <ActivityIndicator size="large" color={headerColor} style={{ marginTop: 40 }} />
+          ) : filtered.length === 0 ? (
+            <Text style={styles.emptyMsg}>No results found for "{query}"</Text>
+          ) : (
+            filtered.map((s, idx) => (
+              <View key={s.id} style={[styles.listRow, idx === filtered.length - 1 && { borderBottomWidth: 0 }]}>
+                <View style={{ flex: 2 }}>
+                  <Text style={styles.rowName} numberOfLines={1}>{s.name}</Text>
+                </View>
 
-              {/* SCORE */}
-              <View style={styles.cellScore}>
-                {typeof s.score === "number" ? (
-                  <Text style={styles.scoreText}>{s.score}</Text>
-                ) : (
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                  {typeof s.score === "number" ? (
+                    <TouchableOpacity onPress={() => openAIDetails(s)} style={{ alignItems: 'center' }}>
+                      <Text style={[styles.rowScore, { color: headerColor }]}>{s.score}</Text>
+                      {s.confidenceScore !== undefined && (
+                        <View style={[styles.miniBadge, { backgroundColor: s.confidenceScore > 80 ? '#f0fdf4' : '#fff7ed' }]}>
+                          <Text style={[styles.miniBadgeText, { color: s.confidenceScore > 80 ? '#00b679' : '#f97316' }]}>
+                            {s.confidenceScore}%
+                          </Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ) : s.status === "grading" ? (
+                    <ActivityIndicator size="small" color={headerColor} />
+                  ) : (
+                    <TouchableOpacity onPress={() => openCameraFor(s)} style={styles.captureBtn}>
+                      <Feather name="camera" size={16} color="#6c63ff" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <View style={{ flex: 1, alignItems: 'center' }}>
                   <TouchableOpacity
-                    onPress={() => openCameraFor(s)}
-                    style={styles.cameraChip}
-                    activeOpacity={0.85}
+                    disabled={!s.images || s.images.length === 0}
+                    onPress={() => openViewImages(s)}
+                    style={[styles.proofBtn, (!s.images || s.images.length === 0) && { opacity: 0.2 }]}
                   >
-                    <Ionicons name="camera" size={18} color="#6C63FF" />
+                    <Feather name="image" size={18} color="#444" />
                   </TouchableOpacity>
-                )}
-              </View>
+                </View>
 
-              {/* MANAGE */}
-              <View style={styles.cellManage}>
-                <TouchableOpacity
-                  style={styles.iconBtn}
-                  onPress={() => openEdit(s)}
-                >
-                  <Ionicons name="create-outline" size={18} color="#000" />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.iconBtn} onPress={() => {}}>
-                  <Ionicons name="image-outline" size={18} color="#000" />
+                <TouchableOpacity style={{ width: 50, alignItems: 'center' }} onPress={() => openEdit(s)}>
+                  <Feather name="more-horizontal" size={20} color="#ccc" />
                 </TouchableOpacity>
               </View>
-            </View>
-          ))}
+            ))
+          )}
         </View>
       </ScrollView>
 
-      {/* Missing students modal */}
-      <Modal
-        visible={missingOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setMissingOpen(false)}
-      >
+      {/* Sort Modal */}
+      <Modal visible={sortOpen} transparent animationType="fade" onRequestClose={() => setSortOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Students with Missing Scores</Text>
-              <TouchableOpacity onPress={() => setMissingOpen(false)}>
-                <Ionicons name="close" size={20} color="#888" />
-              </TouchableOpacity>
-            </View>
-
-            {missingStudents.length === 0 ? (
-              <Text style={styles.modalHelp}>
-                Everyone already has a score.
-              </Text>
-            ) : (
-              <View style={{ marginTop: 8 }}>
-                {missingStudents.map((s) => (
-                  <View key={s.id} style={styles.missingRow}>
-                    <Text style={styles.missingName}>{s.name}</Text>
-                    <TouchableOpacity
-                      style={styles.missingCameraBtn}
-                      onPress={() => {
-                        setMissingOpen(false);
-                        openCameraFor(s);
-                      }}
-                    >
-                      <Ionicons name="camera" size={18} color="#6C63FF" />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            <TouchableOpacity
-              style={[styles.modalAction, styles.cancelBtn]}
-              onPress={() => setMissingOpen(false)}
-            >
-              <Text style={styles.cancelText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Sort modal */}
-      <Modal
-        visible={sortOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSortOpen(false)}
-      >
-        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setSortOpen(false)} />
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Sort Students</Text>
-
-            {(
-              [
-                ["none", "None"],
-                ["name-asc", "Name A–Z"],
-                ["name-desc", "Name Z–A"],
-                ["score-asc", "Score Low–High"],
-                ["score-desc", "Score High–Low"],
-              ] as [SortOption, string][]
-            ).map(([opt, label]) => (
-              <TouchableOpacity
-                key={opt}
-                style={[
-                  styles.optionBtn,
-                  opt === sortOption && { backgroundColor: "#E2F5EB" },
-                ]}
-                onPress={() => {
-                  setSortOption(opt);
-                  setSortOpen(false);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.optionText,
-                    opt === sortOption && { color: "#01B468" },
-                  ]}
+            <View style={styles.sortOptions}>
+              {(["none", "name-asc", "name-desc", "score-asc", "score-desc"] as SortOption[]).map((opt) => (
+                <TouchableOpacity
+                  key={opt}
+                  onPress={() => { setSortOption(opt); setSortOpen(false); }}
+                  style={[styles.sortOpt, sortOption === opt && { backgroundColor: headerColor + '10' }]}
                 >
-                  {label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-
-            <TouchableOpacity
-              style={[styles.modalAction, styles.cancelBtn]}
-              onPress={() => setSortOpen(false)}
-            >
-              <Text style={styles.cancelText}>Close</Text>
-            </TouchableOpacity>
+                  <Text style={[styles.sortOptText, sortOption === opt && { color: headerColor, fontWeight: '700' }]}>
+                    {opt === "none" ? "Default Order" : opt === "name-asc" ? "Name A-Z" : opt === "name-desc" ? "Name Z-A" : opt === "score-asc" ? "Lowest First" : "Highest First"}
+                  </Text>
+                  {sortOption === opt && <Feather name="check" size={16} color={headerColor} />}
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         </View>
       </Modal>
 
-      {/* Export choose modal */}
-      <Modal
-        visible={exportOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setExportOpen(false)}
-      >
+      {/* Export Modal */}
+      <Modal visible={exportOpen} transparent animationType="fade" onRequestClose={() => setExportOpen(false)}>
         <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setExportOpen(false)} />
           <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Export</Text>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitle}>Export Data</Text>
               <TouchableOpacity onPress={() => setExportOpen(false)}>
-                <Ionicons name="close" size={20} color="#01B468" />
+                <Feather name="x" size={20} color="#999" />
               </TouchableOpacity>
             </View>
+            <Text style={styles.modalSub}>Select a format to download the score sheet.</Text>
 
-            <Text style={styles.modalHelp}>
-              Choose a file format to download {"\n"} the data!
-            </Text>
+            <View style={styles.exportList}>
+              {[".CSV", ".PDF", ".XLSX"].map((fmt) => (
+                <TouchableOpacity key={fmt} style={styles.exportItem} onPress={() => { setExportOpen(false); setTimeout(() => setExportDone(fmt as any), 200); }}>
+                  <Feather name="file" size={18} color="#666" />
+                  <Text style={styles.exportItemText}>{fmt} Document</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
 
-            {[".CSV", ".PDF", ".XLSX"].map((fmt) => (
-              <TouchableOpacity
-                key={fmt}
-                style={styles.optionBtn}
-                onPress={() => {
-                  setExportOpen(false);
-                  setTimeout(
-                    () => setExportDone(fmt as ".CSV" | ".PDF" | ".XLSX"),
-                    180
-                  );
-                }}
-              >
-                <Text style={styles.optionText}>{fmt}</Text>
-              </TouchableOpacity>
-            ))}
-
-            <TouchableOpacity
-              style={[styles.modalAction, styles.cancelBtn]}
-              onPress={() => setExportOpen(false)}
-            >
-              <Text style={styles.cancelText}>Cancel</Text>
+      {/* Export Done */}
+      <Modal visible={exportDone !== null} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { alignItems: 'center', padding: 30 }]}>
+            <View style={[styles.successIcon, { backgroundColor: '#f0fdf4' }]}>
+              <Feather name="check" size={32} color="#00b679" />
+            </View>
+            <Text style={styles.successTitle}>Export Complete</Text>
+            <Text style={styles.successSub}>Your {exportDone} file has been generated.</Text>
+            <TouchableOpacity style={[styles.modalActionBtn, { backgroundColor: '#00b679' }]} onPress={() => setExportDone(null)}>
+              <Text style={styles.modalActionText}>View File</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* Export success modal */}
-      <Modal
-        visible={exportDone !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setExportDone(null)}
-      >
+      {/* Edit Score Modal */}
+      <Modal visible={editOpen} transparent animationType="fade" onRequestClose={() => setEditOpen(false)}>
         <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setEditOpen(false)} />
           <View style={styles.modalCard}>
-            <View style={styles.modalHeaderSpace}>
-              <Text style={styles.modalTitle}>Export</Text>
-              <View />
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitle}>Manage Score</Text>
+              <TouchableOpacity onPress={() => setEditOpen(false)}>
+                <Feather name="x" size={20} color="#999" />
+              </TouchableOpacity>
             </View>
 
-            <View style={{ alignItems: "center", marginVertical: 10 }}>
-              <View style={styles.checkCircle}>
-                <Ionicons name="checkmark" size={34} color="#fff" />
+            <View style={styles.inpGroup}>
+              <Text style={styles.inpLab}>Student Name</Text>
+              <View style={styles.inpBoxDisabled}>
+                <Text style={styles.inpBoxDisabledText}>{tempName}</Text>
               </View>
-              <Text style={styles.modalHelp}>
-                You successfully exported {exportDone ?? ""}!
-              </Text>
+            </View>
+
+            <View style={styles.inpGroup}>
+              <Text style={styles.inpLab}>Score</Text>
+              <TextInput
+                value={tempScore}
+                onChangeText={setTempScore}
+                keyboardType="number-pad"
+                placeholder="0"
+                style={styles.inpBox}
+                autoFocus
+                placeholderTextColor="#bbb"
+              />
             </View>
 
             <TouchableOpacity
-              style={[styles.modalAction, styles.saveBtn]}
-              onPress={() => setExportDone(null)}
+              style={[styles.modalActionBtn, { backgroundColor: headerColor }, saving && { opacity: 0.7 }]}
+              onPress={saveEdit}
+              disabled={saving}
             >
-              <Text style={styles.saveText}>Done</Text>
+              {saving ? <ActivityIndicator color="#fff" /> : (
+                <Text style={styles.modalActionText}>Update Student Score</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* Edit Score modal */}
-      <Modal
-        visible={editOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setEditOpen(false)}
-      >
+      {/* Missing Modal */}
+      <Modal visible={missingOpen} transparent animationType="fade" onRequestClose={() => setMissingOpen(false)}>
         <View style={styles.modalOverlay}>
-          <View
-            style={[styles.modalCard, { width: "88%", alignSelf: "center" }]}
-          >
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: "#01B468" }]}>
-                Edit Score
-              </Text>
-              <TouchableOpacity onPress={() => setEditOpen(false)}>
-                <Ionicons name="close" size={20} color="#01B468" />
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setMissingOpen(false)} />
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitle}>Missing Scores</Text>
+              <TouchableOpacity onPress={() => setMissingOpen(false)}>
+                <Feather name="x" size={20} color="#999" />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.fieldLabel}>Name</Text>
-            <TextInput
-              value={tempName}
-              onChangeText={setTempName}
-              editable={false}
-              style={[styles.input, styles.inputReadonly]}
-            />
+            <ScrollView style={{ maxHeight: 350, marginTop: 10 }}>
+              {missingStudents.map((s) => (
+                <TouchableOpacity key={s.id} style={styles.missRow} onPress={() => openCameraFor(s)}>
+                  <View style={styles.missInfo}>
+                    <Text style={styles.missName}>{s.name}</Text>
+                    <Text style={styles.missSub}>Pending grading</Text>
+                  </View>
+                  <View style={styles.missIcon}>
+                    <Feather name="camera" size={16} color="#6c63ff" />
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
-            <Text style={[styles.fieldLabel, { marginTop: 8 }]}>Score</Text>
-            <TextInput
-              value={tempScore}
-              onChangeText={setTempScore}
-              keyboardType="number-pad"
-              placeholder="30"
-              style={styles.input}
-            />
-
-            <View style={styles.modalButtonsRow}>
-              <TouchableOpacity
-                style={[styles.modalBtnBlock, styles.cancelBtn]}
-                onPress={() => setEditOpen(false)}
-              >
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalBtnBlock, styles.saveBtn]}
-                onPress={saveEdit}
-              >
-                <Text style={styles.saveText}>Save</Text>
+      {/* AI DETAILS MODAL */}
+      <Modal visible={aiDetailsOpen} transparent animationType="slide" onRequestClose={() => setAiDetailsOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setAiDetailsOpen(false)} />
+          <View style={[styles.modalCard, { maxHeight: '80%' }]}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalTitle}>Grading Report</Text>
+                <Text style={styles.modalSub}>{aiTarget?.name}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setAiDetailsOpen(false)}>
+                <Feather name="x" size={24} color="#999" />
               </TouchableOpacity>
             </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.aiStatsRow}>
+                <View style={styles.aiStatItem}>
+                  <Text style={styles.aiStatLabel}>CONFIDENCE</Text>
+                  <Text style={[styles.aiStatValue, { color: (aiTarget?.confidenceScore || 0) > 80 ? '#00b679' : '#f97316' }]}>
+                    {aiTarget?.confidenceScore}%
+                  </Text>
+                </View>
+                <View style={styles.aiStatItem}>
+                  <Text style={styles.aiStatLabel}>LEGIBILITY</Text>
+                  <Text style={styles.aiStatValue}>{aiTarget?.legibility || 'N/A'}</Text>
+                </View>
+                <View style={styles.aiStatItem}>
+                  <Text style={styles.aiStatLabel}>SCORE</Text>
+                  <Text style={[styles.aiStatValue, { color: headerColor }]}>{aiTarget?.score}/{aiTarget?.total || 100}</Text>
+                </View>
+              </View>
+
+              <View style={styles.reportSection}>
+                <Text style={styles.reportSectionTitle}>
+                  <Feather name="activity" size={14} color="#666" /> Verification Log
+                </Text>
+                <View style={styles.reportBox}>
+                  <Text style={styles.reportText}>{aiTarget?.verificationLog || 'No verification data available.'}</Text>
+                </View>
+              </View>
+
+              <View style={styles.reportSection}>
+                <Text style={styles.reportSectionTitle}>
+                  <Feather name="file-text" size={14} color="#666" /> Transcription
+                </Text>
+                <View style={[styles.reportBox, { backgroundColor: '#fdfdfd' }]}>
+                  <Text style={[styles.reportText, { fontStyle: 'italic' }]}>
+                    {aiTarget?.transcribedText || 'No transcription available.'}
+                  </Text>
+                </View>
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.modalActionBtn, { backgroundColor: headerColor, marginTop: 20 }]}
+              onPress={() => setAiDetailsOpen(false)}
+            >
+              <Text style={styles.modalActionText}>Close Report</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
     </View>
   );
 }
-
-function SummaryCard({ top, bottom }: { top: string; bottom: string }) {
-  return (
-    <View style={styles.summaryCard}>
-      <Text style={styles.summaryTop}>{top}</Text>
-      <Text style={styles.summaryBottom}>{bottom}</Text>
-    </View>
-  );
-}
-
-const R = 10;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+  container: { flex: 1, backgroundColor: "#f8f9fa" },
+  header: { paddingHorizontal: 20, paddingBottom: 20, flexDirection: "row", alignItems: "center" },
+  backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
+  headerInfo: { flex: 1, paddingHorizontal: 10 },
+  headerSmall: { color: "#fff", fontSize: 11, opacity: 0.8, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  headerBig: { color: "#fff", fontSize: 18, fontWeight: "800" },
+  headerActionBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
 
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  backBtn: { padding: 10, marginLeft: -10 },
-  headerSmall: { color: "#fff", fontSize: 14, opacity: 0.85 },
-  headerBig: { color: "#fff", fontSize: 18, fontWeight: "bold" },
+  content: { padding: 20 },
+  statsGrid: { flexDirection: 'row', gap: 15, marginBottom: 20 },
+  statWidget: { flex: 1, backgroundColor: '#fff', borderRadius: 24, padding: 20, elevation: 1, shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 10 },
+  statIconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  statVal: { fontSize: 24, fontWeight: '800', color: '#111' },
+  statLab: { fontSize: 12, color: '#999', marginTop: 2, fontWeight: '600' },
 
-  content: { padding: 16, paddingBottom: 36 },
+  progressCard: { backgroundColor: '#fff', borderRadius: 24, padding: 20, borderWidth: 1, elevation: 1, shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 10, marginBottom: 25 },
+  progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 15 },
+  progressTitle: { fontSize: 15, fontWeight: '700', color: '#111' },
+  progressVal: { fontSize: 18, fontWeight: '800', color: '#111' },
+  progressBarBg: { height: 8, backgroundColor: '#f0f0f0', borderRadius: 4, overflow: 'hidden' },
+  progressBarFill: { height: '100%', borderRadius: 4 },
+  missingBadge: { flexDirection: 'row', alignItems: 'center', marginTop: 15, backgroundColor: '#fff8f8', padding: 8, borderRadius: 10 },
+  missingBadgeText: { fontSize: 12, color: '#ff3b30', fontWeight: '700', marginLeft: 8 },
 
-  topRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  summaryTitle: { color: "#333", fontWeight: "700" },
-  activityTitle: { color: "#01B468", fontWeight: "900" },
+  toolbar: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+  searchContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 14, paddingHorizontal: 15, height: 48, elevation: 1, shadowColor: '#000', shadowOpacity: 0.03 },
+  searchInp: { flex: 1, marginLeft: 10, fontSize: 14, color: '#111' },
+  filterBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 15, borderRadius: 14, height: 48, elevation: 1 },
+  filterText: { marginLeft: 8, fontSize: 13, fontWeight: '700', color: '#444' },
 
-  summaryRow: { flexDirection: "row", gap: 10, marginTop: 10 },
-  summaryCard: {
-    flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#EAEAEA",
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  summaryTop: { fontSize: 20, fontWeight: "800", color: "#167C50" },
-  summaryBottom: { marginTop: 4, color: "#111", fontWeight: "600", fontSize: 12 },
+  listSection: { backgroundColor: '#fff', borderRadius: 24, overflow: 'hidden', elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 15 },
+  listHeader: { flexDirection: 'row', backgroundColor: '#fafafa', padding: 15, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+  headCell: { fontSize: 10, fontWeight: '800', color: '#bbb', textTransform: 'uppercase', letterSpacing: 1 },
+  listRow: { flexDirection: 'row', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: '#f8f8f8' },
+  rowName: { fontSize: 14, fontWeight: '700', color: '#333' },
+  rowScore: { fontSize: 16, fontWeight: '800' },
+  captureBtn: { backgroundColor: '#f0f0ff', padding: 8, borderRadius: 8 },
+  proofBtn: { padding: 8 },
+  emptyMsg: { textAlign: 'center', padding: 40, color: '#999', fontSize: 14 },
 
-  missingBtn: {
-    alignSelf: "flex-start",
-    borderWidth: 1,
-    borderColor: "#F5C1C1",
-    backgroundColor: "#FFF0F0",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginTop: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  missingText: { color: "#D32F2F", fontWeight: "700" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "center", padding: 25 },
+  modalCard: { backgroundColor: "#fff", borderRadius: 24, padding: 24, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
+  modalTitle: { fontSize: 20, fontWeight: "800", color: "#111" },
+  modalSub: { fontSize: 14, color: '#888', marginTop: 8, marginBottom: 20 },
+  modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
 
-  actionsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 12,
-  },
-  searchBox: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    borderWidth: 1,
-    borderColor: "#e3e3e3",
-    backgroundColor: "#fff",
-    borderRadius: R,
-    paddingHorizontal: 12,
-    height: 40,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  searchInput: { flex: 1, paddingVertical: 6, color: "#111" },
+  inpGroup: { marginBottom: 20 },
+  inpLab: { fontSize: 11, fontWeight: '800', color: '#bbb', textTransform: 'uppercase', marginBottom: 8 },
+  inpBox: { backgroundColor: '#f9f9f9', padding: 15, borderRadius: 14, fontSize: 16, color: '#111', borderWidth: 1, borderColor: '#f0f0f0' },
+  inpBoxDisabled: { backgroundColor: '#f0f0f0', padding: 15, borderRadius: 14 },
+  inpBoxDisabledText: { fontSize: 15, color: '#999', fontWeight: '600' },
+  modalActionBtn: { paddingVertical: 18, borderRadius: 16, alignItems: 'center', marginTop: 10 },
+  modalActionText: { color: '#fff', fontWeight: '800', fontSize: 16 },
 
-  sortBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    height: 40,
-    borderRadius: R,
-    borderWidth: 1,
-    borderColor: "#01B468",
-    backgroundColor: "#EAF9F2",
-  },
-  sortText: { fontSize: 12, color: "#01B468", fontWeight: "600" },
+  sortOptions: { marginTop: 10 },
+  sortOpt: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 18, borderRadius: 14, marginBottom: 5 },
+  sortOptText: { fontSize: 15, color: '#444', fontWeight: '600' },
 
-  exportBtn: {
-    backgroundColor: "#62CE8F",
-    paddingHorizontal: 14,
-    height: 40,
-    borderRadius: R,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  exportText: { color: "#fff", fontWeight: "600" },
+  exportList: { gap: 10 },
+  exportItem: { flexDirection: 'row', alignItems: 'center', padding: 18, backgroundColor: '#f9f9f9', borderRadius: 14, borderWidth: 1, borderColor: '#f0f0f0' },
+  exportItemText: { marginLeft: 15, fontSize: 15, fontWeight: '700', color: '#444' },
 
-  table: {
-    marginTop: 12,
-    borderWidth: 1.2,
-    borderColor: "#CFCFCF",
-    borderRadius: 8,
-    overflow: "hidden",
-    backgroundColor: "#fff",
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 5,
-    elevation: 2,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderColor: "#E3E3E3",
-    minHeight: 52,
-  },
-  rowHeader: { backgroundColor: "#F7F7F7" },
-  headerCell: {
-    fontWeight: "700",
-    color: "#333",
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-  },
+  successIcon: { width: 72, height: 72, borderRadius: 36, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  successTitle: { fontSize: 22, fontWeight: '800', color: '#111', marginBottom: 10 },
+  successSub: { fontSize: 14, color: '#888', textAlign: 'center', marginBottom: 30 },
 
-  cellNameWrap: { flex: 1.6, paddingHorizontal: 12, paddingVertical: 12 },
-  nameText: { color: "#111", fontSize: 15 },
+  missRow: { flexDirection: 'row', alignItems: 'center', padding: 15, backgroundColor: '#f8f8f8', borderRadius: 16, marginBottom: 10 },
+  missInfo: { flex: 1 },
+  missName: { fontSize: 15, fontWeight: '700', color: '#111' },
+  missSub: { fontSize: 12, color: '#999', marginTop: 2 },
+  missIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#f0f0ff', justifyContent: 'center', alignItems: 'center' },
 
-  cellScore: { width: 80, alignItems: "center", justifyContent: "center" },
-  scoreText: { fontSize: 16, fontWeight: "800", color: "#222" },
-
-  cameraChip: {
-    paddingVertical: 4,
+  // --- NEW AI STYLES ---
+  miniBadge: {
     paddingHorizontal: 6,
-    borderRadius: 8,
-    backgroundColor: "#EFEFFA",
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 2,
   },
-
-  cellManage: {
-    width: 110,
-    paddingHorizontal: 8,
-    flexDirection: "row",
-    justifyContent: "space-evenly",
-    alignItems: "center",
+  miniBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
   },
-  iconBtn: { padding: 6 },
-
-  modalOverlay: {
+  aiStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: '#f8faf9',
+    borderRadius: 16,
+    padding: 15,
+    marginBottom: 25,
+  },
+  aiStatItem: {
+    alignItems: 'center',
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
-    justifyContent: "center",
-    padding: 20,
   },
-  modalCard: {
-    backgroundColor: "#fff",
+  aiStatLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#999',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  aiStatValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#333',
+  },
+  reportSection: {
+    marginBottom: 20,
+  },
+  reportSectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#666',
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  reportBox: {
+    backgroundColor: '#f9f9f9',
+    padding: 15,
     borderRadius: 12,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  modalHeaderSpace: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  modalTitle: { fontSize: 18, fontWeight: "800", color: "#EC4646" },
-  modalHelp: { textAlign: "center", color: "#333", marginVertical: 10 },
-
-  missingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 6,
-  },
-  missingName: { flex: 1, color: "#111" },
-  missingCameraBtn: {
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-    borderRadius: 8,
-    backgroundColor: "#EFEFFA",
-  },
-
-  optionBtn: {
     borderWidth: 1,
-    borderColor: "#E5E5E5",
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: "#fff",
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 2,
-    marginTop: 8,
+    borderColor: '#eee',
   },
-  optionText: { textAlign: "center", fontWeight: "700", color: "#333" },
-  modalAction: {
-    marginTop: 14,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  cancelBtn: { backgroundColor: "#eee" },
-  cancelText: { color: "#333", fontWeight: "800" },
-  saveBtn: { backgroundColor: "#18A15A" },
-  saveText: { color: "#fff", fontWeight: "800" },
-
-  checkCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: "#18A15A",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#555",
-    marginTop: 6,
-    marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#e6e6e6",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: "#fff",
-  },
-  inputReadonly: {
-    backgroundColor: "#F3F4F6",
-    color: "#6B7280",
-  },
-  modalButtonsRow: {
-    marginTop: 14,
-    flexDirection: "row",
-    gap: 10,
-  },
-  modalBtnBlock: {
-    flex: 1,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: "center",
+  reportText: {
+    fontSize: 14,
+    color: '#444',
+    lineHeight: 20,
   },
 });

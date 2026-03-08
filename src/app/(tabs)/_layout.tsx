@@ -1,5 +1,4 @@
-// app/(tabs)/_layout.tsx
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 
 export default function TabsLayout() {
@@ -8,8 +7,12 @@ export default function TabsLayout() {
       initialRouteName="home"
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#2e7d32",
+        tabBarActiveTintColor: "#00b679",
         tabBarInactiveTintColor: "gray",
+        tabBarStyle: {
+          paddingBottom: 5,
+          height: 60,
+        }
       }}
     >
       <Tabs.Screen
@@ -17,7 +20,7 @@ export default function TabsLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" color={color} size={size} />
+            <Feather name="home" color={color} size={size} />
           ),
         }}
       />
@@ -27,9 +30,16 @@ export default function TabsLayout() {
         options={{
           title: "Classes",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="school-outline" color={color} size={size} />
+            <Feather name="book" color={color} size={size} />
           ),
         }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            // Prevent default behavior to handle custom navigation
+            e.preventDefault();
+            navigation.navigate("classes", { screen: "index" });
+          },
+        })}
       />
 
       <Tabs.Screen
@@ -37,7 +47,7 @@ export default function TabsLayout() {
         options={{
           title: "Capture",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="camera-outline" color={color} size={size} />
+            <Feather name="camera" color={color} size={size} />
           ),
         }}
       />
@@ -47,7 +57,7 @@ export default function TabsLayout() {
         options={{
           title: "Analytics",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bar-chart-outline" color={color} size={size} />
+            <Feather name="bar-chart-2" color={color} size={size} />
           ),
         }}
       />
@@ -57,7 +67,7 @@ export default function TabsLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" color={color} size={size} />
+            <Feather name="user" color={color} size={size} />
           ),
         }}
       />

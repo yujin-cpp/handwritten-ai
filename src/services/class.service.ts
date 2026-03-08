@@ -3,13 +3,13 @@ import { db } from "../firebase/firebaseConfig";
 
 // 1. Create a Class (Nested under Professor)
 export const createClass = async (
-  professorId: string, 
+  professorId: string,
   classData: { className: string; section: string; semester: string; themeColor: string }
 ) => {
   try {
     // Reference to: professors/{uid}/classes
     const classesRef = ref(db, `professors/${professorId}/classes`);
-    
+
     // Generate a new key
     const newClassKey = push(classesRef).key;
     if (!newClassKey) throw new Error("Could not generate class ID");
@@ -64,7 +64,7 @@ export const updateClass = async (
 
 export const listenToClasses = (professorId: string, callback: (data: any) => void) => {
   const classesRef = ref(db, `professors/${professorId}/classes`);
-  
+
   // onValue fires every time the data changes in the DB
   const unsubscribe = onValue(classesRef, (snapshot) => {
     callback(snapshot.exists() ? snapshot.val() : {});
@@ -76,7 +76,7 @@ export const listenToClasses = (professorId: string, callback: (data: any) => vo
 
 export const listenToStudents = (professorId: string, classId: string, callback: (data: any[]) => void) => {
   const studentsRef = ref(db, `professors/${professorId}/classes/${classId}/students`);
-  
+
   const unsubscribe = onValue(studentsRef, (snapshot) => {
     if (snapshot.exists()) {
       const data = snapshot.val();
@@ -97,14 +97,14 @@ export const listenToStudents = (professorId: string, classId: string, callback:
 // 🔹 ADD STUDENT
 // 🔹 ADD STUDENT (Fixed to match your DB structure)
 export const addStudent = async (
-  professorId: string, 
-  classId: string, 
+  professorId: string,
+  classId: string,
   studentData: { name: string; studentId: string }
 ) => {
   // 1. Create a reference specifically to the Student ID
   // Path: professors/{uid}/classes/{classId}/students/{TUPM-xx-xxxx}
   const studentRef = ref(db, `professors/${professorId}/classes/${classId}/students/${studentData.studentId}`);
-  
+
   // 2. Use 'set' to lock the data to that ID
   await set(studentRef, {
     name: studentData.name,
@@ -138,7 +138,7 @@ export const addActivity = async (professorId: string, classId: string, title: s
 // 🔹 LISTEN TO ACTIVITIES
 export const listenToActivities = (professorId: string, classId: string, callback: (data: any[]) => void) => {
   const activitiesRef = ref(db, `professors/${professorId}/classes/${classId}/activities`);
-  
+
   const unsubscribe = onValue(activitiesRef, (snapshot) => {
     if (snapshot.exists()) {
       const data = snapshot.val();
@@ -166,9 +166,9 @@ export const deleteActivity = async (professorId: string, classId: string, activ
 
 // 🔹 UPDATE ACTIVITY TITLE
 export const updateActivity = async (
-  professorId: string, 
-  classId: string, 
-  activityId: string, 
+  professorId: string,
+  classId: string,
+  activityId: string,
   newTitle: string
 ) => {
   const activityRef = ref(db, `professors/${professorId}/classes/${classId}/activities/${activityId}`);
@@ -181,10 +181,10 @@ export const updateActivity = async (
 export const getStudentsInClass = async (professorId: string, classId: string) => {
   const studentsRef = ref(db, `professors/${professorId}/classes/${classId}/students`);
   const snapshot = await get(studentsRef);
-  
+
   if (snapshot.exists()) {
     const data = snapshot.val();
-    // Convert object to array of { label: "Last, First", value: "ID" }
+    // Convert object to array of { name: "Last, First", id: "ID" }
     return Object.keys(data).map(key => ({
       id: key,
       name: data[key].name // Assuming name is stored as "Last, First"

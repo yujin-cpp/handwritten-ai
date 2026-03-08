@@ -46,7 +46,7 @@ export default function AddEmail() {
 
       // 3. Navigate to Success Screen
       router.replace({
-        pathname: "/profile/add-email-success",
+        pathname: "/(tabs)/profile/add-email-success",
         params: { email: email.trim() }
       });
 
@@ -83,8 +83,8 @@ export default function AddEmail() {
 
       {/* Buttons */}
       <View style={styles.btnRow}>
-        <TouchableOpacity 
-          style={styles.cancelBtn} 
+        <TouchableOpacity
+          style={styles.cancelBtn}
           onPress={() => router.back()}
           disabled={loading}
         >
@@ -97,9 +97,9 @@ export default function AddEmail() {
           disabled={loading}
         >
           {loading ? (
-             <ActivityIndicator color="#fff" />
+            <ActivityIndicator color="#fff" />
           ) : (
-             <Text style={styles.sendText}>Save</Text>
+            <Text style={styles.sendText}>Save</Text>
           )}
         </TouchableOpacity>
       </View>

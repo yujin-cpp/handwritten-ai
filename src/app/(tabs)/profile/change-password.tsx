@@ -23,7 +23,7 @@ import { auth } from "../../../firebase/firebaseConfig"; // Adjust path if neede
 export default function ChangePassword() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  
+
   // 1. Input State
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -70,7 +70,7 @@ export default function ChangePassword() {
 
       // D. Success & Navigation
       // Assuming you create a success screen similar to name-saved
-      router.replace("/profile/password-saved"); 
+      router.replace("/(tabs)/profile/password-saved");
 
     } catch (error: any) {
       console.error(error);
@@ -86,7 +86,7 @@ export default function ChangePassword() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 20 }]}>
-      
+
       {/* Back */}
       <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
         <Ionicons name="arrow-back" size={24} color="#000" />
@@ -105,10 +105,10 @@ export default function ChangePassword() {
           onChangeText={setCurrentPassword}
         />
         <TouchableOpacity onPress={() => setShowCurrent(!showCurrent)}>
-          <Ionicons 
-            name={showCurrent ? "eye-outline" : "eye-off-outline"} 
-            size={20} 
-            color="#777" 
+          <Ionicons
+            name={showCurrent ? "eye-outline" : "eye-off-outline"}
+            size={20}
+            color="#777"
           />
         </TouchableOpacity>
       </View>
@@ -124,10 +124,10 @@ export default function ChangePassword() {
           onChangeText={setNewPassword}
         />
         <TouchableOpacity onPress={() => setShowNew(!showNew)}>
-          <Ionicons 
-            name={showNew ? "eye-outline" : "eye-off-outline"} 
-            size={20} 
-            color="#777" 
+          <Ionicons
+            name={showNew ? "eye-outline" : "eye-off-outline"}
+            size={20}
+            color="#777"
           />
         </TouchableOpacity>
       </View>
@@ -143,10 +143,10 @@ export default function ChangePassword() {
           onChangeText={setConfirmPassword}
         />
         <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)}>
-          <Ionicons 
-            name={showConfirm ? "eye-outline" : "eye-off-outline"} 
-            size={20} 
-            color="#777" 
+          <Ionicons
+            name={showConfirm ? "eye-outline" : "eye-off-outline"}
+            size={20}
+            color="#777"
           />
         </TouchableOpacity>
       </View>
@@ -158,9 +158,9 @@ export default function ChangePassword() {
         disabled={loading}
       >
         {loading ? (
-           <ActivityIndicator color="#fff" />
+          <ActivityIndicator color="#fff" />
         ) : (
-           <Text style={styles.saveText}>Save</Text>
+          <Text style={styles.saveText}>Save</Text>
         )}
       </TouchableOpacity>
     </View>
