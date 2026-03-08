@@ -2,11 +2,16 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { get, ref, update } from "firebase/database";
-import { ref as storageRef, uploadBytes } from "firebase/storage";
-import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Animated, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Animated,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { auth, db, storage } from "../../../firebase/firebaseConfig";
+import { auth, db } from "../../../firebase/firebaseConfig";
 import { showAlert } from "../../../utils/alert";
 
 export default function ProcessingScreen() {
@@ -18,7 +23,57 @@ export default function ProcessingScreen() {
   const spinValue = React.useRef(new Animated.Value(0)).current;
 
   const { classId, activityId, studentId } = params;
-  const imageUri = Array.isArray(params.imageUri) ? params.imageUri[0] : params.imageUri;
+  const imageUri = Array.isArray(params.imageUri)
+    ? params.imageUri[0]
+    : params.imageUri;
+
+  const processExam = useCallback(async () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+
+    try {
+      setStatus("Loading Activity...");
+      const activityRef = ref(
+        db,
+        `professors/${uid}/classes/${classId}/activities/${activityId}`,
+      );
+      const snapshot = await get(activityRef);
+
+      if (!snapshot.exists()) throw new Error("Activity not found.");
+
+      const activityData = snapshot.val();
+      const context = activityData.rubric || activityData.answerKey || "";
+
+      setStatus("Analyzing Handwriting...");
+      const { processWithAI } = await import("../../../services/AIService");
+      const result = await processWithAI(imageUri!, "grade", context);
+
+      setStatus("Saving Results...");
+      const gradePath = `professors/${uid}/classes/${classId}/students/${studentId}/activities/${activityId}`;
+      await update(ref(db, gradePath), {
+        status: "graded",
+        score: result.score,
+        feedback: result.feedback,
+        confidence: result.confidence_score,
+        gradingType: result.grading_type,
+        transcription: result.transcribed_text,
+        gradedAt: new Date().toISOString(),
+      });
+
+      showAlert(
+        "Grading Complete!",
+        `Score: ${result.score}\n\n${result.feedback}`,
+        () => router.replace("/(tabs)/capture"),
+      );
+    } catch (error: any) {
+      console.error("Processing Error:", error);
+      showAlert(
+        "Processing Failed",
+        error.message || "Could not process the exam.",
+        () => router.back(),
+      );
+    }
+  }, [classId, activityId, studentId, imageUri, router]);
 
   useEffect(() => {
     Animated.loop(
@@ -26,7 +81,7 @@ export default function ProcessingScreen() {
         toValue: 1,
         duration: 3000,
         useNativeDriver: true,
-      })
+      }),
     ).start();
 
     if (!imageUri || !classId || !activityId) {
@@ -36,49 +91,7 @@ export default function ProcessingScreen() {
     }
 
     processExam();
-  }, []);
-
-  const processExam = async () => {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
-
-    try {
-      setStatus("Analyzing Paper...");
-      const activityRef = ref(db, `professors/${uid}/classes/${classId}/activities/${activityId}`);
-      const snapshot = await get(activityRef);
-
-      if (!snapshot.exists()) {
-        throw new Error("Activity not found in database.");
-      }
-
-      setStatus("Uploading to AI Queue...");
-      const response = await fetch(imageUri);
-      const blob = await response.blob();
-
-      const fileRef = storageRef(storage, `exams/${uid}/${classId}/${activityId}/${studentId}.jpg`);
-      await uploadBytes(fileRef, blob);
-
-      const gradePath = `professors/${uid}/classes/${classId}/students/${studentId}/activities/${activityId}`;
-      await update(ref(db, gradePath), {
-        status: "grading",
-        gradedAt: new Date().toISOString()
-      });
-
-      showAlert(
-        "Upload Successful",
-        "The AI is now grading this exam in the background. You can check the results in the class list shortly.",
-        () => router.replace("/(tabs)/capture")
-      );
-
-    } catch (error: any) {
-      console.error("Upload Error:", error);
-      showAlert(
-        "Upload Failed",
-        "Could not upload the image for grading. Please check your internet connection.",
-        () => router.back()
-      );
-    }
-  };
+  }, [imageUri, classId, activityId, processExam, router, spinValue]);
 
   return (
     <View style={styles.container}>
@@ -93,7 +106,11 @@ export default function ProcessingScreen() {
 
       <View style={styles.body}>
         <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color="#00b679" style={{ transform: [{ scale: 1.5 }] }} />
+          <ActivityIndicator
+            size="large"
+            color="#00b679"
+            style={{ transform: [{ scale: 1.5 }] }}
+          />
           <View style={styles.iconOverlay}>
             <Feather name="cpu" size={24} color="#00b679" />
           </View>
@@ -103,16 +120,20 @@ export default function ProcessingScreen() {
         <Text style={styles.subtitle}>{status}</Text>
 
         <View style={styles.infoBox}>
-          <Feather name="clock" size={16} color="#666" style={{ marginRight: 8 }} />
-          <Text style={styles.hint}>
-            This usually takes 5-10 seconds.
-          </Text>
+          <Feather
+            name="clock"
+            size={16}
+            color="#666"
+            style={{ marginRight: 8 }}
+          />
+          <Text style={styles.hint}>This usually takes 5-10 seconds.</Text>
         </View>
 
         <View style={styles.tipBox}>
           <Text style={styles.tipTitle}>Did you know?</Text>
           <Text style={styles.tipText}>
-            Our AI model works best with clear, high-contrast photos of handwritten text.
+            Our AI model works best with clear, high-contrast photos of
+            handwritten text.
           </Text>
         </View>
       </View>
@@ -145,17 +166,17 @@ const styles = StyleSheet.create({
   loaderContainer: {
     width: 100,
     height: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 30,
   },
   iconOverlay: {
-    position: 'absolute',
-    backgroundColor: '#fff',
+    position: "absolute",
+    backgroundColor: "#fff",
     padding: 10,
     borderRadius: 20,
     elevation: 2,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowRadius: 5,
   },
@@ -168,44 +189,44 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   infoBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: "#eee",
   },
   hint: {
     color: "#666",
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   tipBox: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 50,
     left: 30,
     right: 30,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     padding: 20,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: "#eee",
     elevation: 1,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 5,
   },
   tipTitle: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#00b679',
+    fontWeight: "700",
+    color: "#00b679",
     marginBottom: 5,
   },
   tipText: {
     fontSize: 13,
-    color: '#777',
+    color: "#777",
     lineHeight: 18,
   },
 });
