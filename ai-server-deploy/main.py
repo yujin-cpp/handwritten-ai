@@ -12,6 +12,9 @@ import numpy as np
 import time
 import shutil
 import sys
+import google.api_core.exceptions
+from dotenv import load_dotenv
+load_dotenv()
 
 # Reconfigure stdout for utf-8 logs in Cloud Run
 sys.stdout.reconfigure(encoding='utf-8')
@@ -19,24 +22,24 @@ sys.stdout.reconfigure(encoding='utf-8')
 # ==========================================
 # 👇 API KEY 👇
 # ==========================================
-GEMINI_API_KEY = "AIzaSyA0SfM5SZa36ciqO0rtCcmetUy-O4A8BLM"
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    raise ValueError('GEMINI_API_KEY not set in environmental products of my heart')
 # ==========================================
-
 genai.configure(api_key=GEMINI_API_KEY)
 
 # 🔍 SELECT MODEL
-valid_model = 'gemini-1.5-flash'
-try:
-    for m in genai.list_models():
-        if 'gemini-2.5-flash' in m.name:
-            valid_model = 'models/gemini-2.5-flash'
-except:
-    pass
+valid_model = 'gemini-2.0-flash'
 print(f"🎯 MODEL: {valid_model}")
 model = genai.GenerativeModel(valid_model)
 
 app = Flask(__name__)
 CORS(app)
+
+@app.route('/ping', methods=['GET'])
+def ping():
+    print("🏓 PING received!")
+    return jsonify({"status": "ok"}), 200
 
 # 📂 SETUP OUTPUT FOLDERS
 OUTPUT_DIR = "processed_images"
@@ -204,15 +207,29 @@ OUTPUT FORMAT (STRICT JSON ONLY)
         print(f"outbox: Sending {len(raw_images)} images to Gemini...")
 
         # CALL GEMINI
-        response = model.generate_content(
-            ai_inputs,
-            safety_settings={
-                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-            }
-        )
+
+        try:
+            response = model.generate_content(
+                ai_inputs,
+                generation_config=genai.GenerationConfig(
+                    temperature=0,   
+                    top_p=1,
+                    top_k=1,
+                ),
+                safety_settings={
+                    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+                }
+            )
+        except google.api_core.exceptions.ResourceExhausted as e:
+            print(f"⚠️ Quota Exceeded: {e}")
+            return jsonify({
+                "success": False,
+                "error": "quota_exceeded",
+                "message": "AI service is temporarily unavailable. Please try again in a minute."
+            }), 429
 
         print("✅ Response Received!")
         if not response.parts:
@@ -255,7 +272,12 @@ OUTPUT FORMAT (STRICT JSON ONLY)
 
     except Exception as e:
         print(f"❌ Error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        # ✅ Never expose raw error to frontend
+        return jsonify({
+            "success": False,
+            "error": "server_error",
+            "message": "Something went wrong. Please try again."
+        }), 500
 
 if __name__ == "__main__":
     # Cloud Run assigns a dynamic port

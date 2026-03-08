@@ -1,6 +1,4 @@
-// src/services/AIService.ts
 import { AI_SERVER_URL } from "../constants/Config";
-
 /**
  * Sends an image to the Python AI server for grading.
  * @param imageUri - The local URI of the image (from ImagePicker).
@@ -15,36 +13,46 @@ export const processWithAI = async (
   try {
     const formData = new FormData();
 
-    // 1. Append the Image
-    const filename = imageUri.split("/").pop();
-    const match = /\.(\w+)$/.exec(filename || "");
-    const type = match ? `image/${match[1]}` : "image/jpeg";
+    // Handle blob URLs (web) vs file URIs (native)
+    if (imageUri.startsWith("blob:")) {
+      const blobResponse = await fetch(imageUri);
+      const blob = await blobResponse.blob();
+      // ✅ Explicitly name the file with .jpg extension
+      const file = new File([blob], "upload.jpg", { type: "image/jpeg" });
+      formData.append("file", file);
+    } else {
+      // Append the Image
+      const filename = imageUri.split("/").pop() || "upload.jpg";
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : "image/jpeg";
+      formData.append("file", { uri: imageUri, name: filename, type } as any);
+    }
 
-    formData.append("file", {
-      uri: imageUri,
-      name: filename || "upload.jpg",
-      type: type,
-    } as any);
-
-    // 2. Append Data
     formData.append("mode", mode);
     formData.append("rubric", context);
 
-    // 3. Send Request (THIS LINE USES THE IMPORT, SO IT WON'T BE DELETED)
     console.log("🚀 Sending to AI Server:", AI_SERVER_URL);
 
     const response = await fetch(`${AI_SERVER_URL}/process_exam`, {
       method: "POST",
       body: formData,
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
+      // No Content-Type header — let browser set it with boundary
     });
 
-    const result = await response.json();
+    console.log("📡 Status:", response.status);
 
+    const result = await response.json();
     if (!result.success) {
-      throw new Error(result.error || "AI processing failed");
+      const messages: Record<string, string> = {
+        quota_exceeded: "The AI is busy. Please wait a moment and try again.",
+        model_not_found: "AI service is temporarily unavailable.",
+        server_error: "Something went wrong. Please try again.",
+        "No file uploaded": "No image was received. Please try again.",
+      };
+
+      const friendly =
+        messages[result.error] || result.message || "An error occurred.";
+      throw new Error(friendly);
     }
 
     return result.data;
