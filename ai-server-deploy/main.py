@@ -29,7 +29,7 @@ if not GEMINI_API_KEY:
 genai.configure(api_key=GEMINI_API_KEY)
 
 # 🔍 SELECT MODEL
-valid_model = 'gemini-2.0-flash'
+valid_model = 'gemini-2.5-flash'
 print(f"🎯 MODEL: {valid_model}")
 model = genai.GenerativeModel(valid_model)
 
@@ -86,6 +86,15 @@ def enhance_image(pil_img, page_num):
     except Exception as e:
         print(f"⚠️ OpenCV Error: {e}")
         return pil_img
+    
+@app.route('/debug_form', methods=['POST'])
+def debug_form():
+    """Temporary debug endpoint - remove after testing"""
+    return jsonify({
+        "form_keys": list(request.form.keys()),
+        "form_data": {k: v[:100] for k, v in request.form.items()},
+        "files": list(request.files.keys())
+    })
 
 @app.route('/process_exam', methods=['POST'])
 def process():
@@ -95,8 +104,16 @@ def process():
     try:
         file = request.files['file']
         mode = request.form.get('mode', 'grade')
-        context = request.form.get('rubric', '')
+        context = (
+            request.form.get('rubric') or
+            request.form.get('context') or
+            request.form.get('answer_key') or
+            request.form.get('criteria') or
+            ''
+        ).strip()
 
+        # Add this debug log so you can see in Cloud Run logs what's arriving
+        print(f"📋 Context received ({len(context)} chars): {context[:300] if context else '⚠️ EMPTY!'}")
         # READ FILE
         file_bytes = file.read()
         raw_images = []
@@ -118,83 +135,62 @@ def process():
             Extract student data as JSON.
             Format: [{"name": "FullName", "id": "StudentID_or_null"}]
             """)
+        if context:
+            context_block = f"""
+        === ANSWER KEY / RUBRIC (READ THIS FIRST) ===
+        {context}
+        ==============================================
+        """
         else:
-            # 🚨 TRUE ENOUGH PROMPT 🚨
-            ai_inputs.append(f"""
-You are an automated grading engine with deterministic validation logic.
-You must apply consistent scoring rules. Identical inputs must always produce identical outputs.
+            context_block = "=== NO RUBRIC PROVIDED — Score everything as 0 and explain why ==="
 
-PROVIDED CONTEXT (Answer Key or Rubric):
-"{context}"
+        ai_inputs.append(f"""
+        You are a strict grading engine. Read the answer key or rubric below carefully before grading.
 
------------------------------------
-  STEP 1: CLASSIFY GRADING TYPE
------------------------------------
+        {context_block}
 
-Determine grading type using these strict rules:
+        GRADING INSTRUCTIONS:
 
-- If context contains fixed answers, options (A/B/C/D), exact numeric solutions, or explicit correct responses → CLASSIFY as "STRICT_MATCH".
-- If context contains scoring criteria, performance levels, qualitative descriptors, or point bands → CLASSIFY as "RUBRIC_BASED".
-Output classification as:
-"grading_type": "STRICT_MATCH" or "RUBRIC_BASED"
+        1. MULTIPLE CHOICE / TRUE-FALSE:
+        - Compare each student answer to the answer key EXACTLY.
+        - Each correct answer = 1 point. Each wrong or blank answer = 0 points.
+        - Score = total number of correct answers.
+        - Do NOT assign partial points. Do NOT weight any question higher than others.
+        - Example: 20 questions, 15 correct → score = 15, NOT 75 or 37.5.
 
------------------------------------
-  STEP 2: TRANSCRIPTION VALIDATION
------------------------------------
-If handwriting is involved:
-- Transcribe exactly as written.
-- Do NOT autocorrect spelling unless meaning is 100% certain.
-- If a word is ambiguous, mark it using: [unclear: best_guess]
+        2. ESSAY/OPEN-ENDED:
+        - Score ONLY using criteria explicitly listed in the rubric.
+        - Do not use external standards or unstated expectations.
+        - Award 0 for criteria not demonstrated.
 
-Legibility Rules:
-- If all words are readable and unambiguous → legibility = "CLEAR"
-- If minor ambiguity but meaning recoverable → legibility = "MOSTLY_CLEAR"
-- If multiple uncertain words affect meaning → legibility = "UNCLEAR"
------------------------------------
-  STEP 3: TRUE-ENOUGH VERIFICATION
------------------------------------
-STRICT_MATCH rules:
-- Exact match required unless meaning is unquestionably identical.
-- Ignore capitalization and minor punctuation.
-- If answer format differs but meaning is identical → count as correct.
-- If ambiguity affects correctness → mark as incorrect.
+        3. HANDWRITING:
+        - Transcribe exactly as written.
+        - Mark unclear words as [unclear: best_guess].
 
- RUBRIC_BASED rules:
-- Essay scoring MUST be based strictly and exclusively on the scoring criteria explicitly defined in the PROVIDED CONTEXT.
-- If criteria are listed, score only according to those criteria.
-- If point bands or performance levels are defined in the context, select the band that best matches the response based only on stated descriptors.
-- Do NOT use external standards, general writing quality assumptions, or unstated expectations.
-- Do NOT infer missing criteria.
-- Provide a point allocation breakdown aligned directly with the criteria found in the context.
-- Only award points for explicitly demonstrated criteria.
+        4. CONFIDENCE:
+        - Start at 100
+        - Deduct 20 if handwriting is mostly unclear
+        - Deduct 40 if handwriting is very unclear
+        - Deduct 15 per [unclear] word
+        - Minimum: 0
 
------------------------------------
- STEP 4: CONFIDENCE SCORING (DETERMINISTIC)
------------------------------------
-Start at 100.
+        CRITICAL RULES:
+        - score = raw count of correct answers for MCQ/TF (never multiply by any point value)
+        - score = rubric points earned for essays
+        - Never invent a scoring scale not defined in the rubric
+        - Identical answers must always produce identical scores
 
-Deduct:
-- 20 points if legibility = MOSTLY_CLEAR
-- 40 points if legibility = UNCLEAR
-- 15 points if any [unclear: guess] appears
-- 10 points if response partially matches but interpretation required
-- 25 points if multiple ambiguities affect grading
-
-Minimum confidence = 0
-Maximum confidence = 100
------------------------------------
-OUTPUT FORMAT (STRICT JSON ONLY)
------------------------------------
-{{
-  "grading_type": "...",
-  "transcribed_text": "...",
-  "legibility": "...",
-  "true_enough_reasoning": "Explain precisely why the grading decision is valid based only on rules above.",
-  "confidence_score": <0-100>,
-  "score": <final_numeric_score>,
-  "feedback": "Objective feedback based only on rubric or answer key. No emotional language."
-}}
-            """)
+        OUTPUT — return ONLY this JSON, no extra text:
+        {{
+        "grading_type": "STRICT_MATCH or RUBRIC_BASED",
+        "transcribed_text": "full transcription of student answers",
+        "legibility": "CLEAR / MOSTLY_CLEAR / UNCLEAR",
+        "true_enough_reasoning": "explain your grading decisions item by item",
+        "confidence_score": <0-100>,
+        "score": <numeric score>,
+        "feedback": "brief objective feedback per question"
+        }}
+        """)
 
         # PROCESS IMAGES
         print("⚙️  Running OpenCV Pipeline...")
@@ -206,8 +202,63 @@ OUTPUT FORMAT (STRICT JSON ONLY)
 
         print(f"outbox: Sending {len(raw_images)} images to Gemini...")
 
-        # CALL GEMINI
+           # ✅ Download and process answer key from URL
+        answer_key_url = request.form.get('answer_key_url')
+        if answer_key_url:
+            try:
+                import requests as req
+                key_response = req.get(answer_key_url, timeout=15)
+                key_bytes = key_response.content
+                key_name = answer_key_url.split('%2F')[-1].split('?')[0].lower()
 
+                print(f"📎 File type detected: {key_name}")
+
+                if key_name.endswith('.docx') or key_name.endswith('.doc'):
+                    try:
+                        import subprocess, tempfile, os
+                        with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as f:
+                            f.write(key_bytes)
+                            tmp_path = f.name
+                        subprocess.run(
+                            ['libreoffice', '--headless', '--convert-to', 'pdf', '--outdir', '/tmp', tmp_path],
+                            capture_output=True, timeout=30
+                        )
+                        pdf_path = tmp_path.replace('.docx', '.pdf')
+                        if os.path.exists(pdf_path):
+                            with open(pdf_path, 'rb') as f:
+                                key_bytes = f.read()
+                            key_images = convert_from_bytes(key_bytes)
+                        else:
+                            raise Exception("PDF not created")
+                    except Exception as lo_err:
+                        print(f"⚠️ LibreOffice failed: {lo_err}, falling back to text extraction")
+                        from docx import Document as DocxDocument
+                        import io as _io
+                        doc = DocxDocument(_io.BytesIO(key_bytes))
+                        extracted_text = "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
+                        print(f"📄 Extracted docx text ({len(extracted_text)} chars)")
+                        ai_inputs[0] = ai_inputs[0] + f"\n\nANSWER KEY CONTENT:\n{extracted_text}"
+                        key_images = []
+
+                elif key_name.endswith('.pdf'):
+                    key_images = convert_from_bytes(key_bytes)
+                else:
+                    key_images = []
+
+                if key_images:
+                    print(f"📎 Answer key: {len(key_images)} pages")
+                    ai_inputs.append("The following pages are the ANSWER KEY. Use them to grade the exam:")
+                    for i, img in enumerate(key_images):
+                        img = enhance_image(img, f"key_{i+1}")
+                        buf = io.BytesIO()
+                        img.save(buf, format='JPEG', quality=90)
+                        ai_inputs.append({"mime_type": "image/jpeg", "data": buf.getvalue()})
+
+            except Exception as e:
+                print(f"⚠️ Could not process answer key URL: {e}")
+
+        print(f"outbox: Sending {len(raw_images)} images to Gemini...")
+        # CALL GEMINI
         try:
             response = model.generate_content(
                 ai_inputs,

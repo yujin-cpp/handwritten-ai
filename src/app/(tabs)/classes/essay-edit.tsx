@@ -42,8 +42,10 @@ export default function EssayEdit() {
 
   const [instructions, setInstructions] = useState("");
   const [loading, setLoading] = useState(false);
-  const [lessonAsset, setLessonAsset] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
-  const [rubricsAsset, setRubricsAsset] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
+  const [lessonAsset, setLessonAsset] =
+    useState<DocumentPicker.DocumentPickerAsset | null>(null);
+  const [rubricsAsset, setRubricsAsset] =
+    useState<DocumentPicker.DocumentPickerAsset | null>(null);
 
   async function pickLessonFile() {
     try {
@@ -115,15 +117,23 @@ export default function EssayEdit() {
 
     try {
       const firstLine = instructions.trim().split("\n")[0];
-      const shortTitle = (firstLine && firstLine.slice(0, 40)) || "Essay Instruction";
+      const shortTitle =
+        (firstLine && firstLine.slice(0, 40)) || "Essay Instruction";
       const basePath = `essay_assets/${uid}/${classId}/${activityId}`;
 
       const [lessonUrl, rubricsUrl] = await Promise.all([
-        lessonAsset ? uploadFile(lessonAsset, basePath) : Promise.resolve("No file attached"),
-        rubricsAsset ? uploadFile(rubricsAsset, basePath) : Promise.resolve("No file attached"),
+        lessonAsset
+          ? uploadFile(lessonAsset, basePath)
+          : Promise.resolve("No file attached"),
+        rubricsAsset
+          ? uploadFile(rubricsAsset, basePath)
+          : Promise.resolve("No file attached"),
       ]);
 
-      const instructionsRef = ref(db, `professors/${uid}/classes/${classId}/activities/${activityId}/essayInstructions`);
+      const instructionsRef = ref(
+        db,
+        `professors/${uid}/classes/${classId}/activities/${activityId}/essayInstructions`,
+      );
       const newRef = push(instructionsRef);
 
       await set(newRef, {
@@ -148,17 +158,29 @@ export default function EssayEdit() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <View style={[styles.header, { backgroundColor: headerColor, paddingTop: insets.top + 15 }]}>
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: headerColor, paddingTop: insets.top + 15 },
+        ]}
+      >
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="chevron-left" size={26} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerSmall}>{className} • {section}</Text>
-          <Text style={styles.headerBig} numberOfLines={1}>Configure Rubric</Text>
+          <Text style={styles.headerSmall}>
+            {className} • {section}
+          </Text>
+          <Text style={styles.headerBig} numberOfLines={1}>
+            Configure Rubric
+          </Text>
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.card}>
           <Text style={styles.label}>Instructions & Context</Text>
           <View style={styles.textInputBox}>
@@ -171,7 +193,9 @@ export default function EssayEdit() {
               placeholderTextColor="#bbb"
             />
           </View>
-          <Text style={styles.helpText}>Explain specific criteria or focus points for the AI grader.</Text>
+          <Text style={styles.helpText}>
+            Explain specific criteria or focus points for the AI grader.
+          </Text>
         </View>
 
         <View style={[styles.card, { marginTop: 20 }]}>
@@ -180,34 +204,74 @@ export default function EssayEdit() {
           <View style={styles.attachmentGroup}>
             <Text style={styles.subLabel}>Lesson Reference</Text>
             <TouchableOpacity
-              style={[styles.attachBtn, lessonAsset && { borderColor: headerColor, backgroundColor: headerColor + '05' }]}
+              style={[
+                styles.attachBtn,
+                lessonAsset && {
+                  borderColor: headerColor,
+                  backgroundColor: headerColor + "05",
+                },
+              ]}
               onPress={pickLessonFile}
             >
-              <Feather name="paperclip" size={18} color={lessonAsset ? headerColor : "#999"} />
-              <Text style={[styles.attachText, lessonAsset && { color: headerColor, fontWeight: '700' }]} numberOfLines={1}>
+              <Feather
+                name="paperclip"
+                size={18}
+                color={lessonAsset ? headerColor : "#999"}
+              />
+              <Text
+                style={[
+                  styles.attachText,
+                  lessonAsset && { color: headerColor, fontWeight: "700" },
+                ]}
+                numberOfLines={1}
+              >
                 {lessonAsset ? lessonAsset.name : "Attach PDF or Doc"}
               </Text>
-              {lessonAsset && <Feather name="check" size={16} color={headerColor} />}
+              {lessonAsset && (
+                <Feather name="check" size={16} color={headerColor} />
+              )}
             </TouchableOpacity>
           </View>
 
           <View style={[styles.attachmentGroup, { marginTop: 15 }]}>
             <Text style={styles.subLabel}>Scoring Rubrics</Text>
             <TouchableOpacity
-              style={[styles.attachBtn, rubricsAsset && { borderColor: headerColor, backgroundColor: headerColor + '05' }]}
+              style={[
+                styles.attachBtn,
+                rubricsAsset && {
+                  borderColor: headerColor,
+                  backgroundColor: headerColor + "05",
+                },
+              ]}
               onPress={pickRubricsFile}
             >
-              <Feather name="paperclip" size={18} color={rubricsAsset ? headerColor : "#999"} />
-              <Text style={[styles.attachText, rubricsAsset && { color: headerColor, fontWeight: '700' }]} numberOfLines={1}>
+              <Feather
+                name="paperclip"
+                size={18}
+                color={rubricsAsset ? headerColor : "#999"}
+              />
+              <Text
+                style={[
+                  styles.attachText,
+                  rubricsAsset && { color: headerColor, fontWeight: "700" },
+                ]}
+                numberOfLines={1}
+              >
                 {rubricsAsset ? rubricsAsset.name : "Attach Detailed Rubric"}
               </Text>
-              {rubricsAsset && <Feather name="check" size={16} color={headerColor} />}
+              {rubricsAsset && (
+                <Feather name="check" size={16} color={headerColor} />
+              )}
             </TouchableOpacity>
           </View>
         </View>
 
         <TouchableOpacity
-          style={[styles.saveBtnAction, { backgroundColor: headerColor }, loading && { opacity: 0.7 }]}
+          style={[
+            styles.saveBtnAction,
+            { backgroundColor: headerColor },
+            loading && { opacity: 0.7 },
+          ]}
           onPress={onSave}
           disabled={loading}
         >
@@ -216,7 +280,12 @@ export default function EssayEdit() {
           ) : (
             <>
               <Text style={styles.saveBtnText}>Save Configuration</Text>
-              <Feather name="arrow-right" size={18} color="#fff" style={{ marginLeft: 8 }} />
+              <Feather
+                name="arrow-right"
+                size={18}
+                color="#fff"
+                style={{ marginLeft: 8 }}
+              />
             </>
           )}
         </TouchableOpacity>
@@ -227,25 +296,98 @@ export default function EssayEdit() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8f9fa" },
-  header: { paddingHorizontal: 20, paddingBottom: 25, flexDirection: "row", alignItems: "center", elevation: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
-  backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
+  header: {
+    paddingHorizontal: 20,
+    paddingBottom: 25,
+    flexDirection: "row",
+    alignItems: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "flex-start",
+  },
   headerInfo: { flex: 1, paddingHorizontal: 10 },
-  headerSmall: { color: "#fff", fontSize: 11, opacity: 0.8, fontWeight: '700', textTransform: 'uppercase' },
+  headerSmall: {
+    color: "#fff",
+    fontSize: 11,
+    opacity: 0.8,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
   headerBig: { color: "#fff", fontSize: 18, fontWeight: "800" },
 
   content: { padding: 20, paddingBottom: 40 },
-  card: { backgroundColor: '#fff', borderRadius: 24, padding: 20, elevation: 1, shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 15 },
-  label: { fontSize: 13, fontWeight: '700', color: '#bbb', textTransform: 'uppercase', marginBottom: 15, letterSpacing: 0.5 },
-  subLabel: { fontSize: 11, fontWeight: '800', color: '#bbb', textTransform: 'uppercase', marginBottom: 8 },
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 20,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+    shadowRadius: 15,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#bbb",
+    textTransform: "uppercase",
+    marginBottom: 15,
+    letterSpacing: 0.5,
+  },
+  subLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#bbb",
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
 
-  textInputBox: { backgroundColor: '#f9f9f9', borderRadius: 16, borderHorizontalWidth: 1, borderVerticalWidth: 1, borderColor: '#f0f0f0', padding: 15, minHeight: 180 },
-  textarea: { fontSize: 15, color: '#111', lineHeight: 22, textAlignVertical: 'top' },
-  helpText: { fontSize: 12, color: '#999', marginTop: 12, fontStyle: 'italic' },
+  textInputBox: {
+    backgroundColor: "#f9f9f9",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
+    padding: 15,
+    minHeight: 180,
+  },
+  textarea: {
+    fontSize: 15,
+    color: "#111",
+    lineHeight: 22,
+    textAlignVertical: "top",
+  },
+  helpText: { fontSize: 12, color: "#999", marginTop: 12, fontStyle: "italic" },
 
   attachmentGroup: {},
-  attachBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f9f9f9', borderHorizontalWidth: 1, borderVerticalWidth: 1, borderColor: '#f0f0f0', borderRadius: 14, padding: 14, gap: 12 },
-  attachText: { flex: 1, fontSize: 14, color: '#666' },
+  attachBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f9f9f9",
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+  },
+  attachText: { flex: 1, fontSize: 14, color: "#666" },
 
-  saveBtnAction: { marginTop: 35, paddingVertical: 18, borderRadius: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', elevation: 4, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 },
-  saveBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  saveBtnAction: {
+    marginTop: 35,
+    paddingVertical: 18,
+    borderRadius: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+  },
+  saveBtnText: { color: "#fff", fontWeight: "800", fontSize: 16 },
 });

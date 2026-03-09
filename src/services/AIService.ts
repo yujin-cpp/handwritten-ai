@@ -9,6 +9,7 @@ export const processWithAI = async (
   imageUri: string,
   mode: "grade" | "masterlist",
   context: string,
+  answerKeyUrl?: string,
 ) => {
   try {
     const formData = new FormData();
@@ -30,6 +31,10 @@ export const processWithAI = async (
 
     formData.append("mode", mode);
     formData.append("rubric", context);
+    // ✅ If there's an answer key file URL, fetch and attach it
+    if (answerKeyUrl) {
+      formData.append("answer_key_url", answerKeyUrl);
+    }
 
     console.log("🚀 Sending to AI Server:", AI_SERVER_URL);
 

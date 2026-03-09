@@ -2,13 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
-import {
-  Image,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showAlert } from "../../../utils/alert";
 
@@ -36,7 +30,13 @@ export default function ImageCaptured() {
       return;
     }
 
-    if (!classId || !activityId || !studentId || classId === "0" || activityId === "0") {
+    if (
+      !classId ||
+      !activityId ||
+      !studentId ||
+      classId === "0" ||
+      activityId === "0"
+    ) {
       showAlert(
         "Missing Data",
         "Class or Student information was lost. Please go back and select again.",
@@ -76,13 +76,20 @@ export default function ImageCaptured() {
           ) : (
             <View style={styles.noImage}>
               <Feather name="image" size={40} color="#333" />
-              <Text style={{ color: "#666", marginTop: 10 }}>No Image Captured</Text>
+              <Text style={{ color: "#666", marginTop: 10 }}>
+                No Image Captured
+              </Text>
             </View>
           )}
         </View>
 
         <View style={styles.hintContainer}>
-          <Feather name="info" size={16} color="#00b679" style={{ marginRight: 8 }} />
+          <Feather
+            name="info"
+            size={16}
+            color="#00b679"
+            style={{ marginRight: 8 }}
+          />
           <Text style={styles.hint}>
             Check if all handwriting is clear and readable.
           </Text>
@@ -96,7 +103,12 @@ export default function ImageCaptured() {
 
         <TouchableOpacity style={styles.confirmBtn} onPress={handleProceed}>
           <Text style={styles.confirmText}>Proceed</Text>
-          <Feather name="arrow-right" size={18} color="#fff" style={{ marginLeft: 8 }} />
+          <Feather
+            name="arrow-right"
+            size={18}
+            color="#fff"
+            style={{ marginLeft: 8 }}
+          />
         </TouchableOpacity>
       </View>
     </View>
@@ -117,7 +129,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 10,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
   backBtn: { padding: 4 },
   headerTitle: {
@@ -138,7 +150,7 @@ const styles = StyleSheet.create({
   imageContainer: {
     width: "100%",
     height: "100%",
-    maxHeight: '75%',
+    maxHeight: "75%",
     borderRadius: 24,
     overflow: "hidden",
     backgroundColor: "#111",
@@ -151,12 +163,12 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  noImage: { alignItems: 'center' },
+  noImage: { alignItems: "center" },
   hintContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 25,
-    backgroundColor: 'rgba(0,182,121,0.1)',
+    backgroundColor: "rgba(0,182,121,0.1)",
     paddingHorizontal: 15,
     paddingVertical: 10,
     borderRadius: 12,
@@ -164,7 +176,7 @@ const styles = StyleSheet.create({
   hint: {
     color: "#00b679",
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: "500",
   },
 
   footer: {
@@ -180,7 +192,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1.5,
     borderColor: "#333",
-    alignItems: 'center',
+    alignItems: "center",
     marginRight: 10,
   },
   retakeText: {
@@ -195,7 +207,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: 'center',
+    justifyContent: "center",
     marginLeft: 10,
     elevation: 4,
   },
