@@ -10,6 +10,7 @@ export const processWithAI = async (
   mode: "grade" | "masterlist",
   context: string,
   answerKeyUrl?: string,
+  referencePdfUrl?: string,
 ) => {
   try {
     const formData = new FormData();
@@ -18,7 +19,7 @@ export const processWithAI = async (
     if (imageUri.startsWith("blob:")) {
       const blobResponse = await fetch(imageUri);
       const blob = await blobResponse.blob();
-      // ✅ Explicitly name the file with .jpg extension
+      //  Explicitly name the file with .jpg extension
       const file = new File([blob], "upload.jpg", { type: "image/jpeg" });
       formData.append("file", file);
     } else {
@@ -31,36 +32,50 @@ export const processWithAI = async (
 
     formData.append("mode", mode);
     formData.append("rubric", context);
-    // ✅ If there's an answer key file URL, fetch and attach it
+    //  If there's an answer key file URL, fetch and attach it
     if (answerKeyUrl) {
       formData.append("answer_key_url", answerKeyUrl);
     }
-
-    console.log("🚀 Sending to AI Server:", AI_SERVER_URL);
-
-    const response = await fetch(`${AI_SERVER_URL}/process_exam`, {
-      method: "POST",
-      body: formData,
-      // No Content-Type header — let browser set it with boundary
-    });
-
-    console.log("📡 Status:", response.status);
-
-    const result = await response.json();
-    if (!result.success) {
-      const messages: Record<string, string> = {
-        quota_exceeded: "The AI is busy. Please wait a moment and try again.",
-        model_not_found: "AI service is temporarily unavailable.",
-        server_error: "Something went wrong. Please try again.",
-        "No file uploaded": "No image was received. Please try again.",
-      };
-
-      const friendly =
-        messages[result.error] || result.message || "An error occurred.";
-      throw new Error(friendly);
+    if (referencePdfUrl) {
+      formData.append("reference_url", referencePdfUrl);
     }
 
-    return result.data;
+    console.log("📝 Step 1: Transcribing...");
+    const transcribeResponse = await fetch(`${AI_SERVER_URL}/transcribe`, {
+      method: "POST",
+      body: formData,
+    });
+    const transcribeResult = await transcribeResponse.json();
+
+    if (!transcribeResult.success) throw new Error("Transcription failed");
+    const { transcribed_text, legibility, confidence_score } =
+      transcribeResult.data;
+    console.log("✅ Transcription done:", transcribed_text?.slice(0, 100));
+
+    // STEP 2: GRADE
+    console.log("📊 Step 2: Grading...");
+    const gradeResponse = await fetch(`${AI_SERVER_URL}/grade`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transcribed_text,
+        context,
+        mode,
+        answer_key_url: answerKeyUrl ?? "",
+        reference_url: referencePdfUrl ?? "",
+      }),
+    });
+
+    const gradeResult = await gradeResponse.json();
+    if (!gradeResult.success) throw new Error("Grading failed");
+
+    // Merge transcription into grading result
+    return {
+      ...gradeResult.data,
+      transcribed_text,
+      legibility,
+      confidence_score: gradeResult.data.confidence_score ?? confidence_score,
+    };
   } catch (error) {
     console.error("❌ AI Service Error:", error);
     throw error;
