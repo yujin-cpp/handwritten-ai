@@ -40,7 +40,7 @@ export const processWithAI = async (
       formData.append("reference_url", referencePdfUrl);
     }
 
-    console.log("📝 Step 1: Transcribing...");
+    console.log("Step 1: Transcribing...");
     const transcribeResponse = await fetch(`${AI_SERVER_URL}/transcribe`, {
       method: "POST",
       body: formData,
@@ -53,7 +53,7 @@ export const processWithAI = async (
     console.log("✅ Transcription done:", transcribed_text?.slice(0, 100));
 
     // STEP 2: GRADE
-    console.log("📊 Step 2: Grading...");
+    console.log("Step 2: Grading...");
     const gradeResponse = await fetch(`${AI_SERVER_URL}/grade`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

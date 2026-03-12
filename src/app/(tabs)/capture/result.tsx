@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth, db } from "../../../firebase/firebaseConfig";
 import { showAlert } from "../../../utils/alert";
+import { getGradingResult } from "../../../utils/gradingStore";
 
 export default function ResultScreen() {
   const router = useRouter();
@@ -25,10 +26,22 @@ export default function ResultScreen() {
 
   const score = getParam(params.score, "0");
   const total = getParam(params.total, "100");
-  const feedback = getParam(params.feedback, "No feedback provided.");
+  const { essayScoreLog, feedback } = getGradingResult();
+  console.log(" essayScoreLog:", essayScoreLog);
+  console.log("feedback:", feedback);
 
   const { classId, activityId, studentId } = params;
 
+  const sanitizeForFirebase = (str: string) => {
+    if (!str) return str;
+    return str
+      .replace(/\./g, ",") // replace dots
+      .replace(/\#/g, "-") // replace #
+      .replace(/\$/g, "-") // replace $
+      .replace(/\//g, "-") // replace /
+      .replace(/\[/g, "(") // replace [
+      .replace(/\]/g, ")"); // replace ]
+  };
   const handleSave = async () => {
     const uid = auth.currentUser?.uid;
     if (!uid || !classId || !activityId || !studentId) {
@@ -44,7 +57,8 @@ export default function ResultScreen() {
       await update(gradeRef, {
         score: parseInt(score),
         total: parseInt(total),
-        feedback: feedback,
+        feedback: sanitizeForFirebase(feedback),
+        essayScoreLog: sanitizeForFirebase(essayScoreLog),
         gradedAt: new Date().toISOString(),
         status: "graded",
       });
@@ -109,6 +123,62 @@ export default function ResultScreen() {
             <Text style={styles.feedbackText}>{feedback}</Text>
           </View>
         </View>
+
+        {essayScoreLog ? (
+          <View style={styles.feedbackSection}>
+            <View style={styles.sectionHeader}>
+              <Feather name="list" size={18} color="#00b679" />
+              <Text style={styles.sectionTitle}>Essay Score Log</Text>
+            </View>
+            <View style={styles.feedbackCard}>
+              {essayScoreLog.split("\n").map((line: string, index: number) => {
+                const isCriterion = line.includes("→");
+                const isTotal = line.startsWith("TOTAL");
+                const isHeader =
+                  line.startsWith("ESSAY SCORE LOG") ||
+                  line.startsWith("Rubric Criteria");
+                const isQuestion = line.startsWith("Question:");
+                const isReason = line.startsWith("Reason:");
+                return (
+                  <Text
+                    key={index}
+                    style={[
+                      styles.feedbackText,
+                      isCriterion && {
+                        fontWeight: "700",
+                        fontStyle: "normal",
+                        color: "#111",
+                      },
+                      isTotal && {
+                        fontWeight: "800",
+                        color: "#00b679",
+                        fontStyle: "normal",
+                        marginTop: 8,
+                      },
+                      isHeader && {
+                        fontWeight: "700",
+                        color: "#333",
+                        fontStyle: "normal",
+                      },
+                      isQuestion && {
+                        fontWeight: "600",
+                        color: "#555",
+                        fontStyle: "normal",
+                      },
+                      isReason && {
+                        fontStyle: "italic",
+                        color: "#777",
+                        fontSize: 13,
+                      },
+                    ]}
+                  >
+                    {line}
+                  </Text>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
 
         <View style={styles.infoSection}>
           <View style={styles.infoRow}>

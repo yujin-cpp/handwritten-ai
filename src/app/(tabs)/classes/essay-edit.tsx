@@ -357,6 +357,7 @@ const styles = StyleSheet.create({
     minHeight: 180,
   },
   textarea: {
+    flex: 1,
     fontSize: 15,
     color: "#111",
     lineHeight: 22,
