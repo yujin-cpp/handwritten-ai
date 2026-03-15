@@ -27,11 +27,14 @@ if not GEMINI_API_KEY:
     raise ValueError('GEMINI_API_KEY not set in environment variables')
 
 genai.configure(api_key=GEMINI_API_KEY)
+for m in genai.list_models():
+    print(m.name)
 
-# SELECT MODEL
-valid_model = 'gemini-2.5-flash'
-print(f"🎯 MODEL: {valid_model}")
-model = genai.GenerativeModel(valid_model)
+# SELECT MODELS
+transcription_model = genai.GenerativeModel('gemini-2.5-flash')  # vision + speed
+grading_model = genai.GenerativeModel('gemini-2.5-flash-lite')        # consistency
+print(f"🎯 TRANSCRIPTION MODEL:", transcription_model.model_name)
+print(f"🎯 GRADING MODEL:", grading_model.model_name)
 
 app = Flask(__name__)
 CORS(app)
@@ -174,7 +177,7 @@ def fetch_and_parse_url(url):
     return [], ""
 
 
-def call_gemini(ai_inputs):
+def call_gemini(ai_inputs,model):
     """Call Gemini with the given inputs and return parsed JSON data."""
     response = model.generate_content(
         ai_inputs,
@@ -271,7 +274,7 @@ Return ONLY this JSON, no extra text:
             img.save(buf, format='JPEG', quality=90)
             ai_inputs.append({"mime_type": "image/jpeg", "data": buf.getvalue()})
 
-        data = call_gemini(ai_inputs)
+        data = call_gemini(ai_inputs, transcription_model)
         print(f"✅ Transcription done: {len(data.get('transcribed_text', ''))} chars")
         save_transcript_log(data)
 
@@ -335,83 +338,99 @@ def grade():
                 print(f"⚠️ Could not fetch URL {url}: {e}")
 
         prompt = f"""
-You are a deterministic exam grading engine.
+        You are a deterministic exam grading engine.
 
-{context_block}
+        {context_block}
 
-=== STUDENT TRANSCRIPTION ===
-{transcribed_text}
-=============================
+        === STUDENT TRANSCRIPTION ===
+        {transcribed_text}
+        =============================
 
-Grade the student transcription above using ONLY the rubric and answer key provided.
-Do NOT re-read any image. Grade only from the transcription text above.
+        Grade the student transcription above using ONLY the rubric and answer key provided.
+        Do NOT re-read any image. Grade only from the transcription text above.
 
-GENERAL RULES:
-- Grade only from the provided materials.
-- Never invent rubric criteria, point values, or answer keys.
-- IDENTICAL TRANSCRIPTION + RUBRIC MUST ALWAYS PRODUCE IDENTICAL SCORES.
-- Never exceed the rubric maximum score.
+        GENERAL RULES:
+        - Grade only from the provided materials.
+        - Never invent rubric criteria, point values, or answer keys.
+        - Never exceed the rubric maximum score.
+        - If unsure, always choose the LOWER score.
 
-OBJECTIVE SCORING RULES (MCQ / TRUE-FALSE):
-- Compare each student answer to the answer key exactly.
-- Correct = 1 point. Wrong or blank = 0 points.
-- No partial credit. No weighting.
-- Raw score = total correct answers only.
+        OBJECTIVE SCORING RULES (MCQ / TRUE-FALSE):
+        - Compare each student answer to the answer key exactly.
+        - Correct = 1 point. Wrong or blank = 0 points.
+        - No partial credit. No weighting.
+        - Raw score = total correct answers only.
 
-ESSAY SCORING RULES:
-- Each numbered question is graded separately.
-- Score essays only using explicit rubric requirements that are written in the rubric.
-- Do not invent subcriteria, hidden standards, or writing-quality rules unless the rubric explicitly includes them.
-- For each question, identify the rubric requirements as a checklist of required content.
-- Count how many explicit rubric requirements are clearly present in the student transcription.
-- Assign the score by content coverage only, not by writing style.
+        ESSAY SCORING RULES:
 
-DETERMINISTIC ESSAY SCORE MAPPING:
-Let:
-- R = number of explicit rubric requirements for the question
-- P = number of those requirements clearly present in the student answer
+        STEP 1 — LIST RUBRIC REQUIREMENTS:
+        Before grading, extract the explicit rubric requirements as a numbered list.
+        Only include requirements that are literally written in the rubric.
+        Do not add, infer, or interpret any requirement not explicitly stated.
 
-Then assign the final score using ONLY this mapping:
-- If answer is blank or off-topic: score = 0
-- If P = R: score = rubric max
-- Otherwise score = floor((P / R) * rubric max)
+        STEP 2 — CHECK EACH REQUIREMENT:
+        For each requirement, find a DIRECT QUOTE from the student transcription that satisfies it.
+        - PRESENT = you can copy-paste a specific phrase from the transcription that directly satisfies the requirement.
+        - ABSENT = you cannot find a specific phrase. Vague or implied content = ABSENT.
+        - When in doubt = ABSENT.
 
-RULES FOR COUNTING REQUIREMENTS:
-- Count a requirement as present only if it is explicitly supported by visible text in the transcription.
-- Do not infer intended meaning.
-- If a requirement is only partially present, count it as not present.
-- If unsure whether a requirement is present, count it as not present.
-- All requirements are equally weighted unless the rubric explicitly gives different weights.
-- If the rubric explicitly gives point values per criterion, use those exact points instead of the proportional formula above.
+        STEP 3 — COUNT AND SCORE:
+        - R = total number of rubric requirements
+        - P = number of requirements with a direct quote found
+        - raw_score = floor((P / R) * rubric_max)
+        - minimum_score = lowest score value defined in the rubric (e.g. if rubric scale is 2-5, minimum = 2)
+        - Final Score = max(raw_score, minimum_score) UNLESS answer is blank or off-topic
+        - If blank or completely off-topic: score = 0 (minimum does not apply)
+        - If rubric has explicit point values per criterion, use those instead.
 
-JUSTIFICATION:
-- Give 1-2 short sentences only.
-- Mention which required content was present and which was missing.
-- Do not mention hidden reasoning.
+        MINIMUM SCORE RULE:
+        - Read the rubric carefully for any stated minimum score.
+        - If the rubric defines a scale (e.g. 2 to 5, or 1 to 10), the lowest value on that scale is the minimum.
+        - Never assign a score below the rubric minimum unless the answer is blank or off-topic.
+        - A wrong or poor answer still gets the minimum score if the student attempted to answer.
+        - Before scoring make sure to double read the rubric for stated score range or minimum and maximum score.
 
-ESSAY SCORE LOG FORMAT (repeat for EACH numbered question):
-ESSAY SCORE LOG
-Question: [number]
-Rubric Max Score: [max from rubric]
-Final Score: [earned] / [max]
-Reason: [1-2 sentences based only on visible content]
+        STEP 4 — VERIFY:
+        Re-check your direct quotes. Remove any quote that is:
+        - Paraphrased (not exact words from transcription)
+        - Implied but not stated
+        - A general reference without specifics
+        Recount P after removing invalid quotes.
+        Recalculate score.
 
-FINAL TOTAL SCORE: [sum of all question Final Scores]
+        JUSTIFICATION FORMAT:
+        For each question write:
+        - Which requirements were PRESENT with the exact quote found
+        - Which requirements were ABSENT and why no quote was found
 
-FAIL-SAFE RULES:
-- If rubric is missing, score essay items as 0 and explain why.
-- If answer is blank, score = 0.
-- Never fabricate missing information.
+        ESSAY SCORE LOG FORMAT (repeat for EACH numbered question):
+        ESSAY SCORE LOG
+        Question: [number]
+        Rubric Requirements: [list each requirement from rubric]
+        Present ([P]/[R]):
+        - [requirement] → "[exact quote from transcription]"
+        Absent:
+        - [requirement] → no direct quote found
+        Rubric Max Score: [max]
+        Final Score: floor(([P]/[R]) * [max]) = [result]
+        Reason: [1-2 sentences]
 
-Return ONLY this JSON, no extra text:
-{{
-  "grading_type": "STRICT_MATCH or RUBRIC_BASED",
-  "legibility": "CLEAR / MOSTLY_CLEAR / UNCLEAR",
-  "essay_score_log": "MUST be a plain text string only. No JSON objects, no arrays, no nested keys. Use \\n for line breaks. Format: \\nQuestion: 46\\nFinal Score: 3 / 5\\nReason: ..."
-  "confidence_score": <0-100>,
-  "score": <numeric total score>,
-  "feedback": "brief objective feedback per question and only on matching type, always display the answer and right answer"
-}}
+        FINAL TOTAL SCORE: [sum of all Final Scores]
+
+        FAIL-SAFE RULES:
+        - If rubric is missing: score = 0, explain why.
+        - If answer is blank: score = 0.
+        - Never fabricate quotes or requirements.
+        - Never round up. Always use floor().
+
+        Return ONLY this JSON, no extra text:
+        {{
+        "grading_type": "STRICT_MATCH or RUBRIC_BASED",
+        "essay_score_log": "MUST be plain text string only. No JSON objects or arrays. Use \\n for line breaks.",
+        "confidence_score": <0-100>,
+        "score": <numeric total — sum of all Final Scores>,
+        "feedback": "brief objective feedback per question. For MCQ always show student answer and correct answer."
+        }}
 """
 
         ai_inputs = [prompt]
@@ -424,7 +443,7 @@ Return ONLY this JSON, no extra text:
                 img.save(buf, format='JPEG', quality=90)
                 ai_inputs.append({"mime_type": "image/jpeg", "data": buf.getvalue()})
 
-        data = call_gemini(ai_inputs)
+        data = call_gemini(ai_inputs, grading_model)
         print(f"✅ Grading done: score={data.get('score')}")
 
         return jsonify({"success": True, "data": data})
@@ -463,7 +482,7 @@ Return ONLY a JSON array, no extra text:
             img.save(buf, format='JPEG', quality=90)
             ai_inputs.append({"mime_type": "image/jpeg", "data": buf.getvalue()})
 
-        response = model.generate_content(
+        response = transcription_model.generate_content(
             ai_inputs,
             generation_config=GENERATION_CONFIG,
             safety_settings=SAFETY_SETTINGS,

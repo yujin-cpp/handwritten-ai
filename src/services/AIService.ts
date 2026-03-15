@@ -77,7 +77,6 @@ export const processWithAI = async (
       confidence_score: gradeResult.data.confidence_score ?? confidence_score,
     };
   } catch (error) {
-    console.error("❌ AI Service Error:", error);
-    throw error;
+    console.log("❌ AI Service Error:", error);
   }
 };
