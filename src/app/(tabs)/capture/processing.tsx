@@ -1,3 +1,4 @@
+import { setGradingResult } from "@/src/utils/gradingStore";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -43,52 +44,56 @@ export default function ProcessingScreen() {
 
       const activityData = snapshot.val();
       let context = "";
+      let answerKeyUrl: string | undefined;
+      let referencePdfUrl: string | undefined;
 
-      // ✅ Declare answerKeyUrl with let FIRST so it can be reassigned below
-      let answerKeyUrl = activityData.files
-        ? (Object.values(activityData.files) as any[])[0]?.url
-        : undefined;
-
-      // For essay: pull rubric text + URL from essayInstructions
+      // Get URLs from essayInstructions
       if (activityData.essayInstructions) {
         const instructions = Object.values(
           activityData.essayInstructions,
         ) as any[];
 
-        // ✅ Use fullInstructions (the actual text), not rubrics (just the filename)
         const rubricTexts = instructions
           .map((i: any) => i.fullInstructions)
           .filter(Boolean);
-
-        const rubricUrls = instructions
-          .map((i: any) => i.rubricsUrl)
-          .filter((u: string) => u && u.startsWith("http")); // ✅ Only real URLs, not "No file attached"
-
         context = rubricTexts.join("\n\n");
 
-        if (rubricUrls.length > 0 && !answerKeyUrl) {
-          answerKeyUrl = rubricUrls[0];
-        }
+        // Rubric DOCX → answerKeyUrl
+        const rubricUrl = instructions
+          .map((i: any) => i.rubricsUrl)
+          .find((u: string) => u && u.startsWith("http"));
+        if (rubricUrl) answerKeyUrl = rubricUrl;
+
+        // Lesson reference → referencePdfUrl
+        const lessonUrl = instructions
+          .map((i: any) => i.lessonUrl)
+          .find((u: string) => u && u.startsWith("http"));
+        if (lessonUrl) referencePdfUrl = lessonUrl;
       }
-      // For Q&A: if no essay context, at least note the filename
-      if (!context && activityData.files) {
+
+      // Fallback to files (for Q&A type)
+      if (!answerKeyUrl && activityData.files) {
         const files = Object.values(activityData.files) as any[];
-        context = files
-          .map((f: any) => `Answer key file: ${f.name}`)
-          .join("\n");
+        answerKeyUrl = files[0]?.url;
+        if (!context)
+          context = files
+            .map((f: any) => `Answer key file: ${f.name}`)
+            .join("\n");
       }
 
       console.log("📋 Context:", context);
       console.log("📎 Answer key URL:", answerKeyUrl);
-
+      console.log("📎 Reference URL:", referencePdfUrl);
       //analyzing
       setStatus("Analyzing Handwriting...");
       const { processWithAI } = await import("../../../services/AIService");
+
       const result = await processWithAI(
         imageUri!,
         "grade",
         context,
         answerKeyUrl,
+        referencePdfUrl,
       );
 
       setStatus("Saving Results...");
@@ -101,6 +106,12 @@ export default function ProcessingScreen() {
         gradingType: result.grading_type,
         transcription: result.transcribed_text,
         gradedAt: new Date().toISOString(),
+      });
+
+      setGradingResult({
+        essayScoreLog:
+          result.essay_score_log || result.true_enough_reasoning || "",
+        feedback: result.feedback ?? "",
       });
 
       router.replace({
