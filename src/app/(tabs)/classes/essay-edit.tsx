@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
-import * as DocumentPicker from "expo-document-picker";
 import { Asset } from "expo-asset";
+import * as DocumentPicker from "expo-document-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { get, push, ref, set, update } from "firebase/database";
 import {
@@ -82,7 +82,7 @@ export default function EssayEdit() {
       try {
         const instructionRef = ref(
           db,
-          `professors/${uid}/classes/${classId}/activities/${activityId}/essayInstructions/${instructionId}`
+          `professors/${uid}/classes/${classId}/activities/${activityId}/essayInstructions/${instructionId}`,
         );
         const snapshot = await get(instructionRef);
 
@@ -98,7 +98,7 @@ export default function EssayEdit() {
             name: item.name,
             uri: item.url,
             source: "upload",
-          }))
+          })),
         );
 
         const existingRubric = normalizeRubric(record);
@@ -109,7 +109,7 @@ export default function EssayEdit() {
                 uri: existingRubric.url,
                 source: existingRubric.source,
               }
-            : null
+            : null,
         );
       } catch (error) {
         console.error("Failed to load rubric instruction", error);
@@ -152,7 +152,11 @@ export default function EssayEdit() {
       setLessonAssets((current) => {
         const next = [...current];
         for (const asset of result.assets) {
-          if (!next.some((item) => item.uri === asset.uri || item.name === asset.name)) {
+          if (
+            !next.some(
+              (item) => item.uri === asset.uri || item.name === asset.name,
+            )
+          ) {
             next.push({ name: asset.name, uri: asset.uri, source: "upload" });
           }
         }
@@ -208,7 +212,10 @@ export default function EssayEdit() {
     }
   }
 
-  async function uploadFile(asset: UploadableAsset, path: string): Promise<string> {
+  async function uploadFile(
+    asset: UploadableAsset,
+    path: string,
+  ): Promise<string> {
     const response = await fetch(asset.uri);
     const blob = await response.blob();
     const storage = getStorage();
@@ -265,16 +272,16 @@ export default function EssayEdit() {
 
       const instructionsRef = ref(
         db,
-        `professors/${uid}/classes/${classId}/activities/${activityId}/essayInstructions`
+        `professors/${uid}/classes/${classId}/activities/${activityId}/essayInstructions`,
       );
 
       if (instructionId) {
         await update(
           ref(
             db,
-            `professors/${uid}/classes/${classId}/activities/${activityId}/essayInstructions/${instructionId}`
+            `professors/${uid}/classes/${classId}/activities/${activityId}/essayInstructions/${instructionId}`,
           ),
-          payload
+          payload,
         );
       } else {
         const newRef = push(instructionsRef);
@@ -300,7 +307,9 @@ export default function EssayEdit() {
   }
 
   function removeLesson(index: number) {
-    setLessonAssets((current) => current.filter((_, itemIndex) => itemIndex !== index));
+    setLessonAssets((current) =>
+      current.filter((_, itemIndex) => itemIndex !== index),
+    );
   }
 
   return (
@@ -325,9 +334,16 @@ export default function EssayEdit() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         {initializing ? (
-          <ActivityIndicator color={headerColor} size="large" style={{ marginTop: 50 }} />
+          <ActivityIndicator
+            color={headerColor}
+            size="large"
+            style={{ marginTop: 50 }}
+          />
         ) : (
           <>
             <View style={styles.card}>
@@ -353,23 +369,39 @@ export default function EssayEdit() {
               <View style={styles.attachmentGroup}>
                 <View style={styles.attachmentHeader}>
                   <Text style={styles.subLabel}>Lesson References</Text>
-                  <TouchableOpacity style={styles.inlineAction} onPress={pickLessonFiles}>
+                  <TouchableOpacity
+                    style={styles.inlineAction}
+                    onPress={pickLessonFiles}
+                  >
                     <Feather name="plus" size={15} color={headerColor} />
-                    <Text style={[styles.inlineActionText, { color: headerColor }]}>
+                    <Text
+                      style={[styles.inlineActionText, { color: headerColor }]}
+                    >
                       Add material link
                     </Text>
                   </TouchableOpacity>
                 </View>
 
                 {lessonAssets.length === 0 ? (
-                  <TouchableOpacity style={styles.emptyAttachBtn} onPress={pickLessonFiles}>
+                  <TouchableOpacity
+                    style={styles.emptyAttachBtn}
+                    onPress={pickLessonFiles}
+                  >
                     <Feather name="paperclip" size={18} color="#999" />
                     <Text style={styles.attachText}>Add lesson references</Text>
                   </TouchableOpacity>
                 ) : (
                   lessonAssets.map((asset, index) => (
-                    <View key={`${asset.name}-${index}`} style={styles.materialRow}>
-                      <View style={[styles.materialIconBox, { backgroundColor: "#eff6ff" }]}>
+                    <View
+                      key={`${asset.name}-${index}`}
+                      style={styles.materialRow}
+                    >
+                      <View
+                        style={[
+                          styles.materialIconBox,
+                          { backgroundColor: "#eff6ff" },
+                        ]}
+                      >
                         <Feather name="book-open" size={18} color="#2563eb" />
                       </View>
                       <Text style={styles.materialName} numberOfLines={1}>
@@ -390,9 +422,17 @@ export default function EssayEdit() {
                 <View style={styles.attachmentHeader}>
                   <Text style={styles.subLabel}>Scoring Rubrics</Text>
                   {!rubricAsset && (
-                    <TouchableOpacity style={styles.inlineAction} onPress={pickRubricsFile}>
+                    <TouchableOpacity
+                      style={styles.inlineAction}
+                      onPress={pickRubricsFile}
+                    >
                       <Feather name="plus" size={15} color={headerColor} />
-                      <Text style={[styles.inlineActionText, { color: headerColor }]}>
+                      <Text
+                        style={[
+                          styles.inlineActionText,
+                          { color: headerColor },
+                        ]}
+                      >
                         Add material link
                       </Text>
                     </TouchableOpacity>
@@ -401,9 +441,16 @@ export default function EssayEdit() {
 
                 {rubricAsset ? (
                   <View style={styles.materialRow}>
-                    <View style={[styles.materialIconBox, { backgroundColor: "#ecfdf3" }]}>
+                    <View
+                      style={[
+                        styles.materialIconBox,
+                        { backgroundColor: "#ecfdf3" },
+                      ]}
+                    >
                       <Feather
-                        name={rubricAsset.source === "default" ? "star" : "list"}
+                        name={
+                          rubricAsset.source === "default" ? "star" : "list"
+                        }
                         size={18}
                         color="#00b679"
                       />
@@ -413,7 +460,9 @@ export default function EssayEdit() {
                         {rubricAsset.name}
                       </Text>
                       {rubricAsset.source === "default" && (
-                        <Text style={styles.materialMeta}>Using the built-in rubric</Text>
+                        <Text style={styles.materialMeta}>
+                          Using the built-in rubric
+                        </Text>
                       )}
                     </View>
                     <TouchableOpacity
@@ -425,16 +474,29 @@ export default function EssayEdit() {
                   </View>
                 ) : (
                   <View style={styles.rubricActions}>
-                    <TouchableOpacity style={styles.secondaryActionBtn} onPress={pickRubricsFile}>
+                    <TouchableOpacity
+                      style={styles.secondaryActionBtn}
+                      onPress={pickRubricsFile}
+                    >
                       <Feather name="upload" size={16} color="#444" />
-                      <Text style={styles.secondaryActionText}>Upload rubric file</Text>
+                      <Text style={styles.secondaryActionText}>
+                        Upload rubric file
+                      </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[styles.secondaryActionBtn, styles.defaultRubricBtn]}
+                      style={[
+                        styles.secondaryActionBtn,
+                        styles.defaultRubricBtn,
+                      ]}
                       onPress={applyDefaultRubric}
                     >
                       <Feather name="star" size={16} color={headerColor} />
-                      <Text style={[styles.secondaryActionText, { color: headerColor }]}>
+                      <Text
+                        style={[
+                          styles.secondaryActionText,
+                          { color: headerColor },
+                        ]}
+                      >
                         Use default rubric
                       </Text>
                     </TouchableOpacity>
@@ -457,7 +519,9 @@ export default function EssayEdit() {
               ) : (
                 <>
                   <Text style={styles.saveBtnText}>
-                    {instructionId ? "Update Configuration" : "Save Configuration"}
+                    {instructionId
+                      ? "Update Configuration"
+                      : "Save Configuration"}
                   </Text>
                   <Feather
                     name="arrow-right"
@@ -487,7 +551,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 10,
   },
-  backBtn: { width: 40, height: 40, justifyContent: "center", alignItems: "flex-start" },
+  backBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "flex-start",
+  },
   headerInfo: { flex: 1, paddingHorizontal: 10 },
   headerSmall: {
     color: "#fff",
@@ -547,7 +616,12 @@ const styles = StyleSheet.create({
     padding: 15,
     minHeight: 180,
   },
-  textarea: { fontSize: 15, color: "#111", lineHeight: 22, textAlignVertical: "top" },
+  textarea: {
+    fontSize: 15,
+    color: "#111",
+    lineHeight: 22,
+    textAlignVertical: "top",
+  },
   helpText: { fontSize: 12, color: "#999", marginTop: 12, fontStyle: "italic" },
 
   attachmentGroup: {},

@@ -37,22 +37,35 @@ export default function SavedScreen() {
 
         <Text style={styles.mainText}>Grade Saved!</Text>
         <Text style={styles.subText}>
-          The score has been recorded successfully.{"\n"}The AI is now processing the breakdown.
+          The score has been recorded successfully.{"\n"}The AI is now
+          processing the breakdown.
         </Text>
       </View>
 
-      <View style={[styles.bottomWrapper, { paddingBottom: insets.bottom + 30 }]}>
+      <View
+        style={[styles.bottomWrapper, { paddingBottom: insets.bottom + 30 }]}
+      >
         <TouchableOpacity
           style={styles.gradeAnotherBtn}
           onPress={handleGradeAnother}
         >
-          <Feather name="maximize" size={20} color="#fff" style={{ marginRight: 10 }} />
+          <Feather
+            name="maximize"
+            size={20}
+            color="#fff"
+            style={{ marginRight: 10 }}
+          />
           <Text style={styles.gradeAnotherText}>Grade Another Student</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.backBtn} onPress={handleGoToScores}>
           <Text style={styles.backText}>View Class Scores</Text>
-          <Feather name="chevron-right" size={18} color="#00b679" style={{ marginLeft: 5 }} />
+          <Feather
+            name="chevron-right"
+            size={18}
+            color="#00b679"
+            style={{ marginLeft: 5 }}
+          />
         </TouchableOpacity>
       </View>
     </View>
@@ -137,8 +150,8 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     borderRadius: 18,
     alignItems: "center",
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     borderWidth: 1.5,
     borderColor: "#00b679",
   },

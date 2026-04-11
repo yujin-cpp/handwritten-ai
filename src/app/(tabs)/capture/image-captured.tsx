@@ -34,7 +34,7 @@ export default function ImageCaptured() {
 
   const imageUris = useMemo(
     () => parseImageUrisParam(params.imageUris ?? params.imageUri),
-    [params.imageUri, params.imageUris]
+    [params.imageUri, params.imageUris],
   );
 
   const handleRetakeLastPage = () => {
@@ -74,10 +74,16 @@ export default function ImageCaptured() {
       return;
     }
 
-    if (!classId || !activityId || !studentId || classId === "0" || activityId === "0") {
+    if (
+      !classId ||
+      !activityId ||
+      !studentId ||
+      classId === "0" ||
+      activityId === "0"
+    ) {
       showAlert(
         "Missing Data",
-        "Class or Student information was lost. Please go back and select again."
+        "Class or Student information was lost. Please go back and select again.",
       );
       return;
     }
@@ -116,7 +122,10 @@ export default function ImageCaptured() {
         <View style={{ width: 24 }} />
       </LinearGradient>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.contextCard}>
           <Text style={styles.contextLabel}>{className}</Text>
           <Text style={styles.contextValue}>
@@ -125,7 +134,12 @@ export default function ImageCaptured() {
         </View>
 
         <View style={styles.hintContainer}>
-          <Feather name="info" size={16} color="#00b679" style={{ marginRight: 8 }} />
+          <Feather
+            name="info"
+            size={16}
+            color="#00b679"
+            style={{ marginRight: 8 }}
+          />
           <Text style={styles.hint}>
             Check if all handwriting is clear and readable before grading.
           </Text>
@@ -138,18 +152,27 @@ export default function ImageCaptured() {
                 <View style={styles.imageCardHeader}>
                   <Text style={styles.pageLabel}>Page {index + 1}</Text>
                 </View>
-                <Image source={{ uri }} style={styles.image} resizeMode="contain" />
+                <Image
+                  source={{ uri }}
+                  style={styles.image}
+                  resizeMode="contain"
+                />
               </View>
             ))
           ) : (
             <View style={styles.noImage}>
               <Feather name="image" size={40} color="#333" />
-              <Text style={{ color: "#666", marginTop: 10 }}>No Image Captured</Text>
+              <Text style={{ color: "#666", marginTop: 10 }}>
+                No Image Captured
+              </Text>
             </View>
           )}
         </View>
 
-        <TouchableOpacity style={styles.addPageBtn} onPress={handleAddAnotherPage}>
+        <TouchableOpacity
+          style={styles.addPageBtn}
+          onPress={handleAddAnotherPage}
+        >
           <Feather name="plus-circle" size={18} color="#00b679" />
           <Text style={styles.addPageText}>Add another page</Text>
         </TouchableOpacity>
@@ -166,7 +189,12 @@ export default function ImageCaptured() {
 
         <TouchableOpacity style={styles.confirmBtn} onPress={handleProceed}>
           <Text style={styles.confirmText}>Proceed</Text>
-          <Feather name="arrow-right" size={18} color="#fff" style={{ marginLeft: 8 }} />
+          <Feather
+            name="arrow-right"
+            size={18}
+            color="#fff"
+            style={{ marginLeft: 8 }}
+          />
         </TouchableOpacity>
       </View>
     </View>

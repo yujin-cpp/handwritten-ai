@@ -7,7 +7,8 @@ import { getStorage } from "firebase/storage";
 const firebaseConfig = {
   apiKey: "AIzaSyDGfURh85wfJelLiBlzGjNdpvFD_V3V5Vg",
   authDomain: "handwritten-ai-system.firebaseapp.com",
-  databaseURL: "https://handwritten-ai-system-default-rtdb.asia-southeast1.firebasedatabase.app",
+  databaseURL:
+    "https://handwritten-ai-system-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "handwritten-ai-system",
   storageBucket: "handwritten-ai-system.firebasestorage.app",
   messagingSenderId: "9183885350",

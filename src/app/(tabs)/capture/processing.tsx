@@ -7,7 +7,7 @@ import {
   ref as storageRef,
   uploadBytes,
 } from "firebase/storage";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth, db, storage } from "../../../firebase/firebaseConfig";
@@ -33,41 +33,34 @@ export default function ProcessingScreen() {
   const className = P(params.className, "Selected Class");
   const activityName = P(params.activityName, "Selected Activity");
   const studentName = P(params.studentName, "Selected Student");
-  const imageUris = parseImageUrisParam(params.imageUris ?? params.imageUri);
+  const imageUris = useMemo(
+    () => parseImageUrisParam(params.imageUris ?? params.imageUri),
+    [params.imageUri, params.imageUris],
+  );
 
-  useEffect(() => {
-    if (!imageUris.length || !classId || !activityId || !studentId) {
-      showAlert("Error", "Missing data for processing.");
-      router.back();
-      return;
-    }
+  const uploadProofPages = useCallback(
+    async (uid: string, submissionId: string): Promise<string[]> => {
+      const urls: string[] = [];
 
-    void processExam();
-  }, []);
+      for (const [index, imageUri] of imageUris.entries()) {
+        setStatus(`Uploading Page ${index + 1} of ${imageUris.length}...`);
+        const response = await fetch(imageUri);
+        const blob = await response.blob();
 
-  const uploadProofPages = async (
-    uid: string,
-    submissionId: string
-  ): Promise<string[]> => {
-    const urls: string[] = [];
+        const proofRef = storageRef(
+          storage,
+          `exam_pages/${uid}/${classId}/${activityId}/${studentId}/${submissionId}/page-${index + 1}.jpg`,
+        );
+        await uploadBytes(proofRef, blob);
+        urls.push(await getDownloadURL(proofRef));
+      }
 
-    for (const [index, imageUri] of imageUris.entries()) {
-      setStatus(`Uploading Page ${index + 1} of ${imageUris.length}...`);
-      const response = await fetch(imageUri);
-      const blob = await response.blob();
+      return urls;
+    },
+    [activityId, classId, imageUris, studentId],
+  );
 
-      const proofRef = storageRef(
-        storage,
-        `exam_pages/${uid}/${classId}/${activityId}/${studentId}/${submissionId}/page-${index + 1}.jpg`
-      );
-      await uploadBytes(proofRef, blob);
-      urls.push(await getDownloadURL(proofRef));
-    }
-
-    return urls;
-  };
-
-  const processExam = async () => {
+  const processExam = useCallback(async () => {
     const uid = auth.currentUser?.uid;
     if (!uid) {
       return;
@@ -75,7 +68,10 @@ export default function ProcessingScreen() {
 
     try {
       setStatus("Validating Activity...");
-      const activityRef = ref(db, `professors/${uid}/classes/${classId}/activities/${activityId}`);
+      const activityRef = ref(
+        db,
+        `professors/${uid}/classes/${classId}/activities/${activityId}`,
+      );
       const snapshot = await get(activityRef);
 
       if (!snapshot.exists()) {
@@ -90,10 +86,12 @@ export default function ProcessingScreen() {
 
       const fileRef = storageRef(
         storage,
-        `exams/${uid}/${classId}/${activityId}/${studentId}.${artifact.extension}`
+        `exams/${uid}/${classId}/${activityId}/${studentId}.${artifact.extension}`,
       );
       setStatus("Sending Submission to AI Queue...");
-      await uploadBytes(fileRef, artifact.blob, { contentType: artifact.contentType });
+      await uploadBytes(fileRef, artifact.blob, {
+        contentType: artifact.contentType,
+      });
 
       const gradePath = `professors/${uid}/classes/${classId}/students/${studentId}/activities/${activityId}`;
       await update(ref(db, gradePath), {
@@ -116,17 +114,36 @@ export default function ProcessingScreen() {
               className,
               activityName,
             },
-          })
+          }),
       );
     } catch (error: any) {
       console.error("Upload Error:", error);
       showAlert(
         "Upload Failed",
         "Could not upload the submission for grading. Please check your connection and try again.",
-        () => router.back()
+        () => router.back(),
       );
     }
-  };
+  }, [
+    activityId,
+    activityName,
+    classId,
+    className,
+    imageUris,
+    router,
+    studentId,
+    uploadProofPages,
+  ]);
+
+  useEffect(() => {
+    if (!imageUris.length || !classId || !activityId || !studentId) {
+      showAlert("Error", "Missing data for processing.");
+      router.back();
+      return;
+    }
+
+    void processExam();
+  }, [activityId, classId, imageUris.length, processExam, router, studentId]);
 
   return (
     <View style={styles.container}>
@@ -141,7 +158,11 @@ export default function ProcessingScreen() {
 
       <View style={styles.body}>
         <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color="#00b679" style={{ transform: [{ scale: 1.5 }] }} />
+          <ActivityIndicator
+            size="large"
+            color="#00b679"
+            style={{ transform: [{ scale: 1.5 }] }}
+          />
           <View style={styles.iconOverlay}>
             <Feather name="cpu" size={24} color="#00b679" />
           </View>
@@ -172,7 +193,8 @@ export default function ProcessingScreen() {
         <View style={styles.tipBox}>
           <Text style={styles.tipTitle}>Submission Summary</Text>
           <Text style={styles.tipText}>
-            {imageUris.length} answer page{imageUris.length === 1 ? "" : "s"} will be combined into one grading submission.
+            {imageUris.length} answer page{imageUris.length === 1 ? "" : "s"}{" "}
+            will be combined into one grading submission.
           </Text>
         </View>
       </View>
