@@ -3,6 +3,7 @@
     "module": "NodeNext",
     "esModuleInterop": true,
     "moduleResolution": "nodenext",
+    "noEmit": false,
     "noImplicitReturns": true,
     "noUnusedLocals": true,
     "outDir": "lib",
@@ -12,8 +13,6 @@
     "allowSyntheticDefaultImports": true
   },
   "compileOnSave": true,
-  "include": [
-    "src"
-  ],
+  "include": ["src"],
   "extends": "expo/tsconfig.base"
 }

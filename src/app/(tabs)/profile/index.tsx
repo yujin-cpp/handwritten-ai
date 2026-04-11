@@ -4,18 +4,22 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { sendEmailVerification, signOut, updateProfile } from "firebase/auth";
 import { get, ref } from "firebase/database";
 import { httpsCallable } from "firebase/functions";
-import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
+import {
+    getDownloadURL,
+    ref as storageRef,
+    uploadBytes,
+} from "firebase/storage";
 import React, { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  Modal,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Image,
+    Modal,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth, db, functions, storage } from "../../../firebase/firebaseConfig";
@@ -81,7 +85,7 @@ export default function ProfileSettings() {
       };
 
       fetchData();
-    }, [])
+    }, []),
   );
 
   const handlePickImage = async () => {
@@ -105,7 +109,10 @@ export default function ProfileSettings() {
 
       const response = await fetch(uri);
       const blob = await response.blob();
-      const fileRef = storageRef(storage, `professors/${currentUser.uid}/profile.jpg`);
+      const fileRef = storageRef(
+        storage,
+        `professors/${currentUser.uid}/profile.jpg`,
+      );
 
       await uploadBytes(fileRef, blob);
       const downloadUrl = await getDownloadURL(fileRef);
@@ -130,23 +137,29 @@ export default function ProfileSettings() {
       await currentUser.reload();
 
       if (currentUser.emailVerified) {
-        showAlert("Already Verified", "Your email address is already verified.");
+        showAlert(
+          "Already Verified",
+          "Your email address is already verified.",
+        );
         return;
       }
 
       await sendEmailVerification(currentUser, {
-        url: Platform.OS === "web" ? window.location.origin : "https://handwritten-ai-system.firebaseapp.com",
+        url:
+          Platform.OS === "web"
+            ? window.location.origin
+            : "https://handwritten-ai-scorer.firebaseapp.com",
         handleCodeInApp: false,
       });
 
       showAlert(
         "Verification Sent",
-        `A verification link has been sent to ${currentUser.email}. Please check your inbox and spam folder.`
+        `A verification link has been sent to ${currentUser.email}. Please check your inbox and spam folder.`,
       );
-
     } catch (error: any) {
       let msg = "Failed to send verification email.";
-      if (error.code === "auth/too-many-requests") msg = "Too many attempts. Please wait a few minutes.";
+      if (error.code === "auth/too-many-requests")
+        msg = "Too many attempts. Please wait a few minutes.";
       showAlert("Verification Error", msg);
     } finally {
       setVerifying(false);
@@ -161,13 +174,12 @@ export default function ProfileSettings() {
     setVerifying(true);
 
     try {
-      const sendOtpFn = httpsCallable(functions, 'sendOtpEmail');
+      const sendOtpFn = httpsCallable(functions, "sendOtpEmail");
       await sendOtpFn({ email: user.personalEmail });
 
       // Open the input modal
       setOtpInput("");
       setOtpModalVisible(true);
-
     } catch (error: any) {
       console.error(error);
       showAlert("Error", "Failed to send OTP. Try again later.");
@@ -185,17 +197,16 @@ export default function ProfileSettings() {
     setOtpLoading(true);
 
     try {
-      const verifyFn = httpsCallable(functions, 'verifyPersonalEmail');
+      const verifyFn = httpsCallable(functions, "verifyPersonalEmail");
       await verifyFn({
         email: user.personalEmail,
-        otp: otpInput
+        otp: otpInput,
       });
 
       // Success! Update local state and close modal
       setOtpModalVisible(false);
       setUser((prev: any) => ({ ...prev, personalEmailVerified: true }));
       showAlert("Success", "Personal email has been verified successfully!");
-
     } catch (error: any) {
       console.error(error);
       showAlert("Verification Failed", error.message || "Invalid code.");
@@ -211,7 +222,7 @@ export default function ProfileSettings() {
       confirmLogout,
       undefined,
       "Logout",
-      "Cancel"
+      "Cancel",
     );
   };
 
@@ -246,7 +257,11 @@ export default function ProfileSettings() {
             <ActivityIndicator color="#fff" />
           </View>
         )}
-        <TouchableOpacity style={styles.editIconContainer} onPress={handlePickImage} disabled={imageUploading}>
+        <TouchableOpacity
+          style={styles.editIconContainer}
+          onPress={handlePickImage}
+          disabled={imageUploading}
+        >
           <Feather name="camera" size={18} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -258,7 +273,9 @@ export default function ProfileSettings() {
             <Text style={styles.label}>Name:</Text>
             <Text style={styles.value}>{user?.name}</Text>
           </View>
-          <TouchableOpacity onPress={() => router.push("/(tabs)/profile/edit-name")}>
+          <TouchableOpacity
+            onPress={() => router.push("/(tabs)/profile/edit-name")}
+          >
             <Feather name="edit-3" size={18} color="#00b679" />
           </TouchableOpacity>
         </View>
@@ -270,7 +287,10 @@ export default function ProfileSettings() {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Security</Text>
-        <TouchableOpacity style={styles.securityRow} onPress={() => router.push("/(tabs)/profile/change-password")}>
+        <TouchableOpacity
+          style={styles.securityRow}
+          onPress={() => router.push("/(tabs)/profile/change-password")}
+        >
           <Text style={styles.menuText}>Change Password</Text>
           <Feather name="chevron-right" size={18} color="#999" />
         </TouchableOpacity>
@@ -291,14 +311,27 @@ export default function ProfileSettings() {
 
         {/* Personal Email */}
         {user?.personalEmail && (
-          <View style={[styles.securityEmail, { marginTop: 12, borderTopWidth: 1, borderTopColor: "#eee", paddingTop: 12 }]}>
+          <View
+            style={[
+              styles.securityEmail,
+              {
+                marginTop: 12,
+                borderTopWidth: 1,
+                borderTopColor: "#eee",
+                paddingTop: 12,
+              },
+            ]}
+          >
             <Text style={styles.label}>Personal Email:</Text>
             <Text style={styles.value}>{user.personalEmail}</Text>
 
             {user.personalEmailVerified ? (
               <Text style={styles.verified}>✓ Verified</Text>
             ) : (
-              <TouchableOpacity onPress={handleVerifyPersonalEmail} disabled={verifying}>
+              <TouchableOpacity
+                onPress={handleVerifyPersonalEmail}
+                disabled={verifying}
+              >
                 <Text style={styles.unverified}>
                   {verifying ? "Sending..." : "⚠ Unverified (Tap to verify)"}
                 </Text>
@@ -307,21 +340,44 @@ export default function ProfileSettings() {
           </View>
         )}
 
-        <TouchableOpacity style={styles.addEmailBtn} onPress={() => router.push("/(tabs)/profile/add-email")}>
-          <Text style={styles.addEmailText}>{user?.personalEmail ? "Update personal email" : "+ Add personal email"}</Text>
+        <TouchableOpacity
+          style={styles.addEmailBtn}
+          onPress={() => router.push("/(tabs)/profile/add-email")}
+        >
+          <Text style={styles.addEmailText}>
+            {user?.personalEmail
+              ? "Update personal email"
+              : "+ Add personal email"}
+          </Text>
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.logoutBtn} onPress={handleLogoutRequest} disabled={loggingOut}>
-        {loggingOut ? <ActivityIndicator color="#fff" /> : <Text style={styles.logoutText}>Logout</Text>}
+      <TouchableOpacity
+        style={styles.logoutBtn}
+        onPress={handleLogoutRequest}
+        disabled={loggingOut}
+      >
+        {loggingOut ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.logoutText}>Logout</Text>
+        )}
       </TouchableOpacity>
 
       {/* --- OTP INPUT MODAL (Kept for custom input, but using Feather) --- */}
-      <Modal animationType="fade" transparent visible={otpModalVisible} onRequestClose={() => setOtpModalVisible(false)}>
+      <Modal
+        animationType="fade"
+        transparent
+        visible={otpModalVisible}
+        onRequestClose={() => setOtpModalVisible(false)}
+      >
         <View style={styles.centeredView}>
           <View style={styles.modalView}>
             <Text style={styles.modalTitle}>Verification Code</Text>
-            <Text style={styles.modalText}>Enter the 6-digit code sent to{"\n"}{user?.personalEmail}</Text>
+            <Text style={styles.modalText}>
+              Enter the 6-digit code sent to{"\n"}
+              {user?.personalEmail}
+            </Text>
 
             <TextInput
               style={styles.otpInput}
@@ -334,17 +390,27 @@ export default function ProfileSettings() {
             />
 
             <View style={styles.buttonContainer}>
-              <TouchableOpacity style={[styles.button, styles.buttonCancel]} onPress={() => setOtpModalVisible(false)}>
+              <TouchableOpacity
+                style={[styles.button, styles.buttonCancel]}
+                onPress={() => setOtpModalVisible(false)}
+              >
                 <Text style={styles.textCancel}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.button, { backgroundColor: "#00b679" }]} onPress={handleSubmitOtp} disabled={otpLoading}>
-                {otpLoading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.textConfirm}>Verify</Text>}
+              <TouchableOpacity
+                style={[styles.button, { backgroundColor: "#00b679" }]}
+                onPress={handleSubmitOtp}
+                disabled={otpLoading}
+              >
+                {otpLoading ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.textConfirm}>Verify</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-
     </View>
   );
 }
@@ -352,34 +418,153 @@ export default function ProfileSettings() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8f9fa", padding: 20 },
   center: { justifyContent: "center", alignItems: "center" },
-  title: { fontSize: 22, fontWeight: "700", textAlign: "center", color: "#333", marginBottom: 25 },
-  avatarContainer: { alignSelf: "center", marginBottom: 15, position: 'relative' },
-  profileImage: { width: 110, height: 110, borderRadius: 55, backgroundColor: "#eee" },
-  loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 55, justifyContent: 'center', alignItems: 'center' },
-  editIconContainer: { position: "absolute", bottom: 0, right: 0, backgroundColor: "#00b679", width: 34, height: 34, borderRadius: 17, justifyContent: "center", alignItems: "center", borderWidth: 3, borderColor: "#f8f9fa" },
-  card: { backgroundColor: "#fff", padding: 20, borderRadius: 16, marginTop: 12, elevation: 2, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10 },
-  cardTitle: { fontWeight: "700", fontSize: 16, marginBottom: 15, color: '#111' },
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: 'center' },
+  title: {
+    fontSize: 22,
+    fontWeight: "700",
+    textAlign: "center",
+    color: "#333",
+    marginBottom: 25,
+  },
+  avatarContainer: {
+    alignSelf: "center",
+    marginBottom: 15,
+    position: "relative",
+  },
+  profileImage: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: "#eee",
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    borderRadius: 55,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  editIconContainer: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: "#00b679",
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 3,
+    borderColor: "#f8f9fa",
+  },
+  card: {
+    backgroundColor: "#fff",
+    padding: 20,
+    borderRadius: 16,
+    marginTop: 12,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+  },
+  cardTitle: {
+    fontWeight: "700",
+    fontSize: 16,
+    marginBottom: 15,
+    color: "#111",
+  },
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   label: { fontSize: 13, color: "#888", marginBottom: 2 },
   menuText: { fontSize: 15, color: "#333", fontWeight: "500" },
-  value: { fontSize: 15, fontWeight: "600", color: '#111' },
+  value: { fontSize: 15, fontWeight: "600", color: "#111" },
   verified: { color: "#00b679", marginTop: 5, fontWeight: "600", fontSize: 13 },
-  unverified: { color: "#ff9500", marginTop: 5, fontWeight: "600", fontSize: 13, textDecorationLine: 'underline' },
-  securityRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#f0f0f0", marginBottom: 5 },
+  unverified: {
+    color: "#ff9500",
+    marginTop: 5,
+    fontWeight: "600",
+    fontSize: 13,
+    textDecorationLine: "underline",
+  },
+  securityRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+    marginBottom: 5,
+  },
   securityEmail: { marginTop: 5 },
-  addEmailBtn: { marginTop: 15, borderWidth: 1, borderColor: "#00b679", paddingVertical: 12, borderRadius: 10, alignItems: "center" },
+  addEmailBtn: {
+    marginTop: 15,
+    borderWidth: 1,
+    borderColor: "#00b679",
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
   addEmailText: { color: "#00b679", fontWeight: "600" },
-  logoutBtn: { backgroundColor: "#fff", marginTop: 20, paddingVertical: 14, borderRadius: 12, alignItems: "center", borderWidth: 1, borderColor: '#ff3b30' },
+  logoutBtn: {
+    backgroundColor: "#fff",
+    marginTop: 20,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#ff3b30",
+  },
   logoutText: { color: "#ff3b30", fontSize: 16, fontWeight: "600" },
-  centeredView: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)' },
-  modalView: { width: '85%', backgroundColor: 'white', borderRadius: 20, padding: 25, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.2, shadowRadius: 15, elevation: 10 },
-  modalTitle: { fontSize: 20, fontWeight: '700', marginBottom: 10, color: '#111' },
-  modalText: { marginBottom: 20, textAlign: 'center', color: '#666', fontSize: 15, lineHeight: 22 },
-  buttonContainer: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', gap: 10 },
-  button: { borderRadius: 12, paddingVertical: 14, flex: 1, alignItems: 'center', justifyContent: 'center' },
-  buttonCancel: { backgroundColor: '#f5f5f5' },
-  textCancel: { color: '#333', fontWeight: '600' },
-  textConfirm: { color: 'white', fontWeight: '600' },
+  centeredView: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  modalView: {
+    width: "85%",
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 25,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+    elevation: 10,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 10,
+    color: "#111",
+  },
+  modalText: {
+    marginBottom: 20,
+    textAlign: "center",
+    color: "#666",
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  buttonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+    gap: 10,
+  },
+  button: {
+    borderRadius: 12,
+    paddingVertical: 14,
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  buttonCancel: { backgroundColor: "#f5f5f5" },
+  textCancel: { color: "#333", fontWeight: "600" },
+  textConfirm: { color: "white", fontWeight: "600" },
   otpInput: {
     backgroundColor: "#f9f9f9",
     borderRadius: 12,
@@ -387,11 +572,11 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     marginBottom: 25,
     fontSize: 24,
-    color: '#111',
-    textAlign: 'center',
+    color: "#111",
+    textAlign: "center",
     letterSpacing: 10,
-    width: '100%',
+    width: "100%",
     borderWidth: 1,
-    borderColor: '#eee'
+    borderColor: "#eee",
   },
 });

@@ -14,7 +14,7 @@ admin.initializeApp();
 // 1️⃣ EXISTING PDF PROCESSOR (FIXED)
 // =========================================================
 export const processMasterlist = onObjectFinalized(
-  { cpu: 2 },
+  { region: "us-east1", cpu: 2 },
   async (event) => {
     console.log("🔥 TRIGGERED", event.data.bucket, event.data.name);
     const fileBucket = event.data.bucket;
@@ -69,7 +69,7 @@ export const processMasterlist = onObjectFinalized(
         // Remove course code (BSCS etc)
         line = line.replace(
           /(BSCS|BSIT|BSECE|BIT|BET|BSEE|BSME|BSCE|BSA|BSBA|BSTM|BSHM|BSENT).*$/i,
-          ""
+          "",
         );
 
         // Cleanup commas & spacing
@@ -98,14 +98,16 @@ export const processMasterlist = onObjectFinalized(
           .ref(`professors/${professorId}/classes/${classId}/students`);
 
         await dbRef.update(students);
-        logger.info(`Successfully added ${studentCount} students for class ${classId}.`);
+        logger.info(
+          `Successfully added ${studentCount} students for class ${classId}.`,
+        );
       } else {
         logger.warn("No students found in PDF parsing.");
       }
     } catch (error) {
       logger.error("Error processing masterlist:", error);
     }
-  }
+  },
 );
 
 // =========================================================
@@ -235,31 +237,34 @@ export const sendOtpEmail = onCall(async (request) => {
   const { email, type } = request.data;
 
   if (!email) {
-    throw new HttpsError('invalid-argument', 'Email is required');
+    throw new HttpsError("invalid-argument", "Email is required");
   }
 
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
   try {
-    const sanitizedEmail = email.replace(/\./g, ',');
-    await admin.database().ref(`otps/${sanitizedEmail}`).set({
-      otp: otp,
-      expiresAt: Date.now() + 10 * 60 * 1000
-    });
+    const sanitizedEmail = email.replace(/\./g, ",");
+    await admin
+      .database()
+      .ref(`otps/${sanitizedEmail}`)
+      .set({
+        otp: otp,
+        expiresAt: Date.now() + 10 * 60 * 1000,
+      });
 
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
+      service: "gmail",
       auth: {
-        user: 'handwrittenai@gmail.com',
-        pass: process.env.GMAIL_APP_PASSWORD
-      }
+        user: "handwrittenai@gmail.com",
+        pass: process.env.GMAIL_APP_PASSWORD,
+      },
     });
 
     // Select Template based on 'type'
     let htmlContent = "";
     let subjectLine = "";
 
-    if (type === 'personal_verification') {
+    if (type === "personal_verification") {
       subjectLine = "Verify your Personal Email - Handwritten AI";
       htmlContent = getVerifyEmailHtml(otp);
     } else {
@@ -268,18 +273,17 @@ export const sendOtpEmail = onCall(async (request) => {
     }
 
     await transporter.sendMail({
-      from: 'Handwritten AI <handwrittenai@gmail.com>',
+      from: "Handwritten AI <handwrittenai@gmail.com>",
       to: email,
       subject: subjectLine,
       text: `Your verification code is: ${otp}`,
-      html: htmlContent
+      html: htmlContent,
     });
 
     return { success: true, message: "OTP sent successfully" };
-
   } catch (error: any) {
     logger.error("Error sending OTP:", error);
-    throw new HttpsError('internal', 'Failed to send email.');
+    throw new HttpsError("internal", "Failed to send email.");
   }
 });
 
@@ -290,29 +294,30 @@ export const resetPasswordWithOtp = onCall(async (request) => {
   const { email, otp, newPassword } = request.data;
 
   if (!email || !otp || !newPassword) {
-    throw new HttpsError('invalid-argument', 'Missing fields');
+    throw new HttpsError("invalid-argument", "Missing fields");
   }
 
-  const sanitizedEmail = email.replace(/\./g, ',');
+  const sanitizedEmail = email.replace(/\./g, ",");
   const otpRef = admin.database().ref(`otps/${sanitizedEmail}`);
 
   try {
     const snapshot = await otpRef.get();
-    if (!snapshot.exists()) throw new HttpsError('not-found', 'Invalid code');
+    if (!snapshot.exists()) throw new HttpsError("not-found", "Invalid code");
 
     const data = snapshot.val();
-    if (data.otp !== otp) throw new HttpsError('invalid-argument', 'Incorrect code');
-    if (Date.now() > data.expiresAt) throw new HttpsError('deadline-exceeded', 'Code expired');
+    if (data.otp !== otp)
+      throw new HttpsError("invalid-argument", "Incorrect code");
+    if (Date.now() > data.expiresAt)
+      throw new HttpsError("deadline-exceeded", "Code expired");
 
     const userRecord = await admin.auth().getUserByEmail(email);
     await admin.auth().updateUser(userRecord.uid, { password: newPassword });
     await otpRef.remove();
 
     return { success: true, message: "Password updated successfully" };
-
   } catch (error: any) {
     if (error instanceof HttpsError) throw error;
-    throw new HttpsError('internal', 'Failed to reset password');
+    throw new HttpsError("internal", "Failed to reset password");
   }
 });
 
@@ -323,28 +328,33 @@ export const verifyPersonalEmail = onCall(async (request) => {
   const { email, otp } = request.data;
   const uid = request.auth?.uid;
 
-  if (!uid) throw new HttpsError('unauthenticated', 'User must be logged in.');
-  if (!email || !otp) throw new HttpsError('invalid-argument', 'Missing fields');
+  if (!uid) throw new HttpsError("unauthenticated", "User must be logged in.");
+  if (!email || !otp)
+    throw new HttpsError("invalid-argument", "Missing fields");
 
-  const sanitizedEmail = email.replace(/\./g, ',');
+  const sanitizedEmail = email.replace(/\./g, ",");
   const otpRef = admin.database().ref(`otps/${sanitizedEmail}`);
 
   try {
     const snapshot = await otpRef.get();
-    if (!snapshot.exists()) throw new HttpsError('not-found', 'Invalid code');
+    if (!snapshot.exists()) throw new HttpsError("not-found", "Invalid code");
 
     const data = snapshot.val();
-    if (data.otp !== otp) throw new HttpsError('invalid-argument', 'Incorrect code');
-    if (Date.now() > data.expiresAt) throw new HttpsError('deadline-exceeded', 'Code expired');
+    if (data.otp !== otp)
+      throw new HttpsError("invalid-argument", "Incorrect code");
+    if (Date.now() > data.expiresAt)
+      throw new HttpsError("deadline-exceeded", "Code expired");
 
-    await admin.database().ref(`professors/${uid}`).update({ personalEmailVerified: true });
+    await admin
+      .database()
+      .ref(`professors/${uid}`)
+      .update({ personalEmailVerified: true });
     await otpRef.remove();
 
     return { success: true, message: "Personal email verified successfully" };
-
   } catch (error: any) {
     if (error instanceof HttpsError) throw error;
-    throw new HttpsError('internal', 'Failed to verify email');
+    throw new HttpsError("internal", "Failed to verify email");
   }
 });
 
@@ -352,7 +362,7 @@ export const verifyPersonalEmail = onCall(async (request) => {
 // 5️⃣ EXAM GRADING (STORAGE TRIGGER)
 // =========================================================
 export const processExamImage = onObjectFinalized(
-  { cpu: 2, memory: "1GiB" },
+  { region: "us-east1", cpu: 2, memory: "1GiB" },
   async (event) => {
     logger.info("🔥 EXAM TRIGGERED", event.data.bucket, event.data.name);
     const filePath = event.data.name;
@@ -362,7 +372,7 @@ export const processExamImage = onObjectFinalized(
     if (
       !filePath ||
       !filePath.startsWith("exams/") ||
-      !contentType?.startsWith("image/")
+      !(contentType?.startsWith("image/") || contentType === "application/pdf")
     ) {
       return;
     }
@@ -385,7 +395,9 @@ export const processExamImage = onObjectFinalized(
       // 1. Fetch Context from RTDB
       const dbRef = admin
         .database()
-        .ref(`professors/${professorId}/classes/${classId}/activities/${activityId}`);
+        .ref(
+          `professors/${professorId}/classes/${classId}/activities/${activityId}`,
+        );
       const snapshot = await dbRef.get();
 
       let context = "Grade based on general correctness.";
@@ -410,45 +422,81 @@ export const processExamImage = onObjectFinalized(
       formData.append("mode", "grade");
       formData.append("rubric", context);
 
-      const AI_SERVER_URL = "https://handwritten-ai-server-9183885350.us-central1.run.app";
+      const AI_SERVER_URL =
+        "https://handwritten-ai-server-1093390926434.us-central1.run.app";
 
-      logger.info(`Sending image to AI Server for student ${studentId}...`);
-      const response = await fetch(`${AI_SERVER_URL}/process_exam`, {
+      logger.info(`Sending exam to AI Server for student ${studentId}...`);
+      const transcribeResponse = await fetch(`${AI_SERVER_URL}/transcribe`, {
         method: "POST",
         body: formData,
       });
 
-      const result = await response.json() as any;
-
-      if (!result.success) {
-        throw new Error(result.error || "AI processing failed");
+      const transcribeResult = (await transcribeResponse.json()) as any;
+      if (!transcribeResponse.ok || !transcribeResult?.success) {
+        throw new Error(transcribeResult?.error || "AI transcription failed");
       }
+
+      const transcribedText = transcribeResult.data?.transcribed_text || "";
+      const legibility = transcribeResult.data?.legibility;
+      const transcribeConfidence = transcribeResult.data?.confidence_score;
+
+      const gradeResponse = await fetch(`${AI_SERVER_URL}/grade`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transcribed_text: transcribedText,
+          context,
+          mode: "grade",
+          answer_key_url: "",
+          reference_url: "",
+        }),
+      });
+
+      const gradeResult = (await gradeResponse.json()) as any;
+      if (!gradeResponse.ok || !gradeResult?.success) {
+        throw new Error(gradeResult?.error || "AI grading failed");
+      }
+
+      const resultData = {
+        ...gradeResult.data,
+        transcribed_text: transcribedText,
+        legibility,
+        confidence_score:
+          gradeResult.data?.confidence_score ?? transcribeConfidence,
+      };
 
       // 3. Update RTDB with Score
       const gradePath = `professors/${professorId}/classes/${classId}/students/${studentId}/activities/${activityId}`;
       const gradeRef = admin.database().ref(gradePath);
 
       await gradeRef.update({
-        score: parseInt(result.data.score),
+        score: parseInt(resultData.score),
         total: parseInt(totalPoints as any),
-        feedback: result.data.feedback,
-        confidenceScore: result.data.confidence_score,
-        legibility: result.data.legibility,
-        gradingType: result.data.grading_type,
-        verificationLog: result.data.true_enough_reasoning,
-        transcribedText: result.data.transcribed_text,
+        feedback: resultData.feedback,
+        confidenceScore: resultData.confidence_score,
+        legibility: resultData.legibility,
+        gradingType: resultData.grading_type,
+        verificationLog:
+          resultData.essay_score_log || resultData.true_enough_reasoning || "",
+        transcribedText: resultData.transcribed_text,
         gradedAt: new Date().toISOString(),
         status: "graded",
       });
 
-      logger.info(`Successfully graded exam for ${studentId}. Score: ${result.data.score}/${totalPoints}`);
+      logger.info(
+        `Successfully graded exam for ${studentId}. Score: ${resultData.score}/${totalPoints}`,
+      );
     } catch (error) {
       logger.error("Error processing exam:", error);
       // Fallback
-      const gradeRef = admin.database().ref(`professors/${professorId}/classes/${classId}/students/${studentId}/activities/${activityId}`);
+      const gradeRef = admin
+        .database()
+        .ref(
+          `professors/${professorId}/classes/${classId}/students/${studentId}/activities/${activityId}`,
+        );
       await gradeRef.update({
-        status: "failed_grading"
+        status: "failed_grading",
       });
     }
-  }
+  },
 );
