@@ -13,7 +13,9 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { VerificationNoticeCard } from "../../../components/auth/VerificationNoticeCard";
 import { auth } from "../../../firebase/firebaseConfig";
+import { useVerificationGate } from "../../../hooks/useVerificationGate";
 import {
   addActivity,
   deleteActivity,
@@ -30,6 +32,7 @@ export default function ActivitiesScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const { isVerified, requireVerified } = useVerificationGate();
 
   const classId = P(params.classId);
   const className = P(params.name, "Class");
@@ -64,6 +67,10 @@ export default function ActivitiesScreen() {
   }, [classId]);
 
   function toggleEdit() {
+    if (!isVerified) {
+      void requireVerified();
+      return;
+    }
     if (editMode) setSelected(new Set());
     setEditMode((v) => !v);
   }
@@ -81,6 +88,11 @@ export default function ActivitiesScreen() {
   }
 
   async function handleAdd() {
+    const allowed = await requireVerified();
+    if (!allowed) {
+      return;
+    }
+
     const title = newTitle.trim();
     if (!title) return;
 
@@ -100,6 +112,11 @@ export default function ActivitiesScreen() {
   }
 
   async function doDelete() {
+    const allowed = await requireVerified();
+    if (!allowed) {
+      return;
+    }
+
     const uid = auth.currentUser?.uid;
     if (!uid || !classId) return;
 
@@ -136,6 +153,8 @@ export default function ActivitiesScreen() {
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 120 }]} showsVerticalScrollIndicator={false}>
+        {!isVerified && <VerificationNoticeCard />}
+
         <View style={styles.titleRow}>
           <View>
             <Text style={styles.title}>Activities</Text>
@@ -144,8 +163,14 @@ export default function ActivitiesScreen() {
 
           {!editMode && (
             <TouchableOpacity
-              style={[styles.addBtn, { backgroundColor: headerColor }]}
-              onPress={() => setAddOpen(true)}
+              style={[styles.addBtn, { backgroundColor: headerColor }, !isVerified && { opacity: 0.6 }]}
+              onPress={() => {
+                if (!isVerified) {
+                  void requireVerified();
+                  return;
+                }
+                setAddOpen(true);
+              }}
             >
               <Feather name="plus" size={18} color="#fff" />
               <Text style={styles.addBtnText}>New</Text>
@@ -165,7 +190,16 @@ export default function ActivitiesScreen() {
                   <Feather name="book-open" size={40} color="#ccc" />
                 </View>
                 <Text style={styles.emptyText}>No activities created yet.</Text>
-                <TouchableOpacity style={styles.emptyAddBtn} onPress={() => setAddOpen(true)}>
+                <TouchableOpacity
+                  style={styles.emptyAddBtn}
+                  onPress={() => {
+                    if (!isVerified) {
+                      void requireVerified();
+                      return;
+                    }
+                    setAddOpen(true);
+                  }}
+                >
                   <Text style={[styles.emptyAddText, { color: headerColor }]}>Add your first activity</Text>
                 </TouchableOpacity>
               </View>
@@ -176,10 +210,14 @@ export default function ActivitiesScreen() {
                   activeOpacity={0.7}
                   onPress={() => {
                     if (editMode) toggleSelect(a.id);
-                    else router.push({
-                      pathname: "/(tabs)/classes/activity-details",
-                      params: { classId, activityId: a.id, name: className, section, color: headerColor, title: a.title },
-                    });
+                    else {
+                      void requireVerified(async () => {
+                        router.push({
+                          pathname: "/(tabs)/classes/activity-details",
+                          params: { classId, activityId: a.id, name: className, section, color: headerColor, title: a.title },
+                        });
+                      });
+                    }
                   }}
                   style={[styles.activityCard, selected.has(a.id) && styles.selectedCard]}
                 >
@@ -211,9 +249,9 @@ export default function ActivitiesScreen() {
       {editMode && (
         <View style={[styles.deleteBarWrapper, { paddingBottom: insets.bottom + 20 }]}>
           <TouchableOpacity
-            disabled={!anySelected || isDeleting}
+            disabled={!anySelected || isDeleting || !isVerified}
             onPress={() => setConfirmOpen(true)}
-            style={[styles.deleteBar, (!anySelected || isDeleting) && { opacity: 0.5 }]}
+            style={[styles.deleteBar, (!anySelected || isDeleting || !isVerified) && { opacity: 0.5 }]}
           >
             <Feather name="trash-2" size={18} color="#fff" style={{ marginRight: 8 }} />
             <Text style={styles.deleteText}>

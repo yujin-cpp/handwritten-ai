@@ -2,7 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Alert, Platform, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Platform, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { showAlert } from "../../utils/alert";
 
 export default function OTP() {
   const router = useRouter();
@@ -11,7 +12,7 @@ export default function OTP() {
 
   const handleVerify = () => {
     if (!otp || otp.length < 6) {
-      Alert.alert("Invalid Code", "Please enter the 6-digit code sent to your email.");
+      showAlert("Invalid Code", "Please enter the 6-digit code sent to your email.");
       return;
     }
     // Navigate to NewPassword, passing Email AND OTP

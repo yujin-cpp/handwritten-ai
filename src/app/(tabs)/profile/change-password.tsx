@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   StyleSheet,
   Text,
   TextInput,
@@ -19,6 +18,7 @@ import {
   updatePassword
 } from "firebase/auth";
 import { auth } from "../../../firebase/firebaseConfig"; // Adjust path if needed
+import { showAlert } from "../../../utils/alert";
 
 export default function ChangePassword() {
   const insets = useSafeAreaInsets();
@@ -39,21 +39,21 @@ export default function ChangePassword() {
   const handleChangePassword = async () => {
     // A. Basic Validation
     if (!currentPassword || !newPassword || !confirmPassword) {
-      Alert.alert("Error", "Please fill in all fields.");
+      showAlert("Error", "Please fill in all fields.");
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert("Error", "New passwords do not match.");
+      showAlert("Error", "New passwords do not match.");
       return;
     }
     if (newPassword.length < 6) {
-      Alert.alert("Error", "Password should be at least 6 characters.");
+      showAlert("Error", "Password should be at least 6 characters.");
       return;
     }
 
     const user = auth.currentUser;
     if (!user || !user.email) {
-      Alert.alert("Error", "User not found. Please login again.");
+      showAlert("Error", "User not found. Please login again.");
       return;
     }
 
@@ -75,9 +75,9 @@ export default function ChangePassword() {
     } catch (error: any) {
       console.error(error);
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
-        Alert.alert("Error", "Incorrect current password.");
+        showAlert("Error", "Incorrect current password.");
       } else {
-        Alert.alert("Error", error.message);
+        showAlert("Error", error.message);
       }
     } finally {
       setLoading(false);

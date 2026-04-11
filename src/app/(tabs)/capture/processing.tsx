@@ -2,12 +2,23 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { get, ref, update } from "firebase/database";
-import { ref as storageRef, uploadBytes } from "firebase/storage";
+import {
+  getDownloadURL,
+  ref as storageRef,
+  uploadBytes,
+} from "firebase/storage";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Animated, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth, db, storage } from "../../../firebase/firebaseConfig";
 import { showAlert } from "../../../utils/alert";
+import {
+  createSubmissionArtifact,
+  parseImageUrisParam,
+} from "../../../utils/captureSubmission";
+
+const P = (value: string | string[] | undefined, fallback = "") =>
+  Array.isArray(value) ? value[0] : (value ?? fallback);
 
 export default function ProcessingScreen() {
   const router = useRouter();
@@ -15,35 +26,55 @@ export default function ProcessingScreen() {
   const insets = useSafeAreaInsets();
 
   const [status, setStatus] = useState("Initializing...");
-  const spinValue = React.useRef(new Animated.Value(0)).current;
 
-  const { classId, activityId, studentId } = params;
-  const imageUri = Array.isArray(params.imageUri) ? params.imageUri[0] : params.imageUri;
+  const classId = P(params.classId);
+  const activityId = P(params.activityId);
+  const studentId = P(params.studentId);
+  const className = P(params.className, "Selected Class");
+  const activityName = P(params.activityName, "Selected Activity");
+  const studentName = P(params.studentName, "Selected Student");
+  const imageUris = parseImageUrisParam(params.imageUris ?? params.imageUri);
 
   useEffect(() => {
-    Animated.loop(
-      Animated.timing(spinValue, {
-        toValue: 1,
-        duration: 3000,
-        useNativeDriver: true,
-      })
-    ).start();
-
-    if (!imageUri || !classId || !activityId) {
+    if (!imageUris.length || !classId || !activityId || !studentId) {
       showAlert("Error", "Missing data for processing.");
       router.back();
       return;
     }
 
-    processExam();
+    void processExam();
   }, []);
+
+  const uploadProofPages = async (
+    uid: string,
+    submissionId: string
+  ): Promise<string[]> => {
+    const urls: string[] = [];
+
+    for (const [index, imageUri] of imageUris.entries()) {
+      setStatus(`Uploading Page ${index + 1} of ${imageUris.length}...`);
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+
+      const proofRef = storageRef(
+        storage,
+        `exam_pages/${uid}/${classId}/${activityId}/${studentId}/${submissionId}/page-${index + 1}.jpg`
+      );
+      await uploadBytes(proofRef, blob);
+      urls.push(await getDownloadURL(proofRef));
+    }
+
+    return urls;
+  };
 
   const processExam = async () => {
     const uid = auth.currentUser?.uid;
-    if (!uid) return;
+    if (!uid) {
+      return;
+    }
 
     try {
-      setStatus("Analyzing Paper...");
+      setStatus("Validating Activity...");
       const activityRef = ref(db, `professors/${uid}/classes/${classId}/activities/${activityId}`);
       const snapshot = await get(activityRef);
 
@@ -51,30 +82,47 @@ export default function ProcessingScreen() {
         throw new Error("Activity not found in database.");
       }
 
-      setStatus("Uploading to AI Queue...");
-      const response = await fetch(imageUri);
-      const blob = await response.blob();
+      const submissionId = Date.now().toString();
+      const proofImageUrls = await uploadProofPages(uid, submissionId);
 
-      const fileRef = storageRef(storage, `exams/${uid}/${classId}/${activityId}/${studentId}.jpg`);
-      await uploadBytes(fileRef, blob);
+      setStatus("Preparing Multi-Page Submission...");
+      const artifact = await createSubmissionArtifact(imageUris);
+
+      const fileRef = storageRef(
+        storage,
+        `exams/${uid}/${classId}/${activityId}/${studentId}.${artifact.extension}`
+      );
+      setStatus("Sending Submission to AI Queue...");
+      await uploadBytes(fileRef, artifact.blob, { contentType: artifact.contentType });
 
       const gradePath = `professors/${uid}/classes/${classId}/students/${studentId}/activities/${activityId}`;
       await update(ref(db, gradePath), {
         status: "grading",
-        gradedAt: new Date().toISOString()
+        gradedAt: new Date().toISOString(),
+        images: proofImageUrls,
+        submissionId,
+        submissionPageCount: imageUris.length,
       });
 
       showAlert(
         "Upload Successful",
         "The AI is now grading this exam in the background. You can check the results in the class list shortly.",
-        () => router.replace("/(tabs)/capture")
+        () =>
+          router.replace({
+            pathname: "/(tabs)/capture",
+            params: {
+              classId,
+              activityId,
+              className,
+              activityName,
+            },
+          })
       );
-
     } catch (error: any) {
       console.error("Upload Error:", error);
       showAlert(
         "Upload Failed",
-        "Could not upload the image for grading. Please check your internet connection.",
+        "Could not upload the submission for grading. Please check your connection and try again.",
         () => router.back()
       );
     }
@@ -103,16 +151,28 @@ export default function ProcessingScreen() {
         <Text style={styles.subtitle}>{status}</Text>
 
         <View style={styles.infoBox}>
-          <Feather name="clock" size={16} color="#666" style={{ marginRight: 8 }} />
-          <Text style={styles.hint}>
-            This usually takes 5-10 seconds.
+          <Text style={styles.infoLabel}>Class</Text>
+          <Text style={styles.infoValue} numberOfLines={1}>
+            {className}
+          </Text>
+        </View>
+        <View style={styles.infoBox}>
+          <Text style={styles.infoLabel}>Activity</Text>
+          <Text style={styles.infoValue} numberOfLines={1}>
+            {activityName}
+          </Text>
+        </View>
+        <View style={styles.infoBox}>
+          <Text style={styles.infoLabel}>Student</Text>
+          <Text style={styles.infoValue} numberOfLines={1}>
+            {studentName}
           </Text>
         </View>
 
         <View style={styles.tipBox}>
-          <Text style={styles.tipTitle}>Did you know?</Text>
+          <Text style={styles.tipTitle}>Submission Summary</Text>
           <Text style={styles.tipText}>
-            Our AI model works best with clear, high-contrast photos of handwritten text.
+            {imageUris.length} answer page{imageUris.length === 1 ? "" : "s"} will be combined into one grading submission.
           </Text>
         </View>
       </View>
@@ -124,7 +184,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8f9fa" },
   header: {
     paddingHorizontal: 18,
-    paddingTop: 45,
     paddingBottom: 25,
     flexDirection: "row",
     alignItems: "center",
@@ -145,17 +204,17 @@ const styles = StyleSheet.create({
   loaderContainer: {
     width: 100,
     height: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 30,
   },
   iconOverlay: {
-    position: 'absolute',
-    backgroundColor: '#fff',
+    position: "absolute",
+    backgroundColor: "#fff",
     padding: 10,
     borderRadius: 20,
     elevation: 2,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowRadius: 5,
   },
@@ -165,47 +224,53 @@ const styles = StyleSheet.create({
     color: "#00b679",
     fontSize: 16,
     fontWeight: "600",
-    marginBottom: 40,
+    marginBottom: 30,
   },
   infoBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
+    width: "100%",
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: "#eef2f7",
+    marginBottom: 10,
   },
-  hint: {
-    color: "#666",
-    fontSize: 14,
-    fontWeight: '500',
+  infoLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#94a3b8",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginBottom: 5,
+  },
+  infoValue: {
+    color: "#111827",
+    fontSize: 15,
+    fontWeight: "700",
   },
   tipBox: {
-    position: 'absolute',
-    bottom: 50,
-    left: 30,
-    right: 30,
-    backgroundColor: '#fff',
+    marginTop: 24,
+    width: "100%",
+    backgroundColor: "#fff",
     padding: 20,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: "#eee",
     elevation: 1,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 5,
   },
   tipTitle: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#00b679',
+    fontWeight: "700",
+    color: "#00b679",
     marginBottom: 5,
   },
   tipText: {
     fontSize: 13,
-    color: '#777',
+    color: "#777",
     lineHeight: 18,
   },
 });

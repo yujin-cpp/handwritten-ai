@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
   iconCircle: { width: 120, height: 120, borderRadius: 60, justifyContent: 'center', alignItems: 'center', marginBottom: 15 },
   placeholderText: { fontSize: 16, fontWeight: '700', color: '#666' },
 
-  actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 15, borderRadius: 16, borderHorizontalWidth: 1, borderVerticalWidth: 1, gap: 10, marginTop: 5 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 15, borderRadius: 16, borderWidth: 1, gap: 10, marginTop: 5 },
   actionBtnText: { fontWeight: '800', fontSize: 15 },
 
   hintBox: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 20, paddingHorizontal: 10, opacity: 0.6 },

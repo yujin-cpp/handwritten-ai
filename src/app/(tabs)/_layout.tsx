@@ -1,7 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 
+import { useVerificationGate } from "../../hooks/useVerificationGate";
+
 export default function TabsLayout() {
+  const { requireVerified } = useVerificationGate();
+
   return (
     <Tabs
       initialRouteName="home"
@@ -12,7 +16,7 @@ export default function TabsLayout() {
         tabBarStyle: {
           paddingBottom: 5,
           height: 60,
-        }
+        },
       }}
     >
       <Tabs.Screen
@@ -34,9 +38,13 @@ export default function TabsLayout() {
           ),
         }}
         listeners={({ navigation }) => ({
-          tabPress: (e) => {
-            // Prevent default behavior to handle custom navigation
+          tabPress: async (e) => {
             e.preventDefault();
+            const allowed = await requireVerified();
+            if (!allowed) {
+              return;
+            }
+
             navigation.navigate("classes", { screen: "index" });
           },
         })}
@@ -50,6 +58,15 @@ export default function TabsLayout() {
             <Feather name="camera" color={color} size={size} />
           ),
         }}
+        listeners={({ navigation }) => ({
+          tabPress: async (e) => {
+            e.preventDefault();
+            const allowed = await requireVerified();
+            if (allowed) {
+              navigation.navigate("capture");
+            }
+          },
+        })}
       />
 
       <Tabs.Screen
@@ -60,6 +77,15 @@ export default function TabsLayout() {
             <Feather name="bar-chart-2" color={color} size={size} />
           ),
         }}
+        listeners={({ navigation }) => ({
+          tabPress: async (e) => {
+            e.preventDefault();
+            const allowed = await requireVerified();
+            if (allowed) {
+              navigation.navigate("analytics");
+            }
+          },
+        })}
       />
 
       <Tabs.Screen

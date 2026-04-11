@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   StyleSheet,
   Text,
   TextInput,
@@ -15,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 // FIREBASE IMPORTS
 import { ref, update } from "firebase/database";
 import { auth, db } from "../../../firebase/firebaseConfig";
+import { showAlert } from "../../../utils/alert";
 
 export default function AddEmail() {
   const insets = useSafeAreaInsets();
@@ -27,7 +27,7 @@ export default function AddEmail() {
     // 1. Basic Validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email.trim() || !emailRegex.test(email)) {
-      Alert.alert("Error", "Please enter a valid email address.");
+      showAlert("Error", "Please enter a valid email address.");
       return;
     }
 
@@ -51,7 +51,7 @@ export default function AddEmail() {
       });
 
     } catch (error: any) {
-      Alert.alert("Error", "Failed to add email: " + error.message);
+      showAlert("Error", "Failed to add email: " + error.message);
     } finally {
       setLoading(false);
     }

@@ -1,28 +1,34 @@
 import { get, onValue, push, ref, remove, set, update } from "firebase/database";
+
+import type {
+  ActivityListItem,
+  ActivityRecord,
+  ClassInput,
+  ClassMap,
+  StudentInput,
+  StudentListItem,
+  StudentRecord,
+} from "../domain/models/classroom";
+import { dbPaths } from "../firebase/dbPaths";
 import { db } from "../firebase/firebaseConfig";
 
-// 1. Create a Class (Nested under Professor)
 export const createClass = async (
   professorId: string,
-  classData: { className: string; section: string; semester: string; themeColor: string }
-) => {
+  classData: ClassInput
+): Promise<string> => {
   try {
-    // Reference to: professors/{uid}/classes
-    const classesRef = ref(db, `professors/${professorId}/classes`);
-
-    // Generate a new key
+    const classesRef = ref(db, dbPaths.classes(professorId));
     const newClassKey = push(classesRef).key;
-    if (!newClassKey) throw new Error("Could not generate class ID");
 
-    // Path to specific class
-    const classPath = `professors/${professorId}/classes/${newClassKey}`;
+    if (!newClassKey) {
+      throw new Error("Could not generate class ID");
+    }
 
-    // Update with data
     await update(ref(db), {
-      [`${classPath}`]: {
+      [dbPaths.class(professorId, newClassKey)]: {
         ...classData,
         createdAt: new Date().toISOString(),
-      }
+      },
     });
 
     return newClassKey;
@@ -32,11 +38,10 @@ export const createClass = async (
   }
 };
 
-// 2. Get Classes (Fetch from Professor's node)
-export const getClasses = async (professorId: string) => {
+export const getClasses = async (professorId: string): Promise<ClassMap> => {
   try {
-    const snapshot = await get(ref(db, `professors/${professorId}/classes`));
-    return snapshot.exists() ? snapshot.val() : {};
+    const snapshot = await get(ref(db, dbPaths.classes(professorId)));
+    return snapshot.exists() ? (snapshot.val() as ClassMap) : {};
   } catch (error) {
     console.error("Error fetching classes:", error);
     return {};
@@ -46,15 +51,10 @@ export const getClasses = async (professorId: string) => {
 export const updateClass = async (
   professorId: string,
   classId: string,
-  updates: {
-    className?: string;
-    section?: string;
-    semester?: string;
-    themeColor?: string;
-  }
+  updates: Partial<ClassInput>
 ) => {
   try {
-    const classRef = ref(db, `professors/${professorId}/classes/${classId}`);
+    const classRef = ref(db, dbPaths.class(professorId, classId));
     await update(classRef, updates);
   } catch (error) {
     console.error("Error updating class:", error);
@@ -62,149 +62,173 @@ export const updateClass = async (
   }
 };
 
-export const listenToClasses = (professorId: string, callback: (data: any) => void) => {
-  const classesRef = ref(db, `professors/${professorId}/classes`);
+export const listenToClasses = (
+  professorId: string,
+  callback: (data: ClassMap) => void
+) => {
+  const classesRef = ref(db, dbPaths.classes(professorId));
 
-  // onValue fires every time the data changes in the DB
-  const unsubscribe = onValue(classesRef, (snapshot) => {
-    callback(snapshot.exists() ? snapshot.val() : {});
+  return onValue(classesRef, (snapshot) => {
+    callback(snapshot.exists() ? (snapshot.val() as ClassMap) : {});
   });
-
-  // Return the unsubscribe function so we can stop listening when the component unmounts
-  return unsubscribe;
 };
 
-export const listenToStudents = (professorId: string, classId: string, callback: (data: any[]) => void) => {
-  const studentsRef = ref(db, `professors/${professorId}/classes/${classId}/students`);
+export const listenToStudents = (
+  professorId: string,
+  classId: string,
+  callback: (data: StudentListItem[]) => void
+) => {
+  const studentsRef = ref(db, dbPaths.students(professorId, classId));
 
-  const unsubscribe = onValue(studentsRef, (snapshot) => {
-    if (snapshot.exists()) {
-      const data = snapshot.val();
-      // Convert Object { key: val } to Array [{ id: key, ...val }]
-      const studentList = Object.keys(data).map(key => ({
-        id: key,
-        ...data[key]
-      }));
-      callback(studentList);
-    } else {
+  return onValue(studentsRef, (snapshot) => {
+    if (!snapshot.exists()) {
       callback([]);
+      return;
     }
-  });
 
-  return unsubscribe;
+    const data = snapshot.val() as Record<string, StudentRecord>;
+    const studentList = Object.keys(data).map((key) => ({
+      id: key,
+      ...data[key],
+    }));
+
+    callback(studentList);
+  });
 };
 
-// 🔹 ADD STUDENT
-// 🔹 ADD STUDENT (Fixed to match your DB structure)
 export const addStudent = async (
   professorId: string,
   classId: string,
-  studentData: { name: string; studentId: string }
+  studentData: StudentInput
 ) => {
-  // 1. Create a reference specifically to the Student ID
-  // Path: professors/{uid}/classes/{classId}/students/{TUPM-xx-xxxx}
-  const studentRef = ref(db, `professors/${professorId}/classes/${classId}/students/${studentData.studentId}`);
+  const studentRef = ref(
+    db,
+    dbPaths.student(professorId, classId, studentData.studentId)
+  );
 
-  // 2. Use 'set' to lock the data to that ID
   await set(studentRef, {
     name: studentData.name,
     studentId: studentData.studentId,
-    addedAt: new Date().toISOString(), // Matches the format in your JSON export
+    addedAt: new Date().toISOString(),
   });
 };
 
-// 🔹 UPDATE STUDENT
-export const updateStudent = async (professorId: string, classId: string, studentKey: string, updates: { name?: string; studentId?: string }) => {
-  const studentRef = ref(db, `professors/${professorId}/classes/${classId}/students/${studentKey}`);
+export const updateStudent = async (
+  professorId: string,
+  classId: string,
+  studentKey: string,
+  updates: Partial<StudentInput>
+) => {
+  const studentRef = ref(db, dbPaths.student(professorId, classId, studentKey));
   await update(studentRef, updates);
 };
 
-// 🔹 DELETE STUDENT
-export const deleteStudent = async (professorId: string, classId: string, studentKey: string) => {
-  // Correct path: professors/{uid}/classes/{classId}/students/{studentKey}
-  const studentRef = ref(db, `professors/${professorId}/classes/${classId}/students/${studentKey}`);
+export const deleteStudent = async (
+  professorId: string,
+  classId: string,
+  studentKey: string
+) => {
+  const studentRef = ref(db, dbPaths.student(professorId, classId, studentKey));
   await remove(studentRef);
 };
 
-// 🔹 ADD ACTIVITY
-export const addActivity = async (professorId: string, classId: string, title: string) => {
-  const activitiesRef = ref(db, `professors/${professorId}/classes/${classId}/activities`);
+export const addActivity = async (
+  professorId: string,
+  classId: string,
+  title: string
+) => {
+  const activitiesRef = ref(db, dbPaths.activities(professorId, classId));
   await push(activitiesRef, {
     title,
     createdAt: new Date().toISOString(),
   });
 };
 
-// 🔹 LISTEN TO ACTIVITIES
-export const listenToActivities = (professorId: string, classId: string, callback: (data: any[]) => void) => {
-  const activitiesRef = ref(db, `professors/${professorId}/classes/${classId}/activities`);
+export const listenToActivities = (
+  professorId: string,
+  classId: string,
+  callback: (data: ActivityListItem[]) => void
+) => {
+  const activitiesRef = ref(db, dbPaths.activities(professorId, classId));
 
-  const unsubscribe = onValue(activitiesRef, (snapshot) => {
-    if (snapshot.exists()) {
-      const data = snapshot.val();
-      // Convert Object { key: { title: "..." } } -> Array [{ id: key, title: "..." }]
-      const list = Object.keys(data).map(key => ({
-        id: key,
-        ...data[key]
-      }));
-      // Sort by newest first (optional)
-      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      callback(list);
-    } else {
+  return onValue(activitiesRef, (snapshot) => {
+    if (!snapshot.exists()) {
       callback([]);
+      return;
     }
-  });
 
-  return unsubscribe;
+    const data = snapshot.val() as Record<string, ActivityRecord>;
+    const list = Object.keys(data).map((key) => ({
+      id: key,
+      ...data[key],
+    }));
+
+    list.sort(
+      (a, b) =>
+        new Date(b.createdAt ?? 0).getTime() -
+        new Date(a.createdAt ?? 0).getTime()
+    );
+
+    callback(list);
+  });
 };
 
-// 🔹 DELETE ACTIVITY
-export const deleteActivity = async (professorId: string, classId: string, activityId: string) => {
-  const activityRef = ref(db, `professors/${professorId}/classes/${classId}/activities/${activityId}`);
+export const deleteActivity = async (
+  professorId: string,
+  classId: string,
+  activityId: string
+) => {
+  const activityRef = ref(db, dbPaths.activity(professorId, classId, activityId));
   await remove(activityRef);
 };
 
-// 🔹 UPDATE ACTIVITY TITLE
 export const updateActivity = async (
   professorId: string,
   classId: string,
   activityId: string,
   newTitle: string
 ) => {
-  const activityRef = ref(db, `professors/${professorId}/classes/${classId}/activities/${activityId}`);
-  await update(activityRef, {
-    title: newTitle
-  });
+  const activityRef = ref(db, dbPaths.activity(professorId, classId, activityId));
+  await update(activityRef, { title: newTitle });
 };
 
-// 🔹 FETCH ALL STUDENTS IN A CLASS (For Dropdowns)
-export const getStudentsInClass = async (professorId: string, classId: string) => {
-  const studentsRef = ref(db, `professors/${professorId}/classes/${classId}/students`);
+export const getStudentsInClass = async (
+  professorId: string,
+  classId: string
+): Promise<Array<Pick<StudentListItem, "id" | "name" | "activities">>> => {
+  const studentsRef = ref(db, dbPaths.students(professorId, classId));
   const snapshot = await get(studentsRef);
 
-  if (snapshot.exists()) {
-    const data = snapshot.val();
-    // Convert object to array of { name: "Last, First", id: "ID" }
-    return Object.keys(data).map(key => ({
-      id: key,
-      name: data[key].name // Assuming name is stored as "Last, First"
-    })).sort((a, b) => a.name.localeCompare(b.name));
+  if (!snapshot.exists()) {
+    return [];
   }
-  return [];
+
+  const data = snapshot.val() as Record<string, StudentRecord>;
+
+  return Object.keys(data)
+    .map((key) => ({
+      id: key,
+      name: data[key].name,
+      activities: data[key].activities,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 };
 
-// 🔹 FETCH ACTIVITIES (One-time fetch for Dropdowns)
-export const getActivities = async (professorId: string, classId: string) => {
-  const activitiesRef = ref(db, `professors/${professorId}/classes/${classId}/activities`);
+export const getActivities = async (
+  professorId: string,
+  classId: string
+): Promise<ActivityListItem[]> => {
+  const activitiesRef = ref(db, dbPaths.activities(professorId, classId));
   const snapshot = await get(activitiesRef);
 
-  if (snapshot.exists()) {
-    const data = snapshot.val();
-    // Convert object to array
-    return Object.keys(data).map(key => ({
-      id: key,
-      ...data[key]
-    }));
+  if (!snapshot.exists()) {
+    return [];
   }
-  return [];
+
+  const data = snapshot.val() as Record<string, ActivityRecord>;
+
+  return Object.keys(data).map((key) => ({
+    id: key,
+    ...data[key],
+  }));
 };

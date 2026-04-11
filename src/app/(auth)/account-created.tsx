@@ -11,7 +11,7 @@ export default function AccountCreated() {
 
       <Image source={require("../../assets/images/account-created.png")} style={styles.image} />
 
-      <Text style={styles.footer}>Account created. Please log in to continue.</Text>
+      <Text style={styles.footer}>A verification link was sent to your email. Verify it before using protected features.</Text>
 
       <TouchableOpacity onPress={() => router.replace("/(auth)/login")}>
         <Text style={styles.link}>Tap to go Back to Login</Text>

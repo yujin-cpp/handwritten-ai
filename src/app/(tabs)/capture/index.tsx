@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -14,25 +14,35 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { VerificationNoticeCard } from "../../../components/auth/VerificationNoticeCard";
+import { AnimatedEntrance } from "../../../components/ui/AnimatedEntrance";
 import { auth } from "../../../firebase/firebaseConfig";
+import { useVerificationGate } from "../../../hooks/useVerificationGate";
 import {
   getActivities,
   getStudentsInClass,
   listenToClasses,
 } from "../../../services/class.service";
 import { showAlert } from "../../../utils/alert";
+import { serializeImageUrisParam } from "../../../utils/captureSubmission";
 
 type PickerType = "section" | "activity" | "name" | null;
+type StudentOption = {
+  id: string;
+  name: string;
+  activities?: Record<string, { score?: number; status?: string }>;
+};
 
 export default function Capture() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const { isVerified, requireVerified } = useVerificationGate();
 
   // --- DATA LISTS ---
   const [classesList, setClassesList] = useState<any[]>([]);
   const [activitiesList, setActivitiesList] = useState<any[]>([]);
-  const [studentsList, setStudentsList] = useState<any[]>([]);
+  const [studentsList, setStudentsList] = useState<StudentOption[]>([]);
 
   // --- SELECTION STATE ---
   const [selectedClassId, setSelectedClassId] = useState<string>("");
@@ -51,6 +61,19 @@ export default function Capture() {
   const [confirmed, setConfirmed] = useState(false);
   const [pickerType, setPickerType] = useState<PickerType>(null);
   const [pickerY, setPickerY] = useState(0);
+
+  const availableStudents = useMemo(() => {
+    if (!selectedActivityId) {
+      return studentsList;
+    }
+
+    return studentsList.filter((student) => {
+      const activityRecord = student.activities?.[selectedActivityId];
+      const hasScore = typeof activityRecord?.score === "number";
+      const isBusy = activityRecord?.status === "grading" || activityRecord?.status === "graded";
+      return !hasScore && !isBusy;
+    });
+  }, [selectedActivityId, studentsList]);
 
   // 1. INITIAL LOAD & DATA VALIDATION
   useEffect(() => {
@@ -150,6 +173,7 @@ export default function Capture() {
           .map((s: any) => ({
             id: s.id || s.key,
             name: s.name,
+            activities: s.activities,
           }))
         : [];
 
@@ -181,6 +205,8 @@ export default function Capture() {
     setSelectedActivityId(id);
     setSelectedActivityName(name);
     setPickerType(null);
+    setSelectedStudentId("");
+    setSelectedStudentName("");
     setConfirmed(false);
   };
 
@@ -194,6 +220,11 @@ export default function Capture() {
   const canConfirm = !!selectedClassId && !!selectedActivityId && !!selectedStudentId;
 
   const handleNext = () => {
+    if (!isVerified) {
+      void requireVerified();
+      return;
+    }
+
     if (!canConfirm) {
       showAlert("Incomplete", "Please select a Section, Activity, and Student.");
       return;
@@ -202,6 +233,11 @@ export default function Capture() {
   };
 
   const handlePickImage = async () => {
+    const allowed = await requireVerified();
+    if (!allowed) {
+      return;
+    }
+
     if (!canConfirm) return;
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -213,22 +249,33 @@ export default function Capture() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.8,
+      allowsMultipleSelection: true,
+      selectionLimit: 0,
+      orderedSelection: true,
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
       router.push({
         pathname: "/(tabs)/capture/image-captured",
         params: {
-          imageUri: result.assets[0].uri,
+          imageUris: serializeImageUrisParam(result.assets.map((asset) => asset.uri)),
           classId: selectedClassId,
           activityId: selectedActivityId,
           studentId: selectedStudentId,
+          className: selectedClassName,
+          activityName: selectedActivityName,
+          studentName: selectedStudentName,
         },
       });
     }
   };
 
   const handleTakePhoto = () => {
+    if (!isVerified) {
+      void requireVerified();
+      return;
+    }
+
     if (!canConfirm) return;
     router.push({
       pathname: "/(tabs)/capture/photo-taking",
@@ -236,6 +283,9 @@ export default function Capture() {
         classId: selectedClassId,
         activityId: selectedActivityId,
         studentId: selectedStudentId,
+        className: selectedClassName,
+        activityName: selectedActivityName,
+        studentName: selectedStudentName,
       },
     });
   };
@@ -243,9 +293,20 @@ export default function Capture() {
   const getPickerOptions = () => {
     if (pickerType === "section") return classesList.map((c) => ({ id: c.id, label: c.name }));
     if (pickerType === "activity") return activitiesList.map((a) => ({ id: a.id, label: a.title }));
-    if (pickerType === "name") return studentsList.map((s) => ({ id: s.id, label: s.name }));
+    if (pickerType === "name") return availableStudents.map((s) => ({ id: s.id, label: s.name }));
     return [];
   };
+
+  useEffect(() => {
+    if (
+      selectedStudentId &&
+      !availableStudents.some((student) => student.id === selectedStudentId)
+    ) {
+      setSelectedStudentId("");
+      setSelectedStudentName("");
+      setConfirmed(false);
+    }
+  }, [availableStudents, selectedStudentId]);
 
   const handlePickerSelect = (id: string, label: string) => {
     if (pickerType === "section") handleSelectClass(id, label);
@@ -256,9 +317,9 @@ export default function Capture() {
   return (
     <View style={styles.page}>
       <LinearGradient
-        colors={["#00b679", "#009e60"]}
+        colors={["#00bb7a", "#009e60"]}
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={[styles.header, { paddingTop: insets.top + 20 }]}
       >
         <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12 }}>
@@ -272,8 +333,14 @@ export default function Capture() {
           <ActivityIndicator size="large" color="#00b679" style={{ marginTop: 50 }} />
         ) : (
           <>
+            {!isVerified && (
+              <AnimatedEntrance delay={70} distance={16}>
+                <VerificationNoticeCard />
+              </AnimatedEntrance>
+            )}
+
             {!confirmed ? (
-              <View style={styles.selectionCard}>
+              <AnimatedEntrance delay={120} distance={18} style={styles.selectionCard}>
                 <Text style={styles.label}>Select Section</Text>
                 <Pressable
                   style={styles.dropdownBtn}
@@ -305,31 +372,40 @@ export default function Capture() {
 
                 <Text style={styles.label}>Select Student</Text>
                 <Pressable
-                  style={[styles.dropdownBtn, !selectedClassId && { opacity: 0.5, backgroundColor: "#f9f9f9" }]}
-                  disabled={!selectedClassId}
+                  style={[
+                    styles.dropdownBtn,
+                    (!selectedClassId || !selectedActivityId) && {
+                      opacity: 0.5,
+                      backgroundColor: "#f9f9f9",
+                    },
+                  ]}
+                  disabled={!selectedClassId || !selectedActivityId}
                   onPress={(e) => {
                     setPickerY(e.nativeEvent.pageY);
                     setPickerType("name");
                   }}
                 >
                   <Text style={!selectedStudentName ? { color: "#999" } : { color: "#333" }} numberOfLines={1}>
-                    {fetchingSubData ? "Loading..." : selectedStudentName || "Search student..."}
+                    {fetchingSubData
+                      ? "Loading..."
+                      : selectedStudentName ||
+                        (selectedActivityId ? "Choose a student to grade..." : "Choose activity first...")}
                   </Text>
                   <Feather name="chevron-down" size={18} color="#999" />
                 </Pressable>
 
                 <TouchableOpacity
-                  style={[styles.nextBtn, !canConfirm && { opacity: 0.5 }]}
+                  style={[styles.nextBtn, (!canConfirm || !isVerified) && { opacity: 0.5 }]}
                   onPress={handleNext}
-                  disabled={!canConfirm}
+                  disabled={!canConfirm || !isVerified}
                 >
                   <Text style={styles.nextText}>Next Step</Text>
                   <Feather name="arrow-right" size={20} color="#fff" />
                 </TouchableOpacity>
-              </View>
+              </AnimatedEntrance>
             ) : (
               <>
-                <View style={styles.summaryCard}>
+                <AnimatedEntrance delay={120} distance={18} style={styles.summaryCard}>
                   <View style={styles.summaryRow}>
                     <Feather name="map-pin" size={14} color="#00b679" />
                     <Text style={styles.summaryLabel}>Section:</Text>
@@ -349,16 +425,18 @@ export default function Capture() {
                   <TouchableOpacity onPress={() => setConfirmed(false)} style={styles.editSelectionBtn}>
                     <Text style={styles.editSelectionText}>Change Selection</Text>
                   </TouchableOpacity>
-                </View>
+                </AnimatedEntrance>
 
-                <View style={[styles.cameraBox, confirmed && styles.cameraBoxFocused]}>
-                  <Feather name="maximize" size={60} color={confirmed ? "#00b679" : "#ccc"} />
-                  <Text style={[styles.cameraBoxLabel, { color: confirmed ? "#00b679" : "#999" }]}>
-                    Ready to Score
-                  </Text>
-                </View>
+                <AnimatedEntrance delay={190} distance={18}>
+                  <View style={[styles.cameraBox, confirmed && styles.cameraBoxFocused]}>
+                    <Feather name="maximize" size={60} color={confirmed ? "#00b679" : "#ccc"} />
+                    <Text style={[styles.cameraBoxLabel, { color: confirmed ? "#00b679" : "#999" }]}>
+                      Ready to Score
+                    </Text>
+                  </View>
+                </AnimatedEntrance>
 
-                <View style={styles.actionContainer}>
+                <AnimatedEntrance delay={250} distance={18} style={styles.actionContainer}>
                   <TouchableOpacity style={styles.takePhotoBtn} onPress={handleTakePhoto}>
                     <Feather name="camera" size={20} color="#fff" style={{ marginRight: 10 }} />
                     <Text style={styles.takePhotoText}>Open Camera</Text>
@@ -368,7 +446,7 @@ export default function Capture() {
                     <Feather name="image" size={20} color="#00b679" style={{ marginRight: 10 }} />
                     <Text style={styles.galleryText}>Upload from Gallery</Text>
                   </TouchableOpacity>
-                </View>
+                </AnimatedEntrance>
               </>
             )}
           </>
@@ -389,7 +467,11 @@ export default function Capture() {
               {getPickerOptions().length === 0 ? (
                 <View style={{ padding: 30, alignItems: 'center' }}>
                   <Feather name="search" size={24} color="#ccc" />
-                  <Text style={{ marginTop: 10, color: "#999" }}>No items found.</Text>
+                  <Text style={{ marginTop: 10, color: "#999", textAlign: "center" }}>
+                    {pickerType === "name" && selectedActivityId
+                      ? "All students for this activity are already graded."
+                      : "No items found."}
+                  </Text>
                 </View>
               ) : (
                 getPickerOptions().map((opt) => (
@@ -408,16 +490,16 @@ export default function Capture() {
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#f8f9fa" },
-  header: { paddingHorizontal: 18, paddingTop: 45, paddingBottom: 25, flexDirection: "row", alignItems: "center" },
-  headerTitle: { color: "#fff", fontSize: 20, fontWeight: "700", flex: 1 },
+  page: { flex: 1, backgroundColor: "#f8fafc" },
+  header: { paddingHorizontal: 24, paddingTop: 45, paddingBottom: 25, flexDirection: "row", alignItems: "center", borderBottomLeftRadius: 24, borderBottomRightRadius: 24, shadowColor: "#009e60", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 },
+  headerTitle: { color: "#fff", fontSize: 20, fontWeight: "800", flex: 1, letterSpacing: 0.3 },
   content: { padding: 20, paddingBottom: 80 },
 
-  selectionCard: { backgroundColor: '#fff', borderRadius: 20, padding: 20, elevation: 2, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
+  selectionCard: { backgroundColor: '#fff', borderRadius: 20, padding: 20, elevation: 3, shadowColor: "#64748b", shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
   label: { marginTop: 15, marginBottom: 8, fontWeight: "600", color: "#444", fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 },
   dropdownBtn: { borderWidth: 1, borderColor: "#f0f0f0", padding: 15, borderRadius: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#fafafa" },
 
-  summaryCard: { backgroundColor: "#fff", padding: 20, borderRadius: 20, marginTop: 10, elevation: 1, shadowColor: "#000", shadowOpacity: 0.03, shadowRadius: 5 },
+  summaryCard: { backgroundColor: "#fff", padding: 20, borderRadius: 20, marginTop: 10, elevation: 3, shadowColor: "#64748b", shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
   summaryRow: { flexDirection: "row", alignItems: 'center', marginBottom: 12 },
   summaryLabel: { fontWeight: "700", color: "#666", width: 75, marginLeft: 8, fontSize: 13 },
   summaryValue: { fontWeight: "500", color: "#111", flex: 1, fontSize: 14 },

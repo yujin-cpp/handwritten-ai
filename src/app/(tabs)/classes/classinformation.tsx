@@ -11,12 +11,15 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { VerificationNoticeCard } from "../../../components/auth/VerificationNoticeCard";
 import { auth, db } from "../../../firebase/firebaseConfig";
+import { useVerificationGate } from "../../../hooks/useVerificationGate";
 
 export default function ClassInformationScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
+  const { isVerified, requireVerified } = useVerificationGate();
 
   const getParam = (v: any) => (Array.isArray(v) ? v[0] : v);
   const currentClassId = getParam(params.classId);
@@ -74,15 +77,17 @@ export default function ClassInformationScreen() {
         <TouchableOpacity
           style={styles.editBtn}
           onPress={() =>
-            router.push({
-              pathname: "/(tabs)/classes/editclass",
-              params: {
-                classId: currentClassId,
-                name: classData.name,
-                section: classData.section,
-                color: classData.color,
-                academicYear: classData.academicYear,
-              },
+            void requireVerified(async () => {
+              router.push({
+                pathname: "/(tabs)/classes/editclass",
+                params: {
+                  classId: currentClassId,
+                  name: classData.name,
+                  section: classData.section,
+                  color: classData.color,
+                  academicYear: classData.academicYear,
+                },
+              });
             })
           }
         >
@@ -91,6 +96,8 @@ export default function ClassInformationScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {!isVerified && <VerificationNoticeCard />}
+
         {/* Info Card */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
@@ -115,14 +122,16 @@ export default function ClassInformationScreen() {
         <TouchableOpacity
           style={styles.actionCard}
           onPress={() =>
-            router.push({
-              pathname: "/(tabs)/classes/masterlist",
-              params: {
-                classId: currentClassId,
-                name: classData.name,
-                section: classData.section,
-                color: classData.color
-              }
+            void requireVerified(async () => {
+              router.push({
+                pathname: "/(tabs)/classes/masterlist",
+                params: {
+                  classId: currentClassId,
+                  name: classData.name,
+                  section: classData.section,
+                  color: classData.color
+                }
+              });
             })
           }
         >
@@ -139,14 +148,16 @@ export default function ClassInformationScreen() {
         <TouchableOpacity
           style={styles.actionCard}
           onPress={() =>
-            router.push({
-              pathname: "/(tabs)/classes/activities",
-              params: {
-                classId: currentClassId,
-                name: classData.name,
-                section: classData.section,
-                color: classData.color
-              }
+            void requireVerified(async () => {
+              router.push({
+                pathname: "/(tabs)/classes/activities",
+                params: {
+                  classId: currentClassId,
+                  name: classData.name,
+                  section: classData.section,
+                  color: classData.color
+                }
+              });
             })
           }
         >

@@ -12,7 +12,10 @@ import {
   View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { VerificationNoticeCard } from "../../../components/auth/VerificationNoticeCard";
+import { AnimatedEntrance } from "../../../components/ui/AnimatedEntrance";
 import { auth, db } from "../../../firebase/firebaseConfig";
+import { useVerificationGate } from "../../../hooks/useVerificationGate";
 import { listenToClasses } from "../../../services/class.service";
 import { showAlert, showConfirm } from "../../../utils/alert";
 
@@ -26,6 +29,7 @@ type ClassItem = {
 
 export default function ClassesScreen() {
   const router = useRouter();
+  const { isVerified, requireVerified } = useVerificationGate();
   const [items, setItems] = useState<ClassItem[]>([]);
   const [editMode, setEditMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -61,6 +65,10 @@ export default function ClassesScreen() {
   );
 
   function toggleEdit() {
+    if (!isVerified) {
+      void requireVerified();
+      return;
+    }
     if (editMode) setSelected(new Set());
     setEditMode(!editMode);
   }
@@ -115,9 +123,9 @@ export default function ClassesScreen() {
     <View style={styles.page}>
       {/* Header */}
       <LinearGradient
-        colors={["#00b679", "#009e60"]}
+        colors={["#00bb7a", "#009e60"]}
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={[styles.header, { paddingTop: insets.top + 20 }]}
       >
         <Text style={styles.headerTitle}>Class List</Text>
@@ -133,64 +141,78 @@ export default function ClassesScreen() {
 
       {/* Content */}
       <ScrollView contentContainerStyle={styles.content}>
-
-        {items.length === 0 && !editMode && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No classes found.</Text>
-            <Text style={styles.emptySub}>Tap "Add Class" to get started!</Text>
-          </View>
+        {!isVerified && (
+          <AnimatedEntrance delay={60} distance={16}>
+            <VerificationNoticeCard />
+          </AnimatedEntrance>
         )}
 
-        {items.map(item => (
-          <Pressable
-            key={item.id}
-            style={[styles.card, { backgroundColor: item.color }]}
-            onPress={() =>
-              editMode
-                ? toggleSelect(item.id)
-                : router.push({
-                  pathname: "/(tabs)/classes/classinformation",
-                  params: {
-                    classId: item.id,
-                    name: item.name,
-                    section: item.section,
-                    color: item.color,
-                    academicYear: item.academicYear
-                  },
-                })
-            }
-          >
-            {editMode && (
-              <View style={styles.selectCircle}>
-                {selected.has(item.id) && <Feather name="check" size={12} color="#fff" />}
+        {items.length === 0 && !editMode && (
+          <AnimatedEntrance delay={110} distance={16} style={styles.emptyState}>
+            <Text style={styles.emptyText}>No classes found.</Text>
+            <Text style={styles.emptySub}>Tap "Add Class" to get started!</Text>
+          </AnimatedEntrance>
+        )}
+
+        {items.map((item, index) => (
+          <AnimatedEntrance key={item.id} delay={100 + index * 55} distance={16}>
+            <Pressable
+              style={[styles.card, { backgroundColor: item.color }]}
+              onPress={() =>
+                editMode
+                  ? toggleSelect(item.id)
+                  : void requireVerified(async () => {
+                      router.push({
+                        pathname: "/(tabs)/classes/classinformation",
+                        params: {
+                          classId: item.id,
+                          name: item.name,
+                          section: item.section,
+                          color: item.color,
+                          academicYear: item.academicYear
+                        },
+                      });
+                    })
+              }
+            >
+              {editMode && (
+                <View style={styles.selectCircle}>
+                  {selected.has(item.id) && <Feather name="check" size={12} color="#fff" />}
+                </View>
+              )}
+
+              <View style={{ flex: 1 }}>
+                <Text style={styles.className}>{item.name}</Text>
+                <Text style={styles.section}>{item.section}</Text>
               </View>
-            )}
 
-            <View style={{ flex: 1 }}>
-              <Text style={styles.className}>{item.name}</Text>
-              <Text style={styles.section}>{item.section}</Text>
-            </View>
-
-            {!editMode && (
-              <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.7)" />
-            )}
-          </Pressable>
+              {!editMode && (
+                <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.7)" />
+              )}
+            </Pressable>
+          </AnimatedEntrance>
         ))}
 
         {!editMode && (
-          <TouchableOpacity
-            style={[styles.card, styles.addCard]}
-            onPress={() => router.push("/(tabs)/classes/addclass")}
-          >
-            <Feather name="plus-circle" size={22} color="#0EA47A" />
-            <Text style={styles.addText}>Add Class</Text>
-          </TouchableOpacity>
+          <AnimatedEntrance delay={220} distance={16}>
+            <TouchableOpacity
+              style={[styles.card, styles.addCard, !isVerified && { opacity: 0.6 }]}
+              onPress={() =>
+                void requireVerified(async () => {
+                  router.push("/(tabs)/classes/addclass");
+                })
+              }
+            >
+              <Feather name="plus-circle" size={24} color="#009e60" />
+              <Text style={styles.addText}>Add Class</Text>
+            </TouchableOpacity>
+          </AnimatedEntrance>
         )}
 
         {editMode && (
           <TouchableOpacity
-            disabled={!anySelected}
-            style={[styles.deleteBar, !anySelected && { opacity: 0.5 }]}
+            disabled={!anySelected || !isVerified}
+            style={[styles.deleteBar, (!anySelected || !isVerified) && { opacity: 0.5 }]}
             onPress={handleDeleteRequest}
           >
             <Text style={styles.deleteBarText}>
@@ -206,7 +228,7 @@ export default function ClassesScreen() {
 const CARD_RADIUS = 14;
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#fff" },
+  page: { flex: 1, backgroundColor: "#f8fafc" },
 
   header: {
     paddingHorizontal: 18,
@@ -214,6 +236,8 @@ const styles = StyleSheet.create({
     paddingBottom: 22,
     flexDirection: "row",
     alignItems: "center",
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
   headerTitle: { color: "#fff", fontSize: 20, fontWeight: "700", flex: 1 },
 
@@ -233,13 +257,13 @@ const styles = StyleSheet.create({
   emptySub: { fontSize: 14, color: '#888', marginTop: 4 },
 
   card: {
-    borderRadius: CARD_RADIUS,
+    borderRadius: 20,
     padding: 16,
     marginBottom: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    shadowColor: "#000",
+    shadowColor: "#64748b",
     shadowOpacity: 0.07,
     shadowRadius: 8,
     elevation: 2,
@@ -260,8 +284,8 @@ const styles = StyleSheet.create({
 
   addCard: {
     backgroundColor: "#fff",
-    borderWidth: 1.3,
-    borderColor: "#0EA47A",
+    borderWidth: 2, borderStyle: "dashed",
+    borderColor: "#e2e8f0",
     justifyContent: "center",
   },
   addText: { marginLeft: 8, color: "#0EA47A", fontWeight: "700" },

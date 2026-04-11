@@ -358,11 +358,11 @@ export const processExamImage = onObjectFinalized(
     const filePath = event.data.name;
     const contentType = event.data.contentType;
 
-    // We expect path: exams/<professorId>/<classId>/<activityId>/<studentId>.jpg
+    // We expect path: exams/<professorId>/<classId>/<activityId>/<studentId>.<ext>
     if (
       !filePath ||
       !filePath.startsWith("exams/") ||
-      !contentType?.startsWith("image/")
+      !(contentType?.startsWith("image/") || contentType === "application/pdf")
     ) {
       return;
     }

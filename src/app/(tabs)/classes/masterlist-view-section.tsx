@@ -520,7 +520,7 @@ const styles = StyleSheet.create({
 
   exportOptions: { gap: 12 },
   exportOption: { flexDirection: 'row', alignItems: 'center', padding: 18, backgroundColor: '#f9f9f9', borderRadius: 18, borderWidth: 1, borderColor: '#f0f0f0' },
-  exportIconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', borderHorizontalWidth: 1, borderVerticalWidth: 1, borderColor: '#eee' },
+  exportIconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#eee' },
   exportOptionText: { flex: 1, marginLeft: 15, fontSize: 15, fontWeight: '700', color: '#444' },
 
   successIconBox: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#f0fdf4', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },

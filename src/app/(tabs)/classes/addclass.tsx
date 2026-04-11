@@ -3,6 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
   ScrollView,
@@ -13,7 +14,9 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { VerificationNoticeCard } from "../../../components/auth/VerificationNoticeCard";
 import { auth } from "../../../firebase/firebaseConfig";
+import { useVerificationGate } from "../../../hooks/useVerificationGate";
 import { createClass } from "../../../services/class.service";
 import { showAlert } from "../../../utils/alert";
 
@@ -28,6 +31,7 @@ const SWATCHES = [
 export default function AddClass() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isVerified, requireVerified } = useVerificationGate();
 
   const [name, setName] = useState("");
   const [section, setSection] = useState("");
@@ -38,6 +42,11 @@ export default function AddClass() {
   const [loading, setLoading] = useState(false);
 
   async function onCreate() {
+    const allowed = await requireVerified();
+    if (!allowed) {
+      return;
+    }
+
     if (!name || !section) {
       showAlert("Missing Info", "Please fill in class name and section.");
       return;
@@ -91,6 +100,8 @@ export default function AddClass() {
       </LinearGradient>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {!isVerified && <VerificationNoticeCard />}
+
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Basic Information</Text>
 
@@ -161,9 +172,9 @@ export default function AddClass() {
         </View>
 
         <TouchableOpacity
-          style={[styles.createBtn, loading && { opacity: 0.7 }]}
+          style={[styles.createBtn, (loading || !isVerified) && { opacity: 0.7 }]}
           onPress={onCreate}
-          disabled={loading}
+          disabled={loading || !isVerified}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />

@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { onValue, push, ref, remove, set } from "firebase/database";
+import { onValue, ref } from "firebase/database";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -13,6 +13,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth, db } from "../../../firebase/firebaseConfig";
+import {
+  normalizeLessonRefs,
+  normalizeRubric,
+  type EssayInstructionRecord,
+} from "../../../utils/essayMaterials";
 
 const P = (v: string | string[] | undefined, fb = "") =>
   Array.isArray(v) ? v[0] : (v ?? fb);
@@ -20,8 +25,8 @@ const P = (v: string | string[] | undefined, fb = "") =>
 type Instruction = {
   id: string;
   title: string;
-  lessonRef: string;
-  rubrics: string;
+  lessonCount: number;
+  hasRubric: boolean;
 };
 
 export default function EssayScreen() {
@@ -35,83 +40,62 @@ export default function EssayScreen() {
   const section = P(params.section, "Section");
   const headerColor = P(params.color, "#00b679");
 
-  const deletedId = P(params.deletedId, "");
-  const newTitle = P(params.newTitle, "");
-  const newLessonRef = P(params.newLessonRef, "");
-  const newRubrics = P(params.newRubrics, "");
-
   const [instructions, setInstructions] = useState<Instruction[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const uid = auth.currentUser?.uid;
-    if (!uid || !classId || !activityId) return;
+    if (!uid || !classId || !activityId) {
+      setLoading(false);
+      return;
+    }
 
-    const instructionsRef = ref(db, `professors/${uid}/classes/${classId}/activities/${activityId}/essayInstructions`);
+    const instructionsRef = ref(
+      db,
+      `professors/${uid}/classes/${classId}/activities/${activityId}/essayInstructions`
+    );
+
     const unsubscribe = onValue(instructionsRef, (snapshot) => {
       if (!snapshot.exists()) {
         setInstructions([]);
         setLoading(false);
         return;
       }
-      const data = snapshot.val();
+
+      const data = snapshot.val() as Record<string, EssayInstructionRecord>;
       const list = Object.keys(data).map((key) => ({
         id: key,
-        title: data[key].title,
-        lessonRef: data[key].lessonRef,
-        rubrics: data[key].rubrics,
+        title: data[key].title || "Essay Instruction",
+        lessonCount: normalizeLessonRefs(data[key]).length,
+        hasRubric: Boolean(normalizeRubric(data[key])),
       }));
+
       setInstructions(list);
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [classId, activityId]);
-
-  useEffect(() => {
-    const uid = auth.currentUser?.uid;
-    if (!uid || !classId || !activityId) return;
-
-    const syncChanges = async () => {
-      if (newTitle) {
-        try {
-          const instructionsRef = ref(db, `professors/${uid}/classes/${classId}/activities/${activityId}/essayInstructions`);
-          const newRef = push(instructionsRef);
-          await set(newRef, {
-            title: newTitle,
-            lessonRef: newLessonRef || "No lesson attached",
-            rubrics: newRubrics || "No rubrics attached",
-          });
-          router.setParams({ newId: "", newTitle: "", newLessonRef: "", newRubrics: "" });
-        } catch (e) {
-          console.error("Failed to add instruction", e);
-        }
-      }
-
-      if (deletedId) {
-        try {
-          const itemRef = ref(db, `professors/${uid}/classes/${classId}/activities/${activityId}/essayInstructions/${deletedId}`);
-          await remove(itemRef);
-          router.setParams({ deletedId: "" });
-        } catch (e) {
-          console.error("Failed to delete instruction", e);
-        }
-      }
-    };
-
-    syncChanges();
-  }, [newTitle, deletedId, classId, activityId, newLessonRef, newRubrics, router]);
+  }, [activityId, classId]);
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <View style={[styles.header, { backgroundColor: headerColor, paddingTop: insets.top + 15 }]}>
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: headerColor, paddingTop: insets.top + 15 },
+        ]}
+      >
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="chevron-left" size={26} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerSmall}>{className} • {section}</Text>
-          <Text style={styles.headerBig} numberOfLines={1}>Essay Rubrics</Text>
+          <Text style={styles.headerSmall}>
+            {className} • {section}
+          </Text>
+          <Text style={styles.headerBig} numberOfLines={1}>
+            Essay Rubrics
+          </Text>
         </View>
       </View>
 
@@ -120,15 +104,18 @@ export default function EssayScreen() {
           <Text style={styles.sectionLabel}>Grading Method</Text>
           <Text style={styles.sectionTitle}>Subjective Rubrics</Text>
           <Text style={styles.sectionDesc}>
-            Define specific criteria and lesson references for essay questions. Our AI will grade based on these instructions.
+            Define specific criteria, attach multiple lesson references, and choose a custom or
+            default rubric for essay questions.
           </Text>
         </View>
 
         <View style={styles.listSection}>
           <View style={styles.listHeaderRow}>
             <Text style={styles.listHeader}>ACTIVE INSTRUCTIONS</Text>
-            <View style={[styles.badge, { backgroundColor: headerColor + '15' }]}>
-              <Text style={[styles.badgeText, { color: headerColor }]}>{instructions.length}</Text>
+            <View style={[styles.badge, { backgroundColor: `${headerColor}15` }]}>
+              <Text style={[styles.badgeText, { color: headerColor }]}>
+                {instructions.length}
+              </Text>
             </View>
           </View>
 
@@ -156,21 +143,23 @@ export default function EssayScreen() {
                         name: className,
                         section,
                         color: headerColor,
-                        title: inst.title,
-                        lessonRef: inst.lessonRef,
-                        rubrics: inst.rubrics,
                         classId,
                         activityId,
                       },
                     })
                   }
                 >
-                  <View style={[styles.iconBox, { backgroundColor: headerColor + '10' }]}>
+                  <View style={[styles.iconBox, { backgroundColor: `${headerColor}10` }]}>
                     <Feather name="book-open" size={20} color={headerColor} />
                   </View>
                   <View style={styles.instInfo}>
-                    <Text style={styles.instTitle} numberOfLines={1}>{inst.title}</Text>
-                    <Text style={styles.instSub} numberOfLines={1}>Ref: {inst.lessonRef}</Text>
+                    <Text style={styles.instTitle} numberOfLines={1}>
+                      {inst.title}
+                    </Text>
+                    <Text style={styles.instSub} numberOfLines={1}>
+                      {inst.lessonCount} lesson reference{inst.lessonCount === 1 ? "" : "s"} •{" "}
+                      {inst.hasRubric ? "Rubric ready" : "No rubric file"}
+                    </Text>
                   </View>
                   <Feather name="chevron-right" size={18} color="#ccc" />
                 </TouchableOpacity>
@@ -206,56 +195,95 @@ export default function EssayScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8f9fa" },
-  header: { paddingHorizontal: 20, paddingBottom: 25, flexDirection: "row", alignItems: "center", elevation: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
-  backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
+  header: {
+    paddingHorizontal: 20,
+    paddingBottom: 25,
+    flexDirection: "row",
+    alignItems: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+  },
+  backBtn: { width: 40, height: 40, justifyContent: "center", alignItems: "flex-start" },
   headerInfo: { flex: 1, paddingHorizontal: 10 },
-  headerSmall: { color: "#fff", fontSize: 11, opacity: 0.8, fontWeight: '700', textTransform: 'uppercase' },
+  headerSmall: {
+    color: "#fff",
+    fontSize: 11,
+    opacity: 0.8,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
   headerBig: { color: "#fff", fontSize: 18, fontWeight: "800" },
 
   content: { padding: 20 },
   infoSection: { marginBottom: 30, paddingHorizontal: 5 },
-  sectionLabel: { fontSize: 13, fontWeight: '700', color: '#bbb', textTransform: 'uppercase', marginBottom: 8 },
-  sectionTitle: { fontSize: 24, fontWeight: '800', color: '#111', marginBottom: 12 },
-  sectionDesc: { fontSize: 15, color: '#666', lineHeight: 22 },
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#bbb",
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
+  sectionTitle: { fontSize: 24, fontWeight: "800", color: "#111", marginBottom: 12 },
+  sectionDesc: { fontSize: 15, color: "#666", lineHeight: 22 },
 
   listSection: { paddingHorizontal: 5, marginBottom: 30 },
-  listHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-  listHeader: { fontSize: 12, fontWeight: '800', color: '#bbb', letterSpacing: 1 },
+  listHeaderRow: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
+  listHeader: { fontSize: 12, fontWeight: "800", color: "#bbb", letterSpacing: 1 },
   badge: { marginLeft: 10, paddingHorizontal: 10, paddingVertical: 2, borderRadius: 10 },
-  badgeText: { fontSize: 12, fontWeight: '800' },
+  badgeText: { fontSize: 12, fontWeight: "800" },
 
-  emptyState: { alignItems: 'center', paddingVertical: 40 },
-  emptyIconBox: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, marginBottom: 15 },
-  emptyText: { fontSize: 15, color: '#bbb', fontWeight: '500' },
+  emptyState: { alignItems: "center", paddingVertical: 40 },
+  emptyIconBox: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    marginBottom: 15,
+  },
+  emptyText: { fontSize: 15, color: "#bbb", fontWeight: "500" },
 
   instructionList: { gap: 12 },
   instCard: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 20,
     padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#f0f0f0',
+    borderColor: "#f0f0f0",
     elevation: 1,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOpacity: 0.03,
   },
-  iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: "center", alignItems: "center" },
   instInfo: { flex: 1, marginLeft: 15 },
-  instTitle: { fontSize: 16, fontWeight: '700', color: '#222' },
-  instSub: { fontSize: 13, color: '#999', marginTop: 2 },
+  instTitle: { fontSize: 16, fontWeight: "700", color: "#222" },
+  instSub: { fontSize: 13, color: "#999", marginTop: 2 },
 
   addBtn: {
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 10,
     padding: 20,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#f0f0f0',
-    borderStyle: 'dashed',
+    borderColor: "#f0f0f0",
+    borderStyle: "dashed",
   },
-  addIconBox: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  addBtnText: { fontSize: 14, fontWeight: '700', color: '#111' },
+  addIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  addBtnText: { fontSize: 14, fontWeight: "700", color: "#111" },
 });

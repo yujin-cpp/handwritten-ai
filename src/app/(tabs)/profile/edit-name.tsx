@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   StyleSheet,
   Text,
@@ -17,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { updateProfile } from "firebase/auth";
 import { ref, update } from "firebase/database"; // Import DB functions
 import { auth, db } from "../../../firebase/firebaseConfig";
+import { showAlert } from "../../../utils/alert";
 
 export default function EditProfile() {
   const insets = useSafeAreaInsets();
@@ -32,7 +32,7 @@ export default function EditProfile() {
   // 3. Save Function
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert("Error", "Name cannot be empty.");
+      showAlert("Error", "Name cannot be empty.");
       return;
     }
 
@@ -60,7 +60,7 @@ export default function EditProfile() {
       router.replace("/(tabs)/profile/name-saved");
 
     } catch (error: any) {
-      Alert.alert("Error", "Failed to update profile: " + error.message);
+      showAlert("Error", "Failed to update profile: " + error.message);
     } finally {
       setLoading(false);
     }

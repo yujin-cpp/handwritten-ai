@@ -350,14 +350,14 @@ export default function ProfileSettings() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8f9fa", padding: 20 },
+  container: { flex: 1, backgroundColor: "#f8fafc", padding: 20 },
   center: { justifyContent: "center", alignItems: "center" },
-  title: { fontSize: 22, fontWeight: "700", textAlign: "center", color: "#333", marginBottom: 25 },
+  title: { fontSize: 22, fontWeight: "800", textAlign: "center", color: "#1e293b", marginBottom: 25, letterSpacing: 0.3 },
   avatarContainer: { alignSelf: "center", marginBottom: 15, position: 'relative' },
   profileImage: { width: 110, height: 110, borderRadius: 55, backgroundColor: "#eee" },
   loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 55, justifyContent: 'center', alignItems: 'center' },
   editIconContainer: { position: "absolute", bottom: 0, right: 0, backgroundColor: "#00b679", width: 34, height: 34, borderRadius: 17, justifyContent: "center", alignItems: "center", borderWidth: 3, borderColor: "#f8f9fa" },
-  card: { backgroundColor: "#fff", padding: 20, borderRadius: 16, marginTop: 12, elevation: 2, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10 },
+  card: { backgroundColor: "#fff", padding: 20, borderRadius: 20, marginTop: 12, elevation: 3, shadowColor: "#64748b", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 8 },
   cardTitle: { fontWeight: "700", fontSize: 16, marginBottom: 15, color: '#111' },
   row: { flexDirection: "row", justifyContent: "space-between", alignItems: 'center' },
   label: { fontSize: 13, color: "#888", marginBottom: 2 },

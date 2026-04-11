@@ -87,6 +87,32 @@ export default function ActivityDetails() {
           <View style={[styles.titleBar, { backgroundColor: headerColor }]} />
         </View>
 
+        <View style={styles.instructionsCard}>
+          <View style={styles.instructionsHeader}>
+            <View style={[styles.instructionsIconBox, { backgroundColor: `${headerColor}14` }]}>
+              <Feather name="clipboard" size={20} color={headerColor} />
+            </View>
+            <View style={styles.instructionsHeaderText}>
+              <Text style={styles.instructionsTitle}>Professor Reminder for AI Checker</Text>
+              <Text style={styles.instructionsSubtitle}>
+                Share these directions with students before they answer.
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.instructionsList}>
+            <Text style={styles.instructionItem}>
+              Students must write their student number on the top left of the paper.
+            </Text>
+            <Text style={styles.instructionItem}>
+              Label parts clearly as: I. Multiple Choice, II. True or False, III. Identification, IV. Essay.
+            </Text>
+            <Text style={styles.instructionItem}>
+              Under the essay part, write each full question completely, for example: 1. Full question, 2. Full question.
+            </Text>
+          </View>
+        </View>
+
         <Text style={styles.sectionHeading}>Grading Configurations</Text>
 
         <View style={styles.cardContainer}>
@@ -209,6 +235,15 @@ const styles = StyleSheet.create({
   titleLabel: { fontSize: 13, color: '#999', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
   activityTitle: { fontSize: 24, fontWeight: "800", color: "#111", marginBottom: 15 },
   titleBar: { width: 40, height: 4, borderRadius: 2 },
+
+  instructionsCard: { backgroundColor: '#fff', borderRadius: 24, padding: 20, marginBottom: 24, borderWidth: 1, borderColor: '#eef2f7' },
+  instructionsHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  instructionsIconBox: { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
+  instructionsHeaderText: { flex: 1 },
+  instructionsTitle: { fontSize: 16, fontWeight: '800', color: '#111' },
+  instructionsSubtitle: { fontSize: 13, color: '#64748b', marginTop: 4, lineHeight: 18 },
+  instructionsList: { gap: 10 },
+  instructionItem: { fontSize: 14, color: '#475569', lineHeight: 22, paddingLeft: 2 },
 
   sectionHeading: { fontSize: 17, fontWeight: "800", color: "#111", marginBottom: 20, marginLeft: 5 },
   cardContainer: { gap: 12 },

@@ -15,7 +15,10 @@ import {
 } from "react-native";
 import PieChart from "react-native-pie-chart";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { VerificationNoticeCard } from "../../../components/auth/VerificationNoticeCard";
+import { AnimatedEntrance } from "../../../components/ui/AnimatedEntrance";
 import { auth } from "../../../firebase/firebaseConfig";
+import { useVerificationGate } from "../../../hooks/useVerificationGate";
 import { getActivities, getClasses, listenToStudents } from "../../../services/class.service";
 
 type PickerType = "section" | "activity" | null;
@@ -55,6 +58,7 @@ function DonutChart({ passed, failed }: { passed: number, failed: number }) {
 export default function AnalyticsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isVerified, requireVerified } = useVerificationGate();
 
   const [classList, setClassList] = useState<any[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>("");
@@ -182,7 +186,12 @@ export default function AnalyticsScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <LinearGradient colors={["#00b679", "#008a5b"]} style={[styles.header, { paddingTop: insets.top + 15 }]}>
+      <LinearGradient 
+        colors={["#00bb7a", "#009e60"]} 
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.header, { paddingTop: insets.top + 15 }]}
+      >
         <View style={styles.headerTop}>
           <Text style={styles.headerTitle}>Analytics Dashboard</Text>
           <TouchableOpacity style={styles.headerInfoBtn}>
@@ -193,7 +202,14 @@ export default function AnalyticsScreen() {
         <View style={styles.pillsRow}>
           <TouchableOpacity
             style={styles.pill}
-            onPress={(e) => { setPickerY(e.nativeEvent.pageY); setPickerType("section"); }}
+            onPress={(e) => {
+              if (!isVerified) {
+                void requireVerified();
+                return;
+              }
+              setPickerY(e.nativeEvent.pageY);
+              setPickerType("section");
+            }}
           >
             <Feather name="users" size={14} color="#fff" style={{ marginRight: 6 }} />
             <Text style={styles.pillText} numberOfLines={1}>{selectedClassName}</Text>
@@ -202,7 +218,14 @@ export default function AnalyticsScreen() {
 
           <TouchableOpacity
             style={styles.pill}
-            onPress={(e) => { setPickerY(e.nativeEvent.pageY); setPickerType("activity"); }}
+            onPress={(e) => {
+              if (!isVerified) {
+                void requireVerified();
+                return;
+              }
+              setPickerY(e.nativeEvent.pageY);
+              setPickerType("activity");
+            }}
           >
             <Feather name="file-text" size={14} color="#fff" style={{ marginRight: 6 }} />
             <Text style={styles.pillText} numberOfLines={1}>{selectedActivityName}</Text>
@@ -212,7 +235,13 @@ export default function AnalyticsScreen() {
       </LinearGradient>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.summaryGrid}>
+        {!isVerified && (
+          <AnimatedEntrance delay={70} distance={16}>
+            <VerificationNoticeCard />
+          </AnimatedEntrance>
+        )}
+
+        <AnimatedEntrance delay={120} distance={18} style={styles.summaryGrid}>
           <View style={styles.summaryCard}>
             <Text style={styles.statLabel}>Avg. Score</Text>
             <Text style={styles.statValue}>
@@ -223,9 +252,9 @@ export default function AnalyticsScreen() {
             <Text style={styles.statLabel}>Participation</Text>
             <Text style={styles.statValue}>{studentScores.length}</Text>
           </View>
-        </View>
+        </AnimatedEntrance>
 
-        <View style={styles.card}>
+        <AnimatedEntrance delay={190} distance={18} style={styles.card}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>Score Distribution</Text>
             <Feather name="bar-chart-2" size={16} color="#ddd" />
@@ -262,9 +291,9 @@ export default function AnalyticsScreen() {
             <Text style={styles.axisLabel}>Q3</Text>
             <Text style={styles.axisLabel}>Q4</Text>
           </View>
-        </View>
+        </AnimatedEntrance>
 
-        <View style={[styles.card, { marginTop: 20 }]}>
+        <AnimatedEntrance delay={260} distance={18} style={[styles.card, { marginTop: 20 }]}>
           <Text style={styles.cardTitle}>Success Rate</Text>
           <View style={styles.perfRow}>
             <DonutChart passed={passedCount} failed={failedCount} />
@@ -285,9 +314,9 @@ export default function AnalyticsScreen() {
               </View>
             </View>
           </View>
-        </View>
+        </AnimatedEntrance>
 
-        <View style={[styles.card, { marginTop: 20, paddingBottom: 10 }]}>
+        <AnimatedEntrance delay={330} distance={18} style={[styles.card, { marginTop: 20, paddingBottom: 10 }]}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>Top Performers</Text>
             <Feather name="award" size={18} color="#FFD700" />
@@ -311,15 +340,23 @@ export default function AnalyticsScreen() {
           </View>
           <TouchableOpacity
             style={styles.moreBtn}
-            onPress={() => selectedClassId && router.push({
-              pathname: "/(tabs)/classes/activities",
-              params: { classId: selectedClassId, name: selectedClassName, color: "#00b679" }
-            })}
+            onPress={() =>
+              void requireVerified(async () => {
+                if (!selectedClassId) {
+                  return;
+                }
+
+                router.push({
+                  pathname: "/(tabs)/classes/activities",
+                  params: { classId: selectedClassId, name: selectedClassName, color: "#00b679" }
+                });
+              })
+            }
           >
             <Text style={styles.moreBtnText}>Go to Class Records</Text>
             <Feather name="arrow-right" size={14} color="#00b679" />
           </TouchableOpacity>
-        </View>
+        </AnimatedEntrance>
       </ScrollView>
 
       {/* Choice Modal */}
@@ -351,9 +388,9 @@ export default function AnalyticsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8f9fa" },
+  container: { flex: 1, backgroundColor: "#f8fafc" },
   loaderPage: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { paddingHorizontal: 20, paddingBottom: 25 },
+  header: { paddingHorizontal: 20, paddingBottom: 25, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, shadowColor: "#009e60", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   headerTitle: { color: '#fff', fontSize: 22, fontWeight: '800' },
   headerInfoBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },

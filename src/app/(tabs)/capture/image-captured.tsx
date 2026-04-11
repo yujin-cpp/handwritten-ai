@@ -1,9 +1,10 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Image,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -11,8 +12,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showAlert } from "../../../utils/alert";
+import {
+  parseImageUrisParam,
+  serializeImageUrisParam,
+} from "../../../utils/captureSubmission";
 
-// 1. Helper to safely extract string params
 const P = (v: string | string[] | undefined, fb = "") =>
   Array.isArray(v) ? v[0] : (v ?? fb);
 
@@ -24,14 +28,48 @@ export default function ImageCaptured() {
   const classId = P(params.classId);
   const activityId = P(params.activityId);
   const studentId = P(params.studentId);
-  const imageUri = P(params.imageUri);
+  const className = P(params.className, "Selected Class");
+  const activityName = P(params.activityName, "Selected Activity");
+  const studentName = P(params.studentName, "Selected Student");
 
-  const handleRetake = () => {
-    router.back();
+  const imageUris = useMemo(
+    () => parseImageUrisParam(params.imageUris ?? params.imageUri),
+    [params.imageUri, params.imageUris]
+  );
+
+  const handleRetakeLastPage = () => {
+    const nextPages = imageUris.slice(0, -1);
+    router.replace({
+      pathname: "/(tabs)/capture/photo-taking",
+      params: {
+        classId,
+        activityId,
+        studentId,
+        className,
+        activityName,
+        studentName,
+        imageUris: serializeImageUrisParam(nextPages),
+      },
+    });
+  };
+
+  const handleAddAnotherPage = () => {
+    router.push({
+      pathname: "/(tabs)/capture/photo-taking",
+      params: {
+        classId,
+        activityId,
+        studentId,
+        className,
+        activityName,
+        studentName,
+        imageUris: serializeImageUrisParam(imageUris),
+      },
+    });
   };
 
   const handleProceed = () => {
-    if (!imageUri) {
+    if (!imageUris.length) {
       showAlert("Error", "No image data found.");
       return;
     }
@@ -39,14 +77,22 @@ export default function ImageCaptured() {
     if (!classId || !activityId || !studentId || classId === "0" || activityId === "0") {
       showAlert(
         "Missing Data",
-        "Class or Student information was lost. Please go back and select again.",
+        "Class or Student information was lost. Please go back and select again."
       );
       return;
     }
 
     router.push({
       pathname: "/(tabs)/capture/processing",
-      params: { imageUri, classId, activityId, studentId },
+      params: {
+        imageUris: serializeImageUrisParam(imageUris),
+        classId,
+        activityId,
+        studentId,
+        className,
+        activityName,
+        studentName,
+      },
     });
   };
 
@@ -61,18 +107,40 @@ export default function ImageCaptured() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="x" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Review Scan</Text>
+        <View style={styles.headerInfo}>
+          <Text style={styles.headerTitle}>Review Scan</Text>
+          <Text style={styles.headerSubtitle} numberOfLines={1}>
+            {activityName} • {studentName}
+          </Text>
+        </View>
         <View style={{ width: 24 }} />
       </LinearGradient>
 
-      <View style={styles.content}>
-        <View style={styles.imageContainer}>
-          {imageUri ? (
-            <Image
-              source={{ uri: imageUri }}
-              style={styles.image}
-              resizeMode="contain"
-            />
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.contextCard}>
+          <Text style={styles.contextLabel}>{className}</Text>
+          <Text style={styles.contextValue}>
+            {imageUris.length} captured page{imageUris.length === 1 ? "" : "s"}
+          </Text>
+        </View>
+
+        <View style={styles.hintContainer}>
+          <Feather name="info" size={16} color="#00b679" style={{ marginRight: 8 }} />
+          <Text style={styles.hint}>
+            Check if all handwriting is clear and readable before grading.
+          </Text>
+        </View>
+
+        <View style={styles.pageList}>
+          {imageUris.length > 0 ? (
+            imageUris.map((uri, index) => (
+              <View key={`${uri}-${index}`} style={styles.imageCard}>
+                <View style={styles.imageCardHeader}>
+                  <Text style={styles.pageLabel}>Page {index + 1}</Text>
+                </View>
+                <Image source={{ uri }} style={styles.image} resizeMode="contain" />
+              </View>
+            ))
           ) : (
             <View style={styles.noImage}>
               <Feather name="image" size={40} color="#333" />
@@ -81,17 +149,19 @@ export default function ImageCaptured() {
           )}
         </View>
 
-        <View style={styles.hintContainer}>
-          <Feather name="info" size={16} color="#00b679" style={{ marginRight: 8 }} />
-          <Text style={styles.hint}>
-            Check if all handwriting is clear and readable.
-          </Text>
-        </View>
-      </View>
+        <TouchableOpacity style={styles.addPageBtn} onPress={handleAddAnotherPage}>
+          <Feather name="plus-circle" size={18} color="#00b679" />
+          <Text style={styles.addPageText}>Add another page</Text>
+        </TouchableOpacity>
+      </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
-        <TouchableOpacity style={styles.retakeBtn} onPress={handleRetake}>
-          <Text style={styles.retakeText}>Retake</Text>
+        <TouchableOpacity
+          style={[styles.retakeBtn, imageUris.length === 0 && { opacity: 0.5 }]}
+          onPress={handleRetakeLastPage}
+          disabled={imageUris.length === 0}
+        >
+          <Text style={styles.retakeText}>Retake Last Page</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.confirmBtn} onPress={handleProceed}>
@@ -108,55 +178,53 @@ const styles = StyleSheet.create({
 
   header: {
     paddingHorizontal: 18,
-    paddingTop: 45,
-    paddingBottom: 25,
+    paddingBottom: 20,
     flexDirection: "row",
     alignItems: "center",
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   backBtn: { padding: 4 },
+  headerInfo: { flex: 1, alignItems: "center" },
   headerTitle: {
     color: "#fff",
     fontSize: 18,
     fontWeight: "700",
-    flex: 1,
-    textAlign: "center",
+  },
+  headerSubtitle: {
+    color: "rgba(255,255,255,0.82)",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 4,
   },
 
   content: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
     paddingHorizontal: 15,
-    paddingTop: 100,
+    paddingTop: 18,
+    paddingBottom: 180,
   },
-  imageContainer: {
-    width: "100%",
-    height: "100%",
-    maxHeight: '75%',
-    borderRadius: 24,
-    overflow: "hidden",
-    backgroundColor: "#111",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#222",
+  contextCard: {
+    backgroundColor: "#111827",
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
   },
-  image: {
-    width: "100%",
-    height: "100%",
+  contextLabel: {
+    color: "#d1fae5",
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
   },
-  noImage: { alignItems: 'center' },
+  contextValue: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+    marginTop: 6,
+  },
   hintContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 25,
-    backgroundColor: 'rgba(0,182,121,0.1)',
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 18,
+    backgroundColor: "rgba(0,182,121,0.12)",
     paddingHorizontal: 15,
     paddingVertical: 10,
     borderRadius: 12,
@@ -164,10 +232,59 @@ const styles = StyleSheet.create({
   hint: {
     color: "#00b679",
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: "500",
+    flex: 1,
+  },
+  pageList: { gap: 16 },
+  imageCard: {
+    borderRadius: 24,
+    overflow: "hidden",
+    backgroundColor: "#111",
+    borderWidth: 1,
+    borderColor: "#222",
+  },
+  imageCardHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#0f172a",
+  },
+  pageLabel: {
+    color: "#e2e8f0",
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  image: {
+    width: "100%",
+    height: 460,
+    backgroundColor: "#111",
+  },
+  noImage: { alignItems: "center", paddingVertical: 60 },
+  addPageBtn: {
+    marginTop: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#0f766e",
+    borderStyle: "dashed",
+    backgroundColor: "#001a14",
+    paddingVertical: 16,
+  },
+  addPageText: {
+    color: "#00b679",
+    fontSize: 15,
+    fontWeight: "700",
   },
 
   footer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: 25,
@@ -180,22 +297,22 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1.5,
     borderColor: "#333",
-    alignItems: 'center',
+    alignItems: "center",
     marginRight: 10,
   },
   retakeText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
   },
   confirmBtn: {
-    flex: 1.5,
+    flex: 1.4,
     backgroundColor: "#00b679",
     paddingVertical: 16,
     borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: 'center',
+    justifyContent: "center",
     marginLeft: 10,
     elevation: 4,
   },

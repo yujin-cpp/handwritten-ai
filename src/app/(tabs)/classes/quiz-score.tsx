@@ -141,7 +141,14 @@ export default function QuizScore() {
   function openCameraFor(student: Student) {
     router.push({
       pathname: "/(tabs)/capture",
-      params: { classId, activityId, studentId: student.id },
+      params: {
+        classId,
+        activityId,
+        studentId: student.id,
+        className: `${className} • ${section}`,
+        activityName: activityTitle,
+        studentName: student.name,
+      },
     });
     setMissingOpen(false);
   }
