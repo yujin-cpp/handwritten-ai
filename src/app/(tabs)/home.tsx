@@ -3,14 +3,15 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { FloatMotion, PageMotion } from "../../components/PageMotion";
 import { auth } from "../../firebase/firebaseConfig";
 import { listenToClasses } from "../../services/class.service";
 import { getProfessorProfile } from "../../services/professor.service";
@@ -39,12 +40,12 @@ export default function HomeScreen() {
           setProfessor({
             ...profData, // Name, etc from DB
             // Use Auth photo first, then fallback to default
-            photoURL: currentUser.photoURL || DEFAULT_AVATAR
+            photoURL: currentUser.photoURL || DEFAULT_AVATAR,
           });
         }
       };
       loadProfile();
-    }, [])
+    }, []),
   );
 
   // 2. REAL-TIME LISTENER FOR CLASSES
@@ -65,7 +66,7 @@ export default function HomeScreen() {
   const totalStudents = classList.reduce(
     (sum: number, [, c]: any) =>
       sum + (c.students ? Object.keys(c.students).length : 0),
-    0
+    0,
   );
 
   if (!professor) return null;
@@ -74,39 +75,41 @@ export default function HomeScreen() {
     <ScrollView style={styles.container}>
       {/* HEADER */}
       <LinearGradient
-        colors={["#00b679", "#009e60"]}
+        colors={["#0EA47A", "#0079B2"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={[styles.header, { paddingTop: insets.top + 20 }]}
       >
-        <View style={styles.headerContent}>
-          {/* UPDATED IMAGE SOURCE */}
-          <Image
-            source={{ uri: professor.photoURL }}
-            style={styles.avatar}
-          />
-          <View>
-            <Text style={styles.welcomeText}>
-              Welcome, {professor.name}!
-            </Text>
+        <PageMotion delay={30}>
+          <View style={styles.headerContent}>
+            <FloatMotion amplitude={6} duration={2300}>
+              <Image
+                source={{ uri: professor.photoURL }}
+                style={styles.avatar}
+              />
+            </FloatMotion>
+            <View>
+              <Text style={styles.welcomeText}>Welcome, {professor.name}!</Text>
+              <Text style={styles.welcomeSub}>
+                Ready to score your next class.
+              </Text>
+            </View>
           </View>
-        </View>
+        </PageMotion>
       </LinearGradient>
 
       {/* STATS */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          Here’s your recent activity
-        </Text>
+      <PageMotion delay={110} style={styles.section}>
+        <Text style={styles.sectionTitle}>Here’s your recent activity</Text>
 
         <View style={styles.statsRow}>
           <StatCard value={String(totalClasses)} label="Total Classes" />
           <StatCard value={String(totalStudents)} label="Total Students" />
         </View>
-      </View>
+      </PageMotion>
 
       {/* CLASS LIST */}
-      <View style={styles.section}>
+      <PageMotion delay={180} style={styles.section}>
         <Text style={styles.sectionTitle}>Class List</Text>
 
         <View style={styles.classGrid}>
@@ -137,7 +140,7 @@ export default function HomeScreen() {
 
           <AddClassCard />
         </View>
-      </View>
+      </PageMotion>
     </ScrollView>
   );
 }
@@ -187,9 +190,14 @@ function AddClassCard() {
   const router = useRouter();
 
   return (
-    <TouchableOpacity style={[styles.classCard, styles.addClass]} onPress={() => router.push("/(tabs)/classes/addclass")}>
+    <TouchableOpacity
+      style={[styles.classCard, styles.addClass]}
+      onPress={() => router.push("/(tabs)/classes/addclass")}
+    >
       <Feather name="plus-circle" size={22} color="#009e60" />
-      <Text style={{ color: "#009e60", fontWeight: "600", marginLeft: 8 }}>Add Class</Text>
+      <Text style={{ color: "#009e60", fontWeight: "600", marginLeft: 8 }}>
+        Add Class
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -200,11 +208,14 @@ function AddClassCard() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f6f7fb",
+    backgroundColor: "#f4f7fb",
   },
 
   header: {
     padding: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    overflow: "hidden",
   },
 
   headerContent: {
@@ -217,7 +228,9 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.7)",
   },
 
   welcomeText: {
@@ -225,15 +238,20 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
   },
+  welcomeSub: {
+    color: "rgba(255,255,255,0.88)",
+    marginTop: 4,
+    fontSize: 13,
+  },
 
   section: {
     padding: 20,
   },
 
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 10,
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 12,
     color: "#333",
   },
 
@@ -246,15 +264,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#fff",
     margin: 5,
-    borderRadius: 12,
-    padding: 15,
+    borderRadius: 16,
+    padding: 16,
     alignItems: "center",
 
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#eef2f7",
   },
 
   statValue: {
@@ -277,15 +297,15 @@ const styles = StyleSheet.create({
 
   classCard: {
     width: "47%",
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 15,
     marginVertical: 6,
 
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 2,
   },
 
   className: {
@@ -309,10 +329,4 @@ const styles = StyleSheet.create({
   },
 });
 
-const COLORS = [
-  "#BB73E0",
-  "#EE89B0",
-  "#AEBAF8",
-  "#F4A261",
-  "#2A9D8F",
-];
+const COLORS = ["#BB73E0", "#EE89B0", "#AEBAF8", "#F4A261", "#2A9D8F"];

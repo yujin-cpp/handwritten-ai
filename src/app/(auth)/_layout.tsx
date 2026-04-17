@@ -1,5 +1,6 @@
 // app/(auth)/_layout.tsx
 import { Stack } from "expo-router";
+import { UI_COLORS } from "../../constants/DesignTokens";
 
 export default function AuthLayout() {
   return (
@@ -7,7 +8,8 @@ export default function AuthLayout() {
       initialRouteName="login"
       screenOptions={{
         headerShown: false,
-        animation: "slide_from_right",
+        animation: "fade_from_bottom",
+        contentStyle: { backgroundColor: UI_COLORS.appBackground },
       }}
     >
       <Stack.Screen name="login" />

@@ -416,7 +416,7 @@ export default function ProfileSettings() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8f9fa", padding: 20 },
+  container: { flex: 1, backgroundColor: "#f4f7fb", padding: 20 },
   center: { justifyContent: "center", alignItems: "center" },
   title: {
     fontSize: 22,

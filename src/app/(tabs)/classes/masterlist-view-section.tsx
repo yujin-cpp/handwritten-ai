@@ -469,7 +469,7 @@ export default function MasterlistScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8f9fa" },
+  container: { flex: 1, backgroundColor: "#f4f7fb" },
   header: { paddingHorizontal: 20, paddingBottom: 25, flexDirection: "row", alignItems: "center", elevation: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
   headerInfo: { flex: 1, paddingHorizontal: 10 },

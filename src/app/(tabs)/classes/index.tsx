@@ -115,7 +115,7 @@ export default function ClassesScreen() {
     <View style={styles.page}>
       {/* Header */}
       <LinearGradient
-        colors={["#00b679", "#009e60"]}
+        colors={["#0EA47A", "#017EBA"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={[styles.header, { paddingTop: insets.top + 20 }]}
@@ -206,7 +206,7 @@ export default function ClassesScreen() {
 const CARD_RADIUS = 14;
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#fff" },
+  page: { flex: 1, backgroundColor: "#f4f7fb" },
 
   header: {
     paddingHorizontal: 18,

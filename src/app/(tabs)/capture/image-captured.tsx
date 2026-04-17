@@ -4,6 +4,11 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { PageMotion } from "../../../components/PageMotion";
+import {
+    UI_COLORS,
+    UI_GRADIENT_PRIMARY,
+} from "../../../constants/DesignTokens";
 import { showAlert } from "../../../utils/alert";
 
 // 1. Helper to safely extract string params
@@ -19,6 +24,30 @@ export default function ImageCaptured() {
   const activityId = P(params.activityId);
   const studentId = P(params.studentId);
   const imageUri = P(params.imageUri);
+  const returnTo = P(params.returnTo);
+  const originName = P(params.name, "Class");
+  const originSection = P(params.section, "Section");
+  const originColor = P(params.color, "#00b679");
+  const originTitle = P(params.title, "Activity");
+
+  const goBackToOrigin = () => {
+    if (returnTo === "quiz-score" && classId && activityId) {
+      router.replace({
+        pathname: "/(tabs)/classes/quiz-score",
+        params: {
+          classId,
+          activityId,
+          name: originName,
+          section: originSection,
+          color: originColor,
+          title: originTitle,
+        },
+      });
+      return;
+    }
+
+    router.back();
+  };
 
   const handleRetake = () => {
     router.back();
@@ -46,63 +75,79 @@ export default function ImageCaptured() {
 
     router.push({
       pathname: "/(tabs)/capture/processing",
-      params: { imageUri, classId, activityId, studentId },
+      params: {
+        imageUri,
+        classId,
+        activityId,
+        studentId,
+        background: "1",
+        returnTo,
+        name: originName,
+        section: originSection,
+        color: originColor,
+        title: originTitle,
+      },
     });
   };
 
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={["#00b679", "#009e60"]}
+        colors={UI_GRADIENT_PRIMARY}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={[styles.header, { paddingTop: insets.top + 20 }]}
       >
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={goBackToOrigin} style={styles.backBtn}>
           <Feather name="x" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Review Scan</Text>
         <View style={{ width: 24 }} />
       </LinearGradient>
 
-      <View style={styles.content}>
-        <View style={styles.imageContainer}>
-          {imageUri ? (
-            <Image
-              source={{ uri: imageUri }}
-              style={styles.image}
-              resizeMode="contain"
-            />
-          ) : (
-            <View style={styles.noImage}>
-              <Feather name="image" size={40} color="#333" />
-              <Text style={{ color: "#666", marginTop: 10 }}>
-                No Image Captured
-              </Text>
-            </View>
-          )}
+      <PageMotion delay={40} style={styles.content}>
+        <View style={styles.imageCard}>
+          <Text style={styles.imageLabel}>Captured Sheet</Text>
+          <View style={styles.imageContainer}>
+            {imageUri ? (
+              <Image
+                source={{ uri: imageUri }}
+                style={styles.image}
+                resizeMode="contain"
+              />
+            ) : (
+              <View style={styles.noImage}>
+                <Feather name="image" size={40} color="#333" />
+                <Text style={{ color: "#666", marginTop: 10 }}>
+                  No Image Captured
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
 
         <View style={styles.hintContainer}>
           <Feather
             name="info"
             size={16}
-            color="#00b679"
+            color={UI_COLORS.primary}
             style={{ marginRight: 8 }}
           />
           <Text style={styles.hint}>
-            Check if all handwriting is clear and readable.
+            Tap Continue to start AI validation. If clear, grading runs in
+            background and the app auto-moves to the next student after 5
+            seconds.
           </Text>
         </View>
-      </View>
+      </PageMotion>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 104 }]}>
         <TouchableOpacity style={styles.retakeBtn} onPress={handleRetake}>
           <Text style={styles.retakeText}>Retake</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.confirmBtn} onPress={handleProceed}>
-          <Text style={styles.confirmText}>Proceed</Text>
+          <Text style={styles.confirmText}>Continue</Text>
           <Feather
             name="arrow-right"
             size={18}
@@ -116,22 +161,16 @@ export default function ImageCaptured() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000" },
+  container: { flex: 1, backgroundColor: UI_COLORS.appBackground },
 
   header: {
     paddingHorizontal: 18,
-    paddingTop: 45,
-    paddingBottom: 25,
+    paddingTop: 18,
+    paddingBottom: 20,
     flexDirection: "row",
     alignItems: "center",
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    backgroundColor: "rgba(0,0,0,0.5)",
   },
-  backBtn: { padding: 4 },
+  backBtn: { padding: 4, width: 30 },
   headerTitle: {
     color: "#fff",
     fontSize: 18,
@@ -142,22 +181,40 @@ const styles = StyleSheet.create({
 
   content: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 15,
-    paddingTop: 100,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  imageCard: {
+    backgroundColor: UI_COLORS.appSurface,
+    borderRadius: 22,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#e8edf4",
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  imageLabel: {
+    color: "#52606d",
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 10,
   },
   imageContainer: {
     width: "100%",
-    height: "100%",
-    maxHeight: "75%",
-    borderRadius: 24,
+    height: 500,
+    maxHeight: "72%",
+    borderRadius: 18,
     overflow: "hidden",
-    backgroundColor: "#111",
+    backgroundColor: "#0b1220",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#222",
+    borderColor: "#1c283a",
   },
   image: {
     width: "100%",
@@ -166,50 +223,59 @@ const styles = StyleSheet.create({
   noImage: { alignItems: "center" },
   hintContainer: {
     flexDirection: "row",
-    alignItems: "center",
-    marginTop: 25,
-    backgroundColor: "rgba(0,182,121,0.1)",
+    alignItems: "flex-start",
+    marginTop: 18,
+    backgroundColor: "#ecfff7",
+    borderWidth: 1,
+    borderColor: "#d5f5e7",
     paddingHorizontal: 15,
     paddingVertical: 10,
     borderRadius: 12,
   },
   hint: {
-    color: "#00b679",
+    flex: 1,
+    color: "#0d7b5a",
     fontSize: 13,
-    fontWeight: "500",
+    fontWeight: "600",
+    lineHeight: 18,
   },
 
   footer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: 25,
-    paddingTop: 20,
-    backgroundColor: "#000",
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    backgroundColor: UI_COLORS.appBackground,
   },
   retakeBtn: {
     flex: 1,
     paddingVertical: 16,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: "#333",
+    borderColor: "#cad3df",
     alignItems: "center",
     marginRight: 10,
+    backgroundColor: "#fff",
   },
   retakeText: {
-    color: "#fff",
+    color: "#4b5563",
     fontSize: 16,
     fontWeight: "600",
   },
   confirmBtn: {
     flex: 1.5,
-    backgroundColor: "#00b679",
+    backgroundColor: UI_COLORS.primary,
     paddingVertical: 16,
     borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     marginLeft: 10,
-    elevation: 4,
+    elevation: 3,
+    shadowColor: UI_COLORS.primary,
+    shadowOpacity: 0.22,
+    shadowRadius: 9,
+    shadowOffset: { width: 0, height: 4 },
   },
   confirmText: {
     color: "#fff",

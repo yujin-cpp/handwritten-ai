@@ -351,7 +351,7 @@ export default function AnalyticsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8f9fa" },
+  container: { flex: 1, backgroundColor: "#f4f7fb" },
   loaderPage: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: { paddingHorizontal: 20, paddingBottom: 25 },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },

@@ -75,7 +75,7 @@ export default function EditClass() {
   return (
     <View style={styles.page}>
       <LinearGradient
-        colors={["#00b679", "#009e60"]}
+        colors={["#0EA47A", "#017EBA"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={[styles.header, { paddingTop: insets.top + 20 }]}
@@ -171,9 +171,9 @@ export default function EditClass() {
       </ScrollView>
 
       <Modal visible={themeModal} animationType="slide">
-        <View style={{ flex: 1, backgroundColor: "#f8f9fa" }}>
+        <View style={{ flex: 1, backgroundColor: "#f4f7fb" }}>
           <LinearGradient
-            colors={["#00b679", "#009e60"]}
+            colors={["#0EA47A", "#017EBA"]}
             style={[styles.header, { paddingTop: insets.top + 20 }]}
           >
             <TouchableOpacity onPress={() => setThemeModal(false)} style={styles.backBtn}>
@@ -206,7 +206,7 @@ export default function EditClass() {
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#f8f9fa" },
+  page: { flex: 1, backgroundColor: "#f4f7fb" },
   header: { paddingHorizontal: 18, paddingBottom: 20, flexDirection: "row", alignItems: "center" },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
   headerTitle: { color: "#fff", fontWeight: "700", fontSize: 20, flex: 1 },

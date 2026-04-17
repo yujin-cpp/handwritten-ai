@@ -4,19 +4,50 @@ import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showAlert } from "../../../utils/alert";
+
+const P = (v: string | string[] | undefined, fb = "") =>
+  Array.isArray(v) ? v[0] : (v ?? fb);
 
 export default function PhotoTaking() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+
+  const returnTo = P(params.returnTo);
+  const classId = P(params.classId);
+  const activityId = P(params.activityId);
+  const studentId = P(params.studentId);
+  const originName = P(params.name, "Class");
+  const originSection = P(params.section, "Section");
+  const originColor = P(params.color, "#00b679");
+  const originTitle = P(params.title, "Activity");
+
+  const goBackToOrigin = () => {
+    if (returnTo === "quiz-score" && classId && activityId) {
+      router.replace({
+        pathname: "/(tabs)/classes/quiz-score",
+        params: {
+          classId,
+          activityId,
+          name: originName,
+          section: originSection,
+          color: originColor,
+          title: originTitle,
+        },
+      });
+      return;
+    }
+
+    router.back();
+  };
 
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
@@ -36,9 +67,14 @@ export default function PhotoTaking() {
       pathname: "/(tabs)/capture/image-captured",
       params: {
         imageUri: uri,
-        classId: params.classId,
-        activityId: params.activityId,
-        studentId: params.studentId,
+        classId,
+        activityId,
+        studentId,
+        returnTo,
+        name: originName,
+        section: originSection,
+        color: originColor,
+        title: originTitle,
       },
     });
   };
@@ -96,8 +132,20 @@ export default function PhotoTaking() {
   if (!permission.granted) {
     return (
       <View style={styles.centered}>
-        <Feather name="camera-off" size={60} color="#ccc" style={{ marginBottom: 20 }} />
-        <Text style={{ color: "#666", marginBottom: 20, textAlign: 'center', paddingHorizontal: 40 }}>
+        <Feather
+          name="camera-off"
+          size={60}
+          color="#ccc"
+          style={{ marginBottom: 20 }}
+        />
+        <Text
+          style={{
+            color: "#666",
+            marginBottom: 20,
+            textAlign: "center",
+            paddingHorizontal: 40,
+          }}
+        >
           Camera access is required to scan and grade exam papers.
         </Text>
         <TouchableOpacity
@@ -114,7 +162,7 @@ export default function PhotoTaking() {
     <View style={styles.container}>
       {/* Header Over Camera */}
       <View style={[styles.header, { paddingTop: insets.top + 15 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={goBackToOrigin} style={styles.backBtn}>
           <Feather name="x" size={26} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Position Paper</Text>
@@ -187,7 +235,12 @@ const styles = StyleSheet.create({
     paddingBottom: 15,
   },
 
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  backBtn: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   headerTitle: {
     color: "#fff",
     fontSize: 17,
@@ -202,20 +255,20 @@ const styles = StyleSheet.create({
 
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.2)",
   },
   scanFrame: {
-    width: '85%',
-    height: '65%',
+    width: "85%",
+    height: "65%",
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.5)',
+    borderColor: "rgba(255,255,255,0.5)",
     borderRadius: 20,
-    borderStyle: 'dashed',
+    borderStyle: "dashed",
   },
   hintText: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 160,
     textAlign: "center",
     color: "#fff",
@@ -225,7 +278,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 20,
     overflow: "hidden",
-    fontWeight: '500',
+    fontWeight: "500",
   },
 
   bottomBar: {

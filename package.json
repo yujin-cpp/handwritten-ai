@@ -10,7 +10,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "build:web": "expo export -p web -c && python fix_web_fonts.py",
-    "deploy:web": "npm run build:web && firebase deploy --only hosting"
+    "deploy:web": "npm run build:web && firebase deploy --only hosting --project handwritten-ai-scorer"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

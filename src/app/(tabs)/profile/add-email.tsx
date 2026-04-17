@@ -108,7 +108,7 @@ export default function AddEmail() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff", padding: 20 },
+  container: { flex: 1, backgroundColor: "#f4f7fb", padding: 20 },
   backBtn: { alignSelf: 'flex-start' },
   title: {
     fontSize: 22,

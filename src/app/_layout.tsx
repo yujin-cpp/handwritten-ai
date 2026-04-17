@@ -1,10 +1,11 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
-import * as SplashScreen from 'expo-splash-screen';
+import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { AlertProvider } from "../components/AlertProvider";
+import { UI_COLORS } from "../constants/DesignTokens";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -25,12 +26,17 @@ export default function RootLayout() {
     if (Platform.OS === "web") {
       const style = document.createElement("style");
       style.innerHTML = `
+          html, body, #root {
+            height: 100%;
+          }
+
           body {
-            background-color: #f0f2f5;
+            background-color: ${UI_COLORS.appBackground};
             margin: 0;
             padding: 0;
             display: flex;
             justify-content: center;
+            min-height: 100dvh;
           }
 
           @media print {
@@ -65,7 +71,13 @@ export default function RootLayout() {
   return (
     <AlertProvider>
       <View style={styles.webWrapper}>
-        <Stack screenOptions={{ headerShown: false }}>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: "fade_from_bottom",
+            contentStyle: { backgroundColor: UI_COLORS.appBackground },
+          }}
+        >
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(tabs)" />
         </Stack>
@@ -80,7 +92,7 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: Platform.OS === "web" ? 500 : undefined,
     alignSelf: "center",
-    backgroundColor: "#fff",
+    backgroundColor: UI_COLORS.appBackground,
     // Premium shadow for web "app-in-a-box" look
     ...Platform.select({
       web: {
@@ -88,9 +100,9 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.1,
         shadowRadius: 12,
-        height: "100vh" as any,
+        height: "100dvh" as any,
+        minHeight: "100vh" as any,
       },
     }),
   },
 });
-
