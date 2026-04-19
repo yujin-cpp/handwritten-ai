@@ -39,12 +39,12 @@ export default function HomeScreen() {
           setProfessor({
             ...profData, // Name, etc from DB
             // Use Auth photo first, then fallback to default
-            photoURL: currentUser.photoURL || DEFAULT_AVATAR
+            photoURL: currentUser.photoURL || DEFAULT_AVATAR,
           });
         }
       };
       loadProfile();
-    }, [])
+    }, []),
   );
 
   // 2. REAL-TIME LISTENER FOR CLASSES
@@ -53,19 +53,26 @@ export default function HomeScreen() {
     if (!uid) return;
 
     const unsubscribe = listenToClasses(uid, (data) => {
+      console.log("🔍 classes data:", JSON.stringify(data).slice(0, 300));
       setClasses(data);
     });
 
     return () => unsubscribe();
   }, []);
 
-  const classList = Object.entries(classes);
+  const classList = Object.entries(classes).filter(([classId]) =>
+    classId.startsWith("-"),
+  );
+  console.log(
+    "🔍 classList keys:",
+    classList.map(([id]) => id),
+  );
   const totalClasses = classList.length;
 
   const totalStudents = classList.reduce(
     (sum: number, [, c]: any) =>
       sum + (c.students ? Object.keys(c.students).length : 0),
-    0
+    0,
   );
 
   if (!professor) return null;
@@ -81,23 +88,16 @@ export default function HomeScreen() {
       >
         <View style={styles.headerContent}>
           {/* UPDATED IMAGE SOURCE */}
-          <Image
-            source={{ uri: professor.photoURL }}
-            style={styles.avatar}
-          />
+          <Image source={{ uri: professor.photoURL }} style={styles.avatar} />
           <View>
-            <Text style={styles.welcomeText}>
-              Welcome, {professor.name}!
-            </Text>
+            <Text style={styles.welcomeText}>Welcome, {professor.name}!</Text>
           </View>
         </View>
       </LinearGradient>
 
       {/* STATS */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          Here’s your recent activity
-        </Text>
+        <Text style={styles.sectionTitle}>Here’s your recent activity</Text>
 
         <View style={styles.statsRow}>
           <StatCard value={String(totalClasses)} label="Total Classes" />
@@ -187,9 +187,14 @@ function AddClassCard() {
   const router = useRouter();
 
   return (
-    <TouchableOpacity style={[styles.classCard, styles.addClass]} onPress={() => router.push("/(tabs)/classes/addclass")}>
+    <TouchableOpacity
+      style={[styles.classCard, styles.addClass]}
+      onPress={() => router.push("/(tabs)/classes/addclass")}
+    >
       <Feather name="plus-circle" size={22} color="#009e60" />
-      <Text style={{ color: "#009e60", fontWeight: "600", marginLeft: 8 }}>Add Class</Text>
+      <Text style={{ color: "#009e60", fontWeight: "600", marginLeft: 8 }}>
+        Add Class
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -217,7 +222,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
 
   welcomeText: {
@@ -309,10 +314,4 @@ const styles = StyleSheet.create({
   },
 });
 
-const COLORS = [
-  "#BB73E0",
-  "#EE89B0",
-  "#AEBAF8",
-  "#F4A261",
-  "#2A9D8F",
-];
+const COLORS = ["#BB73E0", "#EE89B0", "#AEBAF8", "#F4A261", "#2A9D8F"];

@@ -543,18 +543,25 @@ def masterlist():
     try:
         file = request.files['file']
         file_bytes = file.read()
-        images = read_file_as_images(file_bytes, label="masterlist")
+        filename = file.filename or "masterlist"
+        print(f"📄 Masterlist file: {filename}, {len(file_bytes)} bytes")
 
-        ai_inputs = ["""
-Extract student data from this image as JSON.
+        # ✅ Send PDF directly to Gemini without converting to images
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            tmp.write(file_bytes)
+            tmp_path = tmp.name
+
+        uploaded_file = genai.upload_file(tmp_path, mime_type="application/pdf")
+        os.unlink(tmp_path)
+
+        ai_inputs = [
+            uploaded_file,
+            """Extract ALL student data from this PDF as JSON.
 Return ONLY a JSON array, no extra text:
 [{"name": "FullName", "id": "StudentID_or_null"}]
-"""]
-
-        for img in images:
-            buf = io.BytesIO()
-            img.save(buf, format='JPEG', quality=90)
-            ai_inputs.append({"mime_type": "image/jpeg", "data": buf.getvalue()})
+Include every student listed. Student IDs are typically in format like TUPM-XX-XXXX."""
+        ]
 
         response = transcription_model.generate_content(
             ai_inputs,
@@ -563,11 +570,13 @@ Return ONLY a JSON array, no extra text:
         )
 
         raw_text = response.text
+        print(f"📋 AI response: {raw_text[:300]}")
         start = raw_text.find('[')
         end = raw_text.rfind(']') + 1
 
         if start != -1:
             data = json.loads(raw_text[start:end])
+            print(f"👥 Extracted {len(data)} students")
             return jsonify({"success": True, "data": data})
         else:
             return jsonify({"success": False, "error": "Could not parse masterlist"}), 500
@@ -581,8 +590,87 @@ Return ONLY a JSON array, no extra text:
         }), 429
     except Exception as e:
         print(f"❌ Masterlist Error: {e}")
-        return jsonify({"success": False, "error": "server_error", "message": "Something went wrong."}), 500
+        return jsonify({"success": False, "error": "server_error", "message": str(e)}), 500
+    
+@app.route('/upload-masterlist', methods=['POST'])
+def upload_masterlist():
+    """Upload a PDF masterlist to Firebase Storage and extract students via AI."""
+    try:
+        file = request.files.get('file')
+        uid = request.form.get('uid')
+        class_id = request.form.get('classId')
 
+        if not file:
+            return jsonify({"success": False, "error": "No file uploaded"}), 400
+        if not uid or not class_id:
+            return jsonify({"success": False, "error": "Missing uid or classId"}), 400
+
+        file_bytes = file.read()
+        print(f"📄 Masterlist upload: {file.filename}, {len(file_bytes)} bytes, uid={uid}, classId={class_id}")
+
+        # Upload to Firebase Storage via REST API (no admin SDK needed)
+        import requests as req
+        storage_bucket = os.environ.get("FIREBASE_STORAGE_BUCKET")  # e.g. your-project.appspot.com
+        path = f"masterlists/{uid}/{class_id}/{file.filename}"
+        upload_url = f"https://firebasestorage.googleapis.com/v0/b/{storage_bucket}/o?uploadType=media&name={path}"
+
+        upload_response = req.post(
+            upload_url,
+            headers={"Content-Type": "application/pdf"},
+            data=file_bytes,
+        )
+
+        if upload_response.status_code not in (200, 201):
+            print(f"⚠️ Storage upload failed: {upload_response.status_code} {upload_response.text[:200]}")
+            return jsonify({"success": False, "error": "Storage upload failed", "details": upload_response.text[:200]}), 500
+
+        print(f"✅ Uploaded to Firebase Storage: {path}")
+        return jsonify({"success": True, "path": path})
+
+    except Exception as e:
+        print(f"❌ Upload-masterlist error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/upload-file', methods=['POST'])
+def upload_file():
+    """Generic file upload to Firebase Storage via REST API."""
+    try:
+        file = request.files.get('file')
+        path = request.form.get('path')  # full storage path e.g. qa_uploads/uid/classId/activityId/filename
+
+        if not file:
+            return jsonify({"success": False, "error": "No file uploaded"}), 400
+        if not path:
+            return jsonify({"success": False, "error": "No path provided"}), 400
+
+        file_bytes = file.read()
+        content_type = request.form.get('contentType', 'application/octet-stream')
+        print(f"📄 Uploading: {path} | {content_type} | {len(file_bytes)} bytes")
+
+        import requests as req
+        storage_bucket = os.environ.get("FIREBASE_STORAGE_BUCKET")
+        upload_url = f"https://firebasestorage.googleapis.com/v0/b/{storage_bucket}/o?uploadType=media&name={path}"
+
+        upload_response = req.post(
+            upload_url,
+            headers={"Content-Type": content_type},
+            data=file_bytes,
+        )
+
+        if upload_response.status_code not in (200, 201):
+            print(f"⚠️ Upload failed: {upload_response.status_code} {upload_response.text[:200]}")
+            return jsonify({"success": False, "error": upload_response.text[:200]}), 500
+
+        # Return the public download URL
+        encoded_path = path.replace('/', '%2F')
+        download_url = f"https://firebasestorage.googleapis.com/v0/b/{storage_bucket}/o/{encoded_path}?alt=media"
+
+        print(f"✅ Uploaded: {path}")
+        return jsonify({"success": True, "path": path, "url": download_url})
+
+    except Exception as e:
+        print(f"❌ Upload-file error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))

@@ -9,7 +9,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth, db } from "../../../firebase/firebaseConfig";
@@ -43,7 +43,7 @@ export default function ClassesScreen() {
           name: val.className,
           section: val.section,
           color: val.themeColor || "#009e60",
-          academicYear: val.semester
+          academicYear: val.semester,
         }));
         setItems(classArray);
       } else {
@@ -56,8 +56,12 @@ export default function ClassesScreen() {
 
   const anySelected = selected.size > 0;
   const selectedNames = useMemo(
-    () => items.filter(i => selected.has(i.id)).map(i => i.name).join(", "),
-    [selected, items]
+    () =>
+      items
+        .filter((i) => selected.has(i.id))
+        .map((i) => i.name)
+        .join(", "),
+    [selected, items],
   );
 
   function toggleEdit() {
@@ -66,7 +70,7 @@ export default function ClassesScreen() {
   }
 
   function toggleSelect(id: string) {
-    setSelected(prev => {
+    setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
@@ -86,7 +90,7 @@ export default function ClassesScreen() {
       handleDeleteConfirmed,
       undefined,
       "Delete",
-      "Cancel"
+      "Cancel",
     );
   };
 
@@ -96,7 +100,7 @@ export default function ClassesScreen() {
 
     try {
       const deletePromises = Array.from(selected).map((classId) =>
-        remove(ref(db, `professors/${uid}/classes/${classId}`))
+        remove(ref(db, `professors/${uid}/classes/${classId}`)),
       );
 
       await Promise.all(deletePromises);
@@ -104,7 +108,6 @@ export default function ClassesScreen() {
       console.log("✅ Delete successful");
       setSelected(new Set());
       setEditMode(false);
-
     } catch (error) {
       console.error(error);
       showAlert("Error", "Failed to delete selected classes.");
@@ -123,7 +126,10 @@ export default function ClassesScreen() {
         <Text style={styles.headerTitle}>Class List</Text>
 
         {items.length > 0 && (
-          <TouchableOpacity onPress={toggleEdit} style={[styles.pill, editMode && styles.pillActive]}>
+          <TouchableOpacity
+            onPress={toggleEdit}
+            style={[styles.pill, editMode && styles.pillActive]}
+          >
             <Text style={[styles.pillText, editMode && { color: "#fff" }]}>
               {editMode ? "Done" : "Edit"}
             </Text>
@@ -133,15 +139,14 @@ export default function ClassesScreen() {
 
       {/* Content */}
       <ScrollView contentContainerStyle={styles.content}>
-
         {items.length === 0 && !editMode && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No classes found.</Text>
-            <Text style={styles.emptySub}>Tap "Add Class" to get started!</Text>
+            <Text style={styles.emptySub}>Tap Add Class to get started!</Text>
           </View>
         )}
 
-        {items.map(item => (
+        {items.map((item) => (
           <Pressable
             key={item.id}
             style={[styles.card, { backgroundColor: item.color }]}
@@ -149,20 +154,22 @@ export default function ClassesScreen() {
               editMode
                 ? toggleSelect(item.id)
                 : router.push({
-                  pathname: "/(tabs)/classes/classinformation",
-                  params: {
-                    classId: item.id,
-                    name: item.name,
-                    section: item.section,
-                    color: item.color,
-                    academicYear: item.academicYear
-                  },
-                })
+                    pathname: "/(tabs)/classes/classinformation",
+                    params: {
+                      classId: item.id,
+                      name: item.name,
+                      section: item.section,
+                      color: item.color,
+                      academicYear: item.academicYear,
+                    },
+                  })
             }
           >
             {editMode && (
               <View style={styles.selectCircle}>
-                {selected.has(item.id) && <Feather name="check" size={12} color="#fff" />}
+                {selected.has(item.id) && (
+                  <Feather name="check" size={12} color="#fff" />
+                )}
               </View>
             )}
 
@@ -172,7 +179,11 @@ export default function ClassesScreen() {
             </View>
 
             {!editMode && (
-              <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.7)" />
+              <Feather
+                name="chevron-right"
+                size={20}
+                color="rgba(255,255,255,0.7)"
+              />
             )}
           </Pressable>
         ))}
@@ -194,7 +205,8 @@ export default function ClassesScreen() {
             onPress={handleDeleteRequest}
           >
             <Text style={styles.deleteBarText}>
-              Delete {selected.size} selected {selected.size === 1 ? 'class' : 'classes'}
+              Delete {selected.size} selected{" "}
+              {selected.size === 1 ? "class" : "classes"}
             </Text>
           </TouchableOpacity>
         )}
@@ -228,9 +240,9 @@ const styles = StyleSheet.create({
 
   content: { padding: 16, paddingBottom: 28 },
 
-  emptyState: { alignItems: 'center', marginTop: 30, marginBottom: 20 },
-  emptyText: { fontSize: 18, color: '#333', fontWeight: '600' },
-  emptySub: { fontSize: 14, color: '#888', marginTop: 4 },
+  emptyState: { alignItems: "center", marginTop: 30, marginBottom: 20 },
+  emptyText: { fontSize: 18, color: "#333", fontWeight: "600" },
+  emptySub: { fontSize: 14, color: "#888", marginTop: 4 },
 
   card: {
     borderRadius: CARD_RADIUS,
@@ -290,7 +302,12 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 5,
   },
-  modalTitle: { fontSize: 18, fontWeight: "800", marginBottom: 8, color: '#D32F2F' },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 8,
+    color: "#D32F2F",
+  },
   modalSub: { color: "#666", marginBottom: 20, lineHeight: 20 },
 
   modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10 },

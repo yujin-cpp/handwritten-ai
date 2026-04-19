@@ -2,12 +2,6 @@ import { Feather } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { push, ref, set } from "firebase/database";
-import {
-  getDownloadURL,
-  getStorage,
-  ref as storageRef,
-  uploadBytes,
-} from "firebase/storage";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -22,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth, db } from "../../../firebase/firebaseConfig";
 import { showAlert } from "../../../utils/alert";
+import { uploadFileViaServer } from "../../../utils/uploadFile";
 
 const P = (v: string | string[] | undefined, fb = "") =>
   Array.isArray(v) ? v[0] : (v ?? fb);
@@ -83,20 +78,19 @@ export default function EssayEdit() {
 
   async function uploadFile(
     asset: DocumentPicker.DocumentPickerAsset | null,
-    path: string,
+    basePath: string,
   ): Promise<string> {
     if (!asset) return "No file attached";
-
     try {
-      const response = await fetch(asset.uri);
-      const blob = await response.blob();
-      const storage = getStorage();
-      const fileRef = storageRef(storage, path + "/" + asset.name);
-
-      await uploadBytes(fileRef, blob);
-      return await getDownloadURL(fileRef);
-    } catch (e) {
-      console.error("File upload failed", e);
+      const storagePath = `${basePath}/${asset.name}`;
+      return await uploadFileViaServer(
+        asset.uri,
+        asset.name,
+        storagePath,
+        asset.mimeType || "application/pdf",
+      );
+    } catch (e: any) {
+      console.error("File upload failed", e.message);
       return "Upload Failed";
     }
   }
