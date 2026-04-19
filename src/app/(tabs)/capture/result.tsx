@@ -26,7 +26,8 @@ export default function ResultScreen() {
 
   const score = getParam(params.score, "0");
   const total = getParam(params.total, "100");
-  const { essayScoreLog, feedback } = getGradingResult();
+  const { objectiveScoreLog, essayScoreLog, feedback } = getGradingResult();
+  console.log(" objectiveScoreLog:", objectiveScoreLog);
   console.log(" essayScoreLog:", essayScoreLog);
   console.log("feedback:", feedback);
 
@@ -58,6 +59,7 @@ export default function ResultScreen() {
         score: parseInt(score),
         total: parseInt(total),
         feedback: sanitizeForFirebase(feedback),
+        objectiveScoreLog: sanitizeForFirebase(objectiveScoreLog),
         essayScoreLog: sanitizeForFirebase(essayScoreLog),
         gradedAt: new Date().toISOString(),
         status: "graded",
@@ -124,61 +126,210 @@ export default function ResultScreen() {
           </View>
         </View>
 
-        {essayScoreLog ? (
-          <View style={styles.feedbackSection}>
-            <View style={styles.sectionHeader}>
-              <Feather name="list" size={18} color="#00b679" />
-              <Text style={styles.sectionTitle}>Essay Score Log</Text>
-            </View>
-            <View style={styles.feedbackCard}>
-              {essayScoreLog.split("\n").map((line: string, index: number) => {
-                const isCriterion = line.includes("→");
-                const isTotal = line.startsWith("TOTAL");
-                const isHeader =
-                  line.startsWith("ESSAY SCORE LOG") ||
-                  line.startsWith("Rubric Criteria");
-                const isQuestion = line.startsWith("Question:");
-                const isReason = line.startsWith("Reason:");
-                return (
-                  <Text
-                    key={index}
-                    style={[
-                      styles.feedbackText,
-                      isCriterion && {
-                        fontWeight: "700",
-                        fontStyle: "normal",
-                        color: "#111",
-                      },
-                      isTotal && {
-                        fontWeight: "800",
-                        color: "#00b679",
-                        fontStyle: "normal",
-                        marginTop: 8,
-                      },
-                      isHeader && {
-                        fontWeight: "700",
-                        color: "#333",
-                        fontStyle: "normal",
-                      },
-                      isQuestion && {
-                        fontWeight: "600",
-                        color: "#555",
-                        fontStyle: "normal",
-                      },
-                      isReason && {
-                        fontStyle: "italic",
-                        color: "#777",
-                        fontSize: 13,
-                      },
-                    ]}
-                  >
-                    {line}
-                  </Text>
-                );
-              })}
-            </View>
-          </View>
-        ) : null}
+        {objectiveScoreLog
+          ? (() => {
+              const lines = objectiveScoreLog.split("\n");
+              const totalLine =
+                lines.find(
+                  (l) => l.startsWith("TOTAL") || l.startsWith("FINAL"),
+                ) ?? "";
+
+              return (
+                <View style={styles.feedbackSection}>
+                  <View style={styles.sectionHeader}>
+                    <Feather name="check-square" size={18} color="#00b679" />
+                    <Text style={styles.sectionTitle}>Objective Score Log</Text>
+                  </View>
+                  {/* Total score banner */}
+                  {totalLine ? (
+                    <View style={styles.totalBanner}>
+                      <Text style={styles.totalBannerText}>{totalLine}</Text>
+                    </View>
+                  ) : (
+                    // Fallback: compute total from Points lines
+                    <View style={styles.totalBanner}>
+                      <Text style={styles.totalBannerText}>
+                        TOTAL OBJECTIVE SCORE:{" "}
+                        {lines
+                          .filter((l) => l.startsWith("Points:"))
+                          .reduce((sum, l) => {
+                            const match = l.match(/Points:\s*(\d+)/);
+                            return sum + (match ? parseInt(match[1]) : 0);
+                          }, 0)}
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={styles.feedbackCard}>
+                    {lines
+                      .filter(
+                        (line) =>
+                          !line.startsWith("TOTAL") &&
+                          !line.startsWith("FINAL") &&
+                          !line.startsWith("OBJECTIVE SCORE LOG"),
+                      )
+                      .map((line: string, index: number) => {
+                        const isQuestion = line.startsWith("Question:");
+                        const isCorrect = line.startsWith("Points: 1");
+                        const isWrong = line.startsWith("Points: 0");
+                        const isDivider = line.trim() === "---";
+                        const isEmpty = line.trim() === "";
+
+                        if (isDivider)
+                          return (
+                            <View
+                              key={index}
+                              style={{
+                                height: 1,
+                                backgroundColor: "#f0f0f0",
+                                marginVertical: 8,
+                              }}
+                            />
+                          );
+
+                        if (isEmpty)
+                          return <View key={index} style={{ height: 4 }} />;
+
+                        return (
+                          <Text
+                            key={index}
+                            style={[
+                              styles.feedbackText,
+                              isQuestion && {
+                                fontWeight: "600",
+                                color: "#555",
+                                fontStyle: "normal",
+                              },
+                              isCorrect && {
+                                color: "#00b679",
+                                fontWeight: "600",
+                                fontStyle: "normal",
+                              },
+                              isWrong && {
+                                color: "#ff3b30",
+                                fontWeight: "600",
+                                fontStyle: "normal",
+                              },
+                            ]}
+                          >
+                            {line}
+                          </Text>
+                        );
+                      })}
+                  </View>
+                </View>
+              );
+            })()
+          : null}
+
+        {essayScoreLog
+          ? (() => {
+              const lines = essayScoreLog.split("\n");
+              const totalLine =
+                lines.find(
+                  (l) => l.startsWith("TOTAL") || l.startsWith("FINAL"),
+                ) ?? "";
+
+              return (
+                <View style={styles.feedbackSection}>
+                  <View style={styles.sectionHeader}>
+                    <Feather name="list" size={18} color="#00b679" />
+                    <Text style={styles.sectionTitle}>Essay Score Log</Text>
+                  </View>
+
+                  {/* Total score banner */}
+                  {totalLine ? (
+                    <View style={styles.totalBanner}>
+                      <Text style={styles.totalBannerText}>{totalLine}</Text>
+                    </View>
+                  ) : (
+                    // Fallback: compute total from Final Score lines
+                    <View style={styles.totalBanner}>
+                      <Text style={styles.totalBannerText}>
+                        TOTAL ESSAY SCORE:{" "}
+                        {lines
+                          .filter((l) => l.startsWith("Final Score:"))
+                          .reduce((sum, l) => {
+                            const match = l.match(/=\s*(\d+)/);
+                            return sum + (match ? parseInt(match[1]) : 0);
+                          }, 0)}
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={styles.feedbackCard}>
+                    {lines
+                      .filter(
+                        (line) =>
+                          !line.startsWith("TOTAL") &&
+                          !line.startsWith("FINAL") &&
+                          !line.startsWith("ESSAY SCORE LOG"),
+                      )
+                      .map((line: string, index: number) => {
+                        const isCriterion = line.includes("→");
+                        const isHeader = line.startsWith("Rubric Criteria");
+                        const isQuestion = line.startsWith("Question:");
+                        const isReason = line.startsWith("Reason:");
+                        const isFinalScore = line.startsWith("Final Score:");
+                        const isDivider = line.trim() === "---";
+                        const isEmpty = line.trim() === "";
+
+                        if (isDivider)
+                          return (
+                            <View
+                              key={index}
+                              style={{
+                                height: 1,
+                                backgroundColor: "#f0f0f0",
+                                marginVertical: 8,
+                              }}
+                            />
+                          );
+
+                        if (isEmpty)
+                          return <View key={index} style={{ height: 4 }} />;
+
+                        return (
+                          <Text
+                            key={index}
+                            style={[
+                              styles.feedbackText,
+                              isCriterion && {
+                                fontWeight: "700",
+                                fontStyle: "normal",
+                                color: "#111",
+                              },
+                              isHeader && {
+                                fontWeight: "700",
+                                color: "#333",
+                                fontStyle: "normal",
+                              },
+                              isQuestion && {
+                                fontWeight: "600",
+                                color: "#555",
+                                fontStyle: "normal",
+                              },
+                              isReason && {
+                                fontStyle: "italic",
+                                color: "#777",
+                                fontSize: 13,
+                              },
+                              isFinalScore && {
+                                fontWeight: "700",
+                                color: "#00b679",
+                                fontStyle: "normal",
+                              },
+                            ]}
+                          >
+                            {line}
+                          </Text>
+                        );
+                      })}
+                  </View>
+                </View>
+              );
+            })()
+          : null}
 
         <View style={styles.infoSection}>
           <View style={styles.infoRow}>
@@ -397,5 +548,20 @@ const styles = StyleSheet.create({
     color: "#ff3b30",
     fontSize: 14,
     fontWeight: "600",
+  },
+
+  totalBanner: {
+    backgroundColor: "#e6f9f2",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#00b679",
+  },
+  totalBannerText: {
+    color: "#00b679",
+    fontWeight: "800",
+    fontSize: 15,
   },
 });
