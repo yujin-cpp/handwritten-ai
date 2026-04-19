@@ -12,6 +12,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showAlert } from "../../../utils/alert";
+import {
+  parseImageUrisParam,
+  serializeImageUrisParam,
+} from "../../../utils/captureSubmission";
 
 export default function PhotoTaking() {
   const router = useRouter();
@@ -32,10 +36,14 @@ export default function PhotoTaking() {
 
   // NAVIGATION: Go to Review Screen
   const goToImageCaptured = (uri: string) => {
+    const existingImageUris = parseImageUrisParam(
+      params.imageUris ?? params.imageUri,
+    );
+
     router.push({
       pathname: "/(tabs)/capture/image-captured",
       params: {
-        imageUri: uri,
+        imageUris: serializeImageUrisParam([...existingImageUris, uri]),
         classId: params.classId,
         activityId: params.activityId,
         studentId: params.studentId,
@@ -96,8 +104,20 @@ export default function PhotoTaking() {
   if (!permission.granted) {
     return (
       <View style={styles.centered}>
-        <Feather name="camera-off" size={60} color="#ccc" style={{ marginBottom: 20 }} />
-        <Text style={{ color: "#666", marginBottom: 20, textAlign: 'center', paddingHorizontal: 40 }}>
+        <Feather
+          name="camera-off"
+          size={60}
+          color="#ccc"
+          style={{ marginBottom: 20 }}
+        />
+        <Text
+          style={{
+            color: "#666",
+            marginBottom: 20,
+            textAlign: "center",
+            paddingHorizontal: 40,
+          }}
+        >
           Camera access is required to scan and grade exam papers.
         </Text>
         <TouchableOpacity
@@ -187,7 +207,12 @@ const styles = StyleSheet.create({
     paddingBottom: 15,
   },
 
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  backBtn: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   headerTitle: {
     color: "#fff",
     fontSize: 17,
@@ -202,20 +227,20 @@ const styles = StyleSheet.create({
 
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.2)",
   },
   scanFrame: {
-    width: '85%',
-    height: '65%',
+    width: "85%",
+    height: "65%",
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.5)',
+    borderColor: "rgba(255,255,255,0.5)",
     borderRadius: 20,
-    borderStyle: 'dashed',
+    borderStyle: "dashed",
   },
   hintText: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 160,
     textAlign: "center",
     color: "#fff",
@@ -225,7 +250,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 20,
     overflow: "hidden",
-    fontWeight: '500',
+    fontWeight: "500",
   },
 
   bottomBar: {

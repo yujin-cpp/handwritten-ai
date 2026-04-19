@@ -1,9 +1,11 @@
 type GradingResult = {
+  objectiveScoreLog: string;
   essayScoreLog: string;
   feedback: string;
 };
 
 let store: GradingResult = {
+  objectiveScoreLog: "",
   essayScoreLog: "",
   feedback: "",
 };

@@ -3,7 +3,7 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { get, ref, update } from "firebase/database";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth, db } from "../../../firebase/firebaseConfig";
 import { showAlert } from "../../../utils/alert";
+import { parseImageUrisParam } from "../../../utils/captureSubmission";
 
 export default function ProcessingScreen() {
   const router = useRouter();
@@ -24,9 +25,19 @@ export default function ProcessingScreen() {
   const spinValue = React.useRef(new Animated.Value(0)).current;
 
   const { classId, activityId, studentId } = params;
-  const imageUri = Array.isArray(params.imageUri)
-    ? params.imageUri[0]
-    : params.imageUri;
+  const imageUris = useMemo(
+    () =>
+      params.imageUris
+        ? parseImageUrisParam(params.imageUris)
+        : params.imageUri
+          ? [
+              Array.isArray(params.imageUri)
+                ? params.imageUri[0]
+                : params.imageUri,
+            ]
+          : [],
+    [params.imageUris, params.imageUri],
+  );
 
   const processExam = useCallback(async () => {
     const uid = auth.currentUser?.uid;
@@ -89,7 +100,7 @@ export default function ProcessingScreen() {
       const { processWithAI } = await import("../../../services/AIService");
 
       const result = await processWithAI(
-        imageUri!,
+        imageUris,
         "grade",
         context,
         answerKeyUrl,
@@ -109,8 +120,12 @@ export default function ProcessingScreen() {
       });
 
       setGradingResult({
+        objectiveScoreLog: result.objective_score_log || "",
         essayScoreLog:
-          result.essay_score_log || result.true_enough_reasoning || "",
+          result.grading_log ||
+          result.essay_score_log ||
+          result.true_enough_reasoning ||
+          "",
         feedback: result.feedback ?? "",
       });
 
@@ -133,7 +148,7 @@ export default function ProcessingScreen() {
         () => router.back(),
       );
     }
-  }, [classId, activityId, studentId, imageUri, router]);
+  }, [classId, activityId, studentId, imageUris, router]);
 
   useEffect(() => {
     Animated.loop(
@@ -144,14 +159,14 @@ export default function ProcessingScreen() {
       }),
     ).start();
 
-    if (!imageUri || !classId || !activityId) {
+    if (imageUris.length === 0 || !classId || !activityId) {
       showAlert("Error", "Missing data for processing.");
       router.back();
       return;
     }
 
     processExam();
-  }, [imageUri, classId, activityId, processExam, router, spinValue]);
+  }, [imageUris, classId, activityId, processExam, router, spinValue]);
 
   return (
     <View style={styles.container}>

@@ -74,7 +74,9 @@ export default function Capture() {
       setClassesList(list);
 
       if (params.classId) {
-        const pClassId = Array.isArray(params.classId) ? params.classId[0] : params.classId;
+        const pClassId = Array.isArray(params.classId)
+          ? params.classId[0]
+          : params.classId;
         const foundClass = list.find((c) => c.id === pClassId);
 
         if (foundClass) {
@@ -88,8 +90,12 @@ export default function Capture() {
             let validStuName = "";
 
             if (params.activityId) {
-              const pActId = Array.isArray(params.activityId) ? params.activityId[0] : params.activityId;
-              const foundAct = result.activities.find((a: any) => a.id === pActId);
+              const pActId = Array.isArray(params.activityId)
+                ? params.activityId[0]
+                : params.activityId;
+              const foundAct = result.activities.find(
+                (a: any) => a.id === pActId,
+              );
               if (foundAct) {
                 validActId = foundAct.id;
                 validActName = foundAct.title;
@@ -97,8 +103,12 @@ export default function Capture() {
             }
 
             if (params.studentId) {
-              const pStuId = Array.isArray(params.studentId) ? params.studentId[0] : params.studentId;
-              const foundStu = result.students.find((s: any) => s.id === pStuId);
+              const pStuId = Array.isArray(params.studentId)
+                ? params.studentId[0]
+                : params.studentId;
+              const foundStu = result.students.find(
+                (s: any) => s.id === pStuId,
+              );
               if (foundStu) {
                 validStuId = foundStu.id;
                 validStuName = foundStu.name;
@@ -136,18 +146,26 @@ export default function Capture() {
       ]);
 
       const formattedActivities = activities
-        ? (Array.isArray(activities) ? activities : Object.keys(activities)
-          .map((k) => ({ id: k, ...(activities as Record<string, any>)[k] })))
-          .map((a: any) => ({
+        ? (Array.isArray(activities)
+            ? activities
+            : Object.keys(activities).map((k) => ({
+                id: k,
+                ...(activities as Record<string, any>)[k],
+              }))
+          ).map((a: any) => ({
             id: a.id || a.key,
             title: a.title,
           }))
         : [];
 
       const formattedStudents = students
-        ? (Array.isArray(students) ? students : Object.keys(students)
-          .map((k) => ({ id: k, ...(students as Record<string, any>)[k] })))
-          .map((s: any) => ({
+        ? (Array.isArray(students)
+            ? students
+            : Object.keys(students).map((k) => ({
+                id: k,
+                ...(students as Record<string, any>)[k],
+              }))
+          ).map((s: any) => ({
             id: s.id || s.key,
             name: s.name,
           }))
@@ -191,11 +209,15 @@ export default function Capture() {
     setConfirmed(false);
   };
 
-  const canConfirm = !!selectedClassId && !!selectedActivityId && !!selectedStudentId;
+  const canConfirm =
+    !!selectedClassId && !!selectedActivityId && !!selectedStudentId;
 
   const handleNext = () => {
     if (!canConfirm) {
-      showAlert("Incomplete", "Please select a Section, Activity, and Student.");
+      showAlert(
+        "Incomplete",
+        "Please select a Section, Activity, and Student.",
+      );
       return;
     }
     setConfirmed(true);
@@ -213,16 +235,24 @@ export default function Capture() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.8,
+      allowsMultipleSelection: true, // 👈 allow multiple
+      selectionLimit: 10,
+      orderedSelection: true,
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
+      const { serializeImageUrisParam } =
+        await import("../../../utils/captureSubmission");
       router.push({
         pathname: "/(tabs)/capture/image-captured",
         params: {
-          imageUri: result.assets[0].uri,
+          imageUris: serializeImageUrisParam(result.assets.map((a) => a.uri)), // 👈 all images
           classId: selectedClassId,
           activityId: selectedActivityId,
           studentId: selectedStudentId,
+          className: selectedClassName, // 👈 add these
+          activityName: selectedActivityName,
+          studentName: selectedStudentName,
         },
       });
     }
@@ -236,14 +266,20 @@ export default function Capture() {
         classId: selectedClassId,
         activityId: selectedActivityId,
         studentId: selectedStudentId,
+        className: selectedClassName, // 👈 add these
+        activityName: selectedActivityName,
+        studentName: selectedStudentName,
       },
     });
   };
 
   const getPickerOptions = () => {
-    if (pickerType === "section") return classesList.map((c) => ({ id: c.id, label: c.name }));
-    if (pickerType === "activity") return activitiesList.map((a) => ({ id: a.id, label: a.title }));
-    if (pickerType === "name") return studentsList.map((s) => ({ id: s.id, label: s.name }));
+    if (pickerType === "section")
+      return classesList.map((c) => ({ id: c.id, label: c.name }));
+    if (pickerType === "activity")
+      return activitiesList.map((a) => ({ id: a.id, label: a.title }));
+    if (pickerType === "name")
+      return studentsList.map((s) => ({ id: s.id, label: s.name }));
     return [];
   };
 
@@ -261,7 +297,10 @@ export default function Capture() {
         end={{ x: 1, y: 0 }}
         style={[styles.header, { paddingTop: insets.top + 20 }]}
       >
-        <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12 }}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{ marginRight: 12 }}
+        >
           <Feather name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Capture Score</Text>
@@ -269,7 +308,11 @@ export default function Capture() {
 
       <ScrollView contentContainerStyle={styles.content}>
         {loading ? (
-          <ActivityIndicator size="large" color="#00b679" style={{ marginTop: 50 }} />
+          <ActivityIndicator
+            size="large"
+            color="#00b679"
+            style={{ marginTop: 50 }}
+          />
         ) : (
           <>
             {!confirmed ? (
@@ -282,7 +325,12 @@ export default function Capture() {
                     setPickerType("section");
                   }}
                 >
-                  <Text style={!selectedClassName ? { color: "#999" } : { color: "#333" }} numberOfLines={1}>
+                  <Text
+                    style={
+                      !selectedClassName ? { color: "#999" } : { color: "#333" }
+                    }
+                    numberOfLines={1}
+                  >
                     {selectedClassName || "Choose a class..."}
                   </Text>
                   <Feather name="chevron-down" size={18} color="#999" />
@@ -290,30 +338,60 @@ export default function Capture() {
 
                 <Text style={styles.label}>Select Activity</Text>
                 <Pressable
-                  style={[styles.dropdownBtn, !selectedClassId && { opacity: 0.5, backgroundColor: "#f9f9f9" }]}
+                  style={[
+                    styles.dropdownBtn,
+                    !selectedClassId && {
+                      opacity: 0.5,
+                      backgroundColor: "#f9f9f9",
+                    },
+                  ]}
                   disabled={!selectedClassId}
                   onPress={(e) => {
                     setPickerY(e.nativeEvent.pageY);
                     setPickerType("activity");
                   }}
                 >
-                  <Text style={!selectedActivityName ? { color: "#999" } : { color: "#333" }} numberOfLines={1}>
-                    {fetchingSubData ? "Loading..." : selectedActivityName || "Choose an activity..."}
+                  <Text
+                    style={
+                      !selectedActivityName
+                        ? { color: "#999" }
+                        : { color: "#333" }
+                    }
+                    numberOfLines={1}
+                  >
+                    {fetchingSubData
+                      ? "Loading..."
+                      : selectedActivityName || "Choose an activity..."}
                   </Text>
                   <Feather name="chevron-down" size={18} color="#999" />
                 </Pressable>
 
                 <Text style={styles.label}>Select Student</Text>
                 <Pressable
-                  style={[styles.dropdownBtn, !selectedClassId && { opacity: 0.5, backgroundColor: "#f9f9f9" }]}
+                  style={[
+                    styles.dropdownBtn,
+                    !selectedClassId && {
+                      opacity: 0.5,
+                      backgroundColor: "#f9f9f9",
+                    },
+                  ]}
                   disabled={!selectedClassId}
                   onPress={(e) => {
                     setPickerY(e.nativeEvent.pageY);
                     setPickerType("name");
                   }}
                 >
-                  <Text style={!selectedStudentName ? { color: "#999" } : { color: "#333" }} numberOfLines={1}>
-                    {fetchingSubData ? "Loading..." : selectedStudentName || "Search student..."}
+                  <Text
+                    style={
+                      !selectedStudentName
+                        ? { color: "#999" }
+                        : { color: "#333" }
+                    }
+                    numberOfLines={1}
+                  >
+                    {fetchingSubData
+                      ? "Loading..."
+                      : selectedStudentName || "Search student..."}
                   </Text>
                   <Feather name="chevron-down" size={18} color="#999" />
                 </Pressable>
@@ -333,39 +411,80 @@ export default function Capture() {
                   <View style={styles.summaryRow}>
                     <Feather name="map-pin" size={14} color="#00b679" />
                     <Text style={styles.summaryLabel}>Section:</Text>
-                    <Text style={styles.summaryValue} numberOfLines={1}>{selectedClassName}</Text>
+                    <Text style={styles.summaryValue} numberOfLines={1}>
+                      {selectedClassName}
+                    </Text>
                   </View>
                   <View style={styles.summaryRow}>
                     <Feather name="hash" size={14} color="#00b679" />
                     <Text style={styles.summaryLabel}>Activity:</Text>
-                    <Text style={styles.summaryValue} numberOfLines={1}>{selectedActivityName}</Text>
+                    <Text style={styles.summaryValue} numberOfLines={1}>
+                      {selectedActivityName}
+                    </Text>
                   </View>
                   <View style={styles.summaryRow}>
                     <Feather name="user" size={14} color="#00b679" />
                     <Text style={styles.summaryLabel}>Student:</Text>
-                    <Text style={styles.summaryValue} numberOfLines={1}>{selectedStudentName}</Text>
+                    <Text style={styles.summaryValue} numberOfLines={1}>
+                      {selectedStudentName}
+                    </Text>
                   </View>
 
-                  <TouchableOpacity onPress={() => setConfirmed(false)} style={styles.editSelectionBtn}>
-                    <Text style={styles.editSelectionText}>Change Selection</Text>
+                  <TouchableOpacity
+                    onPress={() => setConfirmed(false)}
+                    style={styles.editSelectionBtn}
+                  >
+                    <Text style={styles.editSelectionText}>
+                      Change Selection
+                    </Text>
                   </TouchableOpacity>
                 </View>
 
-                <View style={[styles.cameraBox, confirmed && styles.cameraBoxFocused]}>
-                  <Feather name="maximize" size={60} color={confirmed ? "#00b679" : "#ccc"} />
-                  <Text style={[styles.cameraBoxLabel, { color: confirmed ? "#00b679" : "#999" }]}>
+                <View
+                  style={[
+                    styles.cameraBox,
+                    confirmed && styles.cameraBoxFocused,
+                  ]}
+                >
+                  <Feather
+                    name="maximize"
+                    size={60}
+                    color={confirmed ? "#00b679" : "#ccc"}
+                  />
+                  <Text
+                    style={[
+                      styles.cameraBoxLabel,
+                      { color: confirmed ? "#00b679" : "#999" },
+                    ]}
+                  >
                     Ready to Score
                   </Text>
                 </View>
 
                 <View style={styles.actionContainer}>
-                  <TouchableOpacity style={styles.takePhotoBtn} onPress={handleTakePhoto}>
-                    <Feather name="camera" size={20} color="#fff" style={{ marginRight: 10 }} />
+                  <TouchableOpacity
+                    style={styles.takePhotoBtn}
+                    onPress={handleTakePhoto}
+                  >
+                    <Feather
+                      name="camera"
+                      size={20}
+                      color="#fff"
+                      style={{ marginRight: 10 }}
+                    />
                     <Text style={styles.takePhotoText}>Open Camera</Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity style={styles.galleryBtn} onPress={handlePickImage}>
-                    <Feather name="image" size={20} color="#00b679" style={{ marginRight: 10 }} />
+                  <TouchableOpacity
+                    style={styles.galleryBtn}
+                    onPress={handlePickImage}
+                  >
+                    <Feather
+                      name="image"
+                      size={20}
+                      color="#00b679"
+                      style={{ marginRight: 10 }}
+                    />
                     <Text style={styles.galleryText}>Upload from Gallery</Text>
                   </TouchableOpacity>
                 </View>
@@ -376,24 +495,43 @@ export default function Capture() {
       </ScrollView>
 
       {/* CUSTOM PICKER MODAL */}
-      <Modal visible={pickerType !== null} transparent animationType="fade" onRequestClose={() => setPickerType(null)}>
+      <Modal
+        visible={pickerType !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPickerType(null)}
+      >
         <View style={styles.modalBackdrop}>
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setPickerType(null)} />
+          <Pressable
+            style={StyleSheet.absoluteFillObject}
+            onPress={() => setPickerType(null)}
+          />
           <View style={[styles.popup, { top: Math.min(pickerY + 12, 550) }]}>
             <View style={styles.popupHeader}>
               <Text style={styles.popupHeaderText}>
-                Select {pickerType === "section" ? "Class" : pickerType === "activity" ? "Activity" : "Student"}
+                Select{" "}
+                {pickerType === "section"
+                  ? "Class"
+                  : pickerType === "activity"
+                    ? "Activity"
+                    : "Student"}
               </Text>
             </View>
             <ScrollView style={{ maxHeight: 300 }}>
               {getPickerOptions().length === 0 ? (
-                <View style={{ padding: 30, alignItems: 'center' }}>
+                <View style={{ padding: 30, alignItems: "center" }}>
                   <Feather name="search" size={24} color="#ccc" />
-                  <Text style={{ marginTop: 10, color: "#999" }}>No items found.</Text>
+                  <Text style={{ marginTop: 10, color: "#999" }}>
+                    No items found.
+                  </Text>
                 </View>
               ) : (
                 getPickerOptions().map((opt) => (
-                  <TouchableOpacity key={opt.id} onPress={() => handlePickerSelect(opt.id, opt.label)} style={styles.popupItem}>
+                  <TouchableOpacity
+                    key={opt.id}
+                    onPress={() => handlePickerSelect(opt.id, opt.label)}
+                    style={styles.popupItem}
+                  >
                     <Text style={styles.popupItemText}>{opt.label}</Text>
                     <Feather name="chevron-right" size={16} color="#eee" />
                   </TouchableOpacity>
@@ -409,38 +547,159 @@ export default function Capture() {
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: "#f8f9fa" },
-  header: { paddingHorizontal: 18, paddingTop: 45, paddingBottom: 25, flexDirection: "row", alignItems: "center" },
+  header: {
+    paddingHorizontal: 18,
+    paddingTop: 45,
+    paddingBottom: 25,
+    flexDirection: "row",
+    alignItems: "center",
+  },
   headerTitle: { color: "#fff", fontSize: 20, fontWeight: "700", flex: 1 },
   content: { padding: 20, paddingBottom: 80 },
 
-  selectionCard: { backgroundColor: '#fff', borderRadius: 20, padding: 20, elevation: 2, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 2 } },
-  label: { marginTop: 15, marginBottom: 8, fontWeight: "600", color: "#444", fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 },
-  dropdownBtn: { borderWidth: 1, borderColor: "#f0f0f0", padding: 15, borderRadius: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#fafafa" },
+  selectionCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 20,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  label: {
+    marginTop: 15,
+    marginBottom: 8,
+    fontWeight: "600",
+    color: "#444",
+    fontSize: 13,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  dropdownBtn: {
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
+    padding: 15,
+    borderRadius: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#fafafa",
+  },
 
-  summaryCard: { backgroundColor: "#fff", padding: 20, borderRadius: 20, marginTop: 10, elevation: 1, shadowColor: "#000", shadowOpacity: 0.03, shadowRadius: 5 },
-  summaryRow: { flexDirection: "row", alignItems: 'center', marginBottom: 12 },
-  summaryLabel: { fontWeight: "700", color: "#666", width: 75, marginLeft: 8, fontSize: 13 },
+  summaryCard: {
+    backgroundColor: "#fff",
+    padding: 20,
+    borderRadius: 20,
+    marginTop: 10,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+    shadowRadius: 5,
+  },
+  summaryRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  summaryLabel: {
+    fontWeight: "700",
+    color: "#666",
+    width: 75,
+    marginLeft: 8,
+    fontSize: 13,
+  },
   summaryValue: { fontWeight: "500", color: "#111", flex: 1, fontSize: 14 },
-  editSelectionBtn: { marginTop: 5, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#f0f0f0', alignItems: 'center' },
+  editSelectionBtn: {
+    marginTop: 5,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+    alignItems: "center",
+  },
   editSelectionText: { color: "#00b679", fontWeight: "600", fontSize: 14 },
 
-  cameraBox: { marginTop: 25, width: "100%", height: 180, backgroundColor: "#fff", borderRadius: 24, justifyContent: "center", alignItems: "center", borderWidth: 2, borderColor: "#f0f0f0", borderStyle: "dashed" },
-  cameraBoxFocused: { borderColor: "#00b679", backgroundColor: "#f0fdf4", borderStyle: "solid" },
+  cameraBox: {
+    marginTop: 25,
+    width: "100%",
+    height: 180,
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#f0f0f0",
+    borderStyle: "dashed",
+  },
+  cameraBoxFocused: {
+    borderColor: "#00b679",
+    backgroundColor: "#f0fdf4",
+    borderStyle: "solid",
+  },
   cameraBoxLabel: { marginTop: 12, fontWeight: "700", fontSize: 15 },
 
-  nextBtn: { marginTop: 30, backgroundColor: '#00b679', flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 10, paddingVertical: 16, borderRadius: 14, elevation: 3 },
+  nextBtn: {
+    marginTop: 30,
+    backgroundColor: "#00b679",
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 16,
+    borderRadius: 14,
+    elevation: 3,
+  },
   nextText: { color: "#fff", fontWeight: "700", fontSize: 16 },
 
   actionContainer: { marginTop: 30 },
-  takePhotoBtn: { backgroundColor: "#00b679", paddingVertical: 18, borderRadius: 16, flexDirection: "row", justifyContent: "center", alignItems: "center", marginBottom: 15, elevation: 4 },
+  takePhotoBtn: {
+    backgroundColor: "#00b679",
+    paddingVertical: 18,
+    borderRadius: 16,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 15,
+    elevation: 4,
+  },
   takePhotoText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  galleryBtn: { backgroundColor: "#fff", borderWidth: 1.5, borderColor: "#00b679", paddingVertical: 18, borderRadius: 16, flexDirection: "row", justifyContent: "center", alignItems: "center" },
+  galleryBtn: {
+    backgroundColor: "#fff",
+    borderWidth: 1.5,
+    borderColor: "#00b679",
+    paddingVertical: 18,
+    borderRadius: 16,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   galleryText: { color: "#00b679", fontWeight: "700", fontSize: 16 },
 
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.2)" },
-  popup: { position: "absolute", left: 16, right: 16, backgroundColor: "#fff", borderRadius: 20, shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 15, overflow: "hidden" },
-  popupHeader: { backgroundColor: "#f9fcfb", padding: 15, borderBottomWidth: 1, borderBottomColor: "#f0f5f3" },
+  popup: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 15,
+    overflow: "hidden",
+  },
+  popupHeader: {
+    backgroundColor: "#f9fcfb",
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f5f3",
+  },
   popupHeaderText: { fontWeight: "700", color: "#1a3d2e", fontSize: 16 },
-  popupItem: { paddingVertical: 16, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: "#f8f8f8", flexDirection: "row", justifyContent: "space-between", alignItems: 'center' },
+  popupItem: {
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f8f8f8",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   popupItemText: { fontSize: 15, color: "#333", fontWeight: "500" },
 });
