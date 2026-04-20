@@ -175,7 +175,10 @@ export default function ProfileSettings() {
 
     try {
       const sendOtpFn = httpsCallable(functions, "sendOtpEmail");
-      await sendOtpFn({ email: user.personalEmail });
+      await sendOtpFn({
+        email: user.personalEmail,
+        type: "personal_verification",
+      });
 
       // Open the input modal
       setOtpInput("");

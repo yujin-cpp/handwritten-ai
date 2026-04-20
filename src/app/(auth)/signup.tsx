@@ -7,13 +7,13 @@ import * as WebBrowser from "expo-web-browser";
 import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential, signInWithPopup } from "firebase/auth";
 import { useEffect, useState } from 'react';
 import {
-  Modal,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    Modal,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { auth } from "../../firebase/firebaseConfig";
 import { createProfessor } from "../../services/professor.service";
@@ -32,8 +32,10 @@ export default function SignUp() {
   const [modalMessage, setModalMessage] = useState('');
 
   const [, response, promptAsync] = Google.useAuthRequest({
+    expoClientId: "697036998946-ia341ph7pidihf3r519ltr443u2k1a5l.apps.googleusercontent.com",
     androidClientId: "697036998946-jvtj1jbf839cfu3lij5bu161oididnke.apps.googleusercontent.com",
-    webClientId: "697036998946-ia341ph7pidihf3r519ltr443u2k1a5l.apps.googleusercontent.com"
+    webClientId: "697036998946-ia341ph7pidihf3r519ltr443u2k1a5l.apps.googleusercontent.com",
+    scopes: ["profile", "email"],
   });
 
   // 🔹 HELPER: Trigger the Popup

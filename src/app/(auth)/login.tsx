@@ -4,26 +4,26 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import {
-  GoogleAuthProvider,
-  signInWithCredential,
-  signInWithEmailAndPassword,
-  signInWithPopup, // 1. Import this for Web
+    GoogleAuthProvider,
+    signInWithCredential,
+    signInWithEmailAndPassword,
+    signInWithPopup, // 1. Import this for Web
 } from "firebase/auth";
 import { useEffect, useState } from "react";
 import {
-  Alert,
-  Platform, // 2. Import Platform
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    Platform, // 2. Import Platform
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 import { auth } from "../../firebase/firebaseConfig";
 import {
-  createProfessor,
-  getProfessorProfile,
+    createProfessor,
+    getProfessorProfile,
 } from "../../services/professor.service";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -38,10 +38,13 @@ export default function Login() {
 
   // 🔹 GOOGLE AUTH CONFIG (For Android/iOS)
   const [, response, promptAsync] = Google.useAuthRequest({
+    expoClientId:
+      "697036998946-ia341ph7pidihf3r519ltr443u2k1a5l.apps.googleusercontent.com",
     androidClientId:
       "697036998946-jvtj1jbf839cfu3lij5bu161oididnke.apps.googleusercontent.com",
     webClientId:
       "697036998946-ia341ph7pidihf3r519ltr443u2k1a5l.apps.googleusercontent.com",
+    scopes: ["profile", "email"],
   });
 
   // 🔹 HANDLE MOBILE RESPONSE (Android/iOS Only)
