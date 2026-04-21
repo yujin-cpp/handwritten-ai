@@ -284,6 +284,7 @@ export default function ClassesScreen() {
       </View>
 
       {/* Custom Delete Confirmation Modal */}
+
       <Modal
         visible={confirmModalVisible}
         transparent
@@ -470,4 +471,57 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   deleteBarText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 24,
+    marginHorizontal: 32,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 8,
+    color: "#1a1a1a",
+  },
+  modalSub: {
+    fontSize: 14,
+    color: "#555",
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  modalCancel: {
+    backgroundColor: "#f0f0f0",
+  },
+  modalCancelText: {
+    color: "#333",
+    fontWeight: "600",
+  },
+  modalDelete: {
+    backgroundColor: "#e53935",
+  },
+  modalDeleteText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
 });

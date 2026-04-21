@@ -2,20 +2,19 @@ import { Feather } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ref as dbRef, onValue } from "firebase/database";
-import { ref as storageRef, uploadBytes } from "firebase/storage";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Modal,
-    Pressable,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { auth, db, storage } from "../../../firebase/firebaseConfig";
+import { auth, db } from "../../../firebase/firebaseConfig";
 import { showAlert } from "../../../utils/alert";
 
 import { AI_SERVER_URL } from "../../../constants/Config";
@@ -47,7 +46,7 @@ export default function Masterlist() {
     );
     const unsubscribe = onValue(studentsRef, (snapshot) => {
       setHasFile(snapshot.exists() && snapshot.hasChildren());
-    */
+    });
 
     return () => unsubscribe();
   }, [classId]);
@@ -57,7 +56,7 @@ export default function Masterlist() {
       const result = await DocumentPicker.getDocumentAsync({
         type: "application/pdf",
         copyToCacheDirectory: true,
-      */
+      });
 
       if (result.canceled) return;
       const fileAsset = result.assets[0];
@@ -67,38 +66,67 @@ export default function Masterlist() {
       const uid = auth.currentUser?.uid;
       if (!uid) throw new Error("User not authenticated");
 
-      // uploading via REST API...
-      
+      // 1. Upload directly to Firebase Storage from client
+      const {
+        ref: storageRef,
+        uploadBytes,
+        getDownloadURL,
+      } = await import("firebase/storage");
+      const { storage } = await import("../../../firebase/firebaseConfig");
 
-      const fileRef = storageRef(storage, `masterlists/${uid}/${classId}/${fileAsset.name}`);
-      const aiResponse = await fetch('https://handwritten-ai-server-1093390926434.us-central1.run.app/upload-masterlist', { method: 'POST', body: formData });
-      const data = await aiResponse.json();
-      if (!aiResponse.ok || !data.success) throw new Error(data.error || 'Failed to upload to AI Server');
-      /*
-        // Ensure the storage trigger sees a PDF content type.
-        
-      */
+      const response = await fetch(fileAsset.uri);
+      const blob = await response.blob();
+      const path = `masterlists/${uid}/${classId}/${fileAsset.name ?? "masterlist.pdf"}`;
+      const fileRef = storageRef(storage, path);
+      await uploadBytes(fileRef, blob, { contentType: "application/pdf" });
+      const downloadUrl = await getDownloadURL(fileRef);
 
-      showAlert("Success", "Masterlist uploaded! Processing student data...");
-    } catch (error: any) {
-      const rawServerResponse =
-        typeof error?.serverResponse === "string" ? error.serverResponse : "";
-      const statusMatch = rawServerResponse.match(/"code"\s*:\s*(\d{3})/);
-      const httpStatus = statusMatch?.[1] ? `HTTP ${statusMatch[1]}` : "";
+      console.log("✅ Uploaded to Firebase:", downloadUrl);
 
-      console.error("Masterlist upload failed", {
-        code: error?.code,
-        message: error?.message,
-        serverResponse: error?.serverResponse,
-      */
+      // 2. Call AI server just for extraction (no storage involved)
+      const formData = new FormData();
+      formData.append("file", {
+        uri: fileAsset.uri,
+        name: fileAsset.name ?? "masterlist.pdf",
+        type: "application/pdf",
+      } as any);
 
-      const detail = [error?.code, httpStatus].filter(Boolean).join(" | ");
-      showAlert(
-        "Error",
-        detail
-          ? `Failed to upload masterlist (${detail}). Check console for details.`
-          : "Failed to upload masterlist.",
+      const aiResponse = await fetch(
+        "https://handwritten-ai-server-1093390926434.us-central1.run.app/masterlist",
+        { method: "POST", body: formData },
       );
+      const data = await aiResponse.json();
+      if (!aiResponse.ok || !data.success)
+        throw new Error(data.error || "Failed to extract student data");
+
+      console.log("✅ Students extracted:", data.data?.length);
+
+      // 3. Save extracted students to Firebase DB
+      const { ref: dbRef, set } = await import("firebase/database");
+      const { db } = await import("../../../firebase/firebaseConfig");
+
+      const students: Record<string, any> = {};
+      (data.data as any[]).forEach((student) => {
+        const key = student.id || student.name.replace(/\s+/g, "_");
+        students[key] = {
+          name: student.name,
+          studentId: student.id || null,
+          activities: {},
+        };
+      });
+
+      await set(
+        dbRef(db, `professors/${uid}/classes/${classId}/students`),
+        students,
+      );
+
+      showAlert(
+        "Success",
+        `Masterlist uploaded! ${data.data?.length} students imported.`,
+      );
+    } catch (error: any) {
+      console.error("Masterlist upload failed", error);
+      showAlert("Error", error?.message || "Failed to upload masterlist.");
     } finally {
       setUploading(false);
     }
@@ -267,8 +295,22 @@ export default function Masterlist() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f4f7fb" },
-  header: { paddingHorizontal: 20, paddingBottom: 25, flexDirection: "row", alignItems: "center", elevation: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
-  backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
+  header: {
+    paddingHorizontal: 20,
+    paddingBottom: 25,
+    flexDirection: "row",
+    alignItems: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "flex-start",
+  },
   headerInfo: { flex: 1, paddingHorizontal: 10 },
   headerSmall: {
     color: "#fff",
@@ -415,10 +457,36 @@ const styles = StyleSheet.create({
   },
   modalTitle: { fontSize: 20, fontWeight: "800", color: "#111" },
   modalBody: {},
-  formatCard: { flexDirection: 'row', gap: 12, backgroundColor: '#fff7ed', padding: 15, borderRadius: 16, marginBottom: 20, alignItems: 'center' },
-  formatText: { flex: 1, fontSize: 13, color: '#c2410c', fontWeight: '600', lineHeight: 18 },
-  selectBtn: { paddingVertical: 18, borderRadius: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  selectBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
-  modalHelp: { textAlign: 'center', fontSize: 12, color: '#bbb', marginTop: 20, fontStyle: 'italic' },
-*/
-
+  formatCard: {
+    flexDirection: "row",
+    gap: 12,
+    backgroundColor: "#fff7ed",
+    padding: 15,
+    borderRadius: 16,
+    marginBottom: 20,
+    alignItems: "center",
+  },
+  formatText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#c2410c",
+    fontWeight: "600",
+    lineHeight: 18,
+  },
+  selectBtn: {
+    paddingVertical: 18,
+    borderRadius: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  selectBtnText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  modalHelp: {
+    textAlign: "center",
+    fontSize: 12,
+    color: "#bbb",
+    marginTop: 20,
+    fontStyle: "italic",
+  },
+});

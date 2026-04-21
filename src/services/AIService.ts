@@ -111,6 +111,8 @@ export const processWithAI = async (
   examSettings?: ExamSettingsPayload,
 ) => {
   try {
+    const uris = Array.isArray(imageUris) ? imageUris : [imageUris];
+
     const answerKeyUrls = Array.isArray(answerKeyUrlsOrUrl)
       ? answerKeyUrlsOrUrl.filter(Boolean)
       : answerKeyUrlsOrUrl
@@ -127,7 +129,9 @@ export const processWithAI = async (
     const uris = Array.isArray(imageUris) ? imageUris : [imageUris];
     console.log(`🖼️ Processing ${uris.length} image(s)`);
 
-    await appendImageToFormData(formData, imageUri);
+    for (const uri of uris) {
+      await appendImageToFormData(formData, uri);
+    }
 
     formData.append("mode", mode);
     formData.append("rubric", context);

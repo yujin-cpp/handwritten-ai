@@ -5,6 +5,12 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { get, ref, update } from "firebase/database";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  getDownloadURL,
+  ref as storageRef,
+  uploadBytes,
+} from "firebase/storage";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
   ActivityIndicator,
   Platform,
   StyleSheet,
@@ -148,19 +154,59 @@ export default function ProcessingScreen() {
   const mountedRef = React.useRef(true);
   const backgroundModeRef = React.useRef(false);
 
-  const { classId, activityId, studentId } = params;
-  const imageUris = useMemo(
-    () =>
-      params.imageUris
-        ? parseImageUrisParam(params.imageUris)
-        : params.imageUri
-          ? [
-              Array.isArray(params.imageUri)
-                ? params.imageUri[0]
-                : params.imageUri,
-            ]
-          : [],
-    [params.imageUris, params.imageUri],
+  const classId = P(params.classId);
+  const activityId = P(params.activityId);
+  const studentId = P(params.studentId);
+  const imageUri = P(params.imageUri);
+  const imageUris = useMemo<string[]>(() => {
+    return params.imageUris ? JSON.parse(P(params.imageUris)) : [imageUri];
+  }, [params.imageUris, imageUri]);
+  const shouldAutoBackground = P(params.background) === "1";
+
+  const safeSetStatus = useCallback((nextStatus: string) => {
+    if (mountedRef.current) {
+      setStatus(nextStatus);
+    }
+  }, []);
+
+  const sleep = useCallback((ms: number) => {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }, []);
+
+  const resolveNextStudentId = useCallback(
+    async (uid: string) => {
+      try {
+        const studentsRef = ref(
+          db,
+          `professors/${uid}/classes/${classId}/students`,
+        );
+        const studentsSnapshot = await get(studentsRef);
+        if (!studentsSnapshot.exists()) return "";
+
+        const data = studentsSnapshot.val() || {};
+        const students = Object.keys(data)
+          .map((id) => ({
+            id,
+            name: String(data[id]?.name || ""),
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+
+        if (students.length === 0) return "";
+
+        const currentIndex = students.findIndex(
+          (student) => student.id === studentId,
+        );
+        if (currentIndex === -1) {
+          return students[0]?.id || "";
+        }
+
+        return students[currentIndex + 1]?.id || "";
+      } catch (error) {
+        console.warn("Failed to resolve next student:", error);
+        return "";
+      }
+    },
+    [classId, studentId],
   );
 
   const processExam = useCallback(async () => {
@@ -345,25 +391,36 @@ export default function ProcessingScreen() {
         );
       }
     }
-  }, [classId, activityId, studentId, imageUris, router]);
+  }, [
+    activityId,
+    classId,
+    continueInBackground,
+    imageUris,
+    imageUri,
+    resolveNextStudentId,
+    router,
+    safeSetStatus,
+    sleep,
+    shouldAutoBackground,
+    studentId,
+    uploadProofImage,
+  ]);
 
   useEffect(() => {
-    Animated.loop(
-      Animated.timing(spinValue, {
-        toValue: 1,
-        duration: 3000,
-        useNativeDriver: true,
-      }),
-    ).start();
-
-    if (imageUris.length === 0 || !classId || !activityId) {
+    if (!imageUris.length || !classId || !activityId || !studentId) {
       showAlert("Error", "Missing data for processing.");
       router.back();
       return;
     }
 
     processExam();
-  }, [imageUris, classId, activityId, processExam, router, spinValue]);
+  }, [activityId, classId, imageUris.length, processExam, router, studentId]);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   return (
     <View style={styles.container}>

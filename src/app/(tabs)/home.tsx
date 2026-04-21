@@ -24,7 +24,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
 
   const [professor, setProfessor] = useState<any>(null);
-  const [classes, setClasses] = useState<any>({});
+
   const [stats, setStats] = useState({
     totalClasses: 0,
     totalGraded: 0,
@@ -60,8 +60,6 @@ export default function HomeScreen() {
     if (!uid) return;
 
     const unsubscribe = listenToClasses(uid, (data) => {
-      setClasses(data || {});
-
       if (data) {
         let gradedCount = 0;
         let recentClass: any = null;

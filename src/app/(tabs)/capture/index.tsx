@@ -266,18 +266,16 @@ export default function Capture() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.8,
-      allowsMultipleSelection: true, // 👈 allow multiple
-      selectionLimit: 10,
-      orderedSelection: true,
+      allowsMultipleSelection: true,
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      const { serializeImageUrisParam } =
-        await import("../../../utils/captureSubmission");
+      const imageUris = result.assets.map((a) => a.uri);
       router.push({
         pathname: "/(tabs)/capture/image-captured",
         params: {
-          imageUris: serializeImageUrisParam(result.assets.map((a) => a.uri)), // 👈 all images
+          imageUri: imageUris[0],
+          imageUris: JSON.stringify(imageUris),
           classId: selectedClassId,
           activityId: selectedActivityId,
           studentId: selectedStudentId,

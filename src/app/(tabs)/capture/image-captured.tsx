@@ -1,8 +1,15 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo } from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useState } from "react";
+import {
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PageMotion } from "../../../components/PageMotion";
 import {
@@ -21,9 +28,15 @@ const P = (v: string | string[] | undefined, fb = "") =>
 const HEADER_HEIGHT = 70;
 
 export default function ImageCaptured() {
+  const [activeIndex, setActiveIndex] = useState(0);
+
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+
+  const imageUris: string[] = params.imageUris
+    ? JSON.parse(P(params.imageUris))
+    : [P(params.imageUri)];
 
   const classId = P(params.classId);
   const activityId = P(params.activityId);
@@ -89,7 +102,8 @@ export default function ImageCaptured() {
     router.push({
       pathname: "/(tabs)/capture/processing",
       params: {
-        imageUris: serializeImageUrisParam(imageUris),
+        imageUri,
+        imageUris: JSON.stringify(imageUris),
         classId,
         activityId,
         studentId,
@@ -125,24 +139,94 @@ export default function ImageCaptured() {
       </LinearGradient>
 
       <PageMotion delay={40} style={styles.content}>
-        <View style={styles.imageCardContainer}>
-          <Text style={styles.imageLabel}>Captured Sheet</Text>
-          <View style={styles.imageCard}>
-            {imageUri ? (
-              <Image
-                source={{ uri: imageUri }}
-                style={styles.image}
-                resizeMode="contain"
-              />
-            ) : (
-              <View style={styles.noImage}>
-                <Feather name="image" size={40} color="#333" />
-                <Text style={{ color: "#666", marginTop: 10 }}>
-                  No Image Captured
+        <View style={styles.imageCard}>
+          {/* Header row */}
+          <View style={styles.imageLabelRow}>
+            <View style={styles.labelIconWrap}>
+              <Feather name="file-text" size={14} color="#00b679" />
+            </View>
+            <Text style={styles.imageLabeltwo}>Captured Sheet</Text>
+            {imageUris.length > 1 && (
+              <View style={styles.pageBadge}>
+                <Text style={styles.pageBadgeText}>
+                  {imageUris.length} pages
                 </Text>
               </View>
             )}
           </View>
+
+          {/* Pager */}
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            style={styles.multiImageScroll}
+            onMomentumScrollEnd={(e) => {
+              const index = Math.round(
+                e.nativeEvent.contentOffset.x /
+                  e.nativeEvent.layoutMeasurement.width,
+              );
+              setActiveIndex(index);
+            }}
+          >
+            {imageUris.map((uri, index) => (
+              <View key={uri} style={styles.multiImageItem}>
+                <Image
+                  source={{ uri }}
+                  style={styles.multiImage}
+                  resizeMode="cover"
+                />
+                {/* Page number pill overlaid on image */}
+                {imageUris.length > 1 && (
+                  <View style={styles.pageOverlayBadge}>
+                    <Text style={styles.pageOverlayText}>
+                      {index + 1} / {imageUris.length}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            ))}
+          </ScrollView>
+
+          {/* Dot indicators + thumbnail strip */}
+          {imageUris.length > 1 && (
+            <>
+              <View style={styles.dotsRow}>
+                {imageUris.map((_, i) => (
+                  <View
+                    key={i}
+                    style={[styles.dot, i === activeIndex && styles.dotActive]}
+                  />
+                ))}
+              </View>
+
+              {/* Thumbnail strip */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.thumbStrip}
+              >
+                {imageUris.map((uri, i) => (
+                  <View
+                    key={uri}
+                    style={[
+                      styles.thumb,
+                      i === activeIndex && styles.thumbActive,
+                    ]}
+                  >
+                    <Image
+                      source={{ uri }}
+                      style={styles.thumbImage}
+                      resizeMode="cover"
+                    />
+                    {i === activeIndex && (
+                      <View style={styles.thumbActiveLine} />
+                    )}
+                  </View>
+                ))}
+              </ScrollView>
+            </>
+          )}
         </View>
 
         <View style={styles.hintContainer}>
@@ -212,6 +296,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
   },
+
   imageCard: {
     backgroundColor: UI_COLORS.appSurface,
     borderRadius: 22,
@@ -224,6 +309,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 2,
   },
+
   imageLabel: {
     color: "#52606d",
     fontSize: 12,
@@ -232,11 +318,28 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 10,
   },
-  imageList: {
-    flexGrow: 1,
-    paddingBottom: 12,
+  imageLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
   },
-  imageCardContainer: {
+  imageLabeltwo: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1a1a1a",
+    flex: 1,
+  },
+  labelIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "#e6f9f3",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  imageContainer: {
     width: "100%",
     height: 500,
     maxHeight: "72%",
@@ -253,17 +356,103 @@ const styles = StyleSheet.create({
     height: 320,
     backgroundColor: "#111",
   },
-  noImage: {
-    flex: 1,
-    alignItems: "center",
+  noImage: { alignItems: "center" },
+
+  multiImageScroll: {
+    borderRadius: 14,
+    overflow: "hidden",
+  },
+  multiImageItem: {
+    width: 300,
+    height: 360,
+    backgroundColor: "#0b1220",
+    borderRadius: 14,
+    overflow: "hidden",
     justifyContent: "center",
-    paddingVertical: 60,
+    alignItems: "center",
   },
-  noImageText: {
-    color: "#666",
-    marginTop: 10,
-    fontSize: 14,
+  multiImage: {
+    width: "100%",
+    height: "100%",
   },
+  pageOverlayBadge: {
+    position: "absolute",
+    bottom: 10,
+    right: 10,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  pageOverlayText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  pageBadge: {
+    backgroundColor: "#e6f9f3",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  pageBadgeText: {
+    fontSize: 12,
+    color: "#00b679",
+    fontWeight: "600",
+  },
+
+  dotsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 12,
+    gap: 5,
+  },
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "#ddd",
+  },
+  dotActive: {
+    backgroundColor: "#00b679",
+    width: 16,
+    borderRadius: 3,
+  },
+
+  thumbStrip: {
+    paddingTop: 10,
+    paddingBottom: 2,
+    gap: 8,
+    paddingHorizontal: 2,
+  },
+  thumb: {
+    width: 52,
+    height: 68,
+    borderRadius: 8,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "transparent",
+    opacity: 0.5,
+  },
+  thumbActive: {
+    borderColor: "#00b679",
+    opacity: 1,
+  },
+  thumbImage: {
+    width: "100%",
+    height: "100%",
+  },
+  thumbActiveLine: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: "#00b679",
+  },
+
   hintContainer: {
     flexDirection: "row",
     alignItems: "flex-start",
