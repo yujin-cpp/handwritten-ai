@@ -31,8 +31,8 @@ for m in genai.list_models():
     print(m.name)
 
 # SELECT MODELS
-transcription_model = genai.GenerativeModel('gemini-2.5-flash')  # vision + speed
-grading_model = genai.GenerativeModel('gemini-2.5-flash-lite')        # consistency
+transcription_model = genai.GenerativeModel('gemini-2.5-flash')  
+grading_model = genai.GenerativeModel('gemini-2.5-flash-lite')       
 print(f"🎯 TRANSCRIPTION MODEL:", transcription_model.model_name)
 print(f"🎯 GRADING MODEL:", grading_model.model_name)
 
@@ -257,7 +257,7 @@ def ping():
 def transcribe():
     files = request.files.getlist('file')
 
-    if not files or all(file.filename == '' for file in files):
+    if not files:
         return jsonify({"success": False, "error": "No file uploaded"}), 400
 
     try:
@@ -308,6 +308,7 @@ def transcribe():
             ai_inputs.append({"mime_type": "image/jpeg", "data": buf.getvalue()})
 
         data = call_gemini(ai_inputs, transcription_model)
+
         print(f"✅ Transcription done: {len(data.get('transcribed_text', ''))} chars", flush=True)
         save_transcript_log(data)
 
@@ -348,12 +349,6 @@ def grade():
         if not transcribed_text:
             return jsonify({"success": False, "error": "No transcription provided"}), 400
         
-        print(f"📋 context length: {len(context)} chars")
-        print(f"📋 answer_key_text length: {len(answer_key_text)} chars")
-        print(f"📋 answer_key_url: {answer_key_url[:80] if answer_key_url else 'none'}")
-        print(f"📋 context_block preview:\n{context_block[:500]}")
-
-        print(f"📋 Grading transcription ({len(transcribed_text)} chars)...")
 
         # BUILD CONTEXT BLOCK
 
@@ -364,7 +359,7 @@ def grade():
             context_block += f"=== ESSAY RUBRIC ===\n{answer_key_text}\n===================\n\n"
 
         # FETCH ADDITIONAL RUBRIC/REFERENCE FILES FROM URLS
-        for url, label in [(answer_key_url, "RUBRIC FROM FILE"), (reference_url, "REFERENCE MATERIAL")]:
+        for url, label in [(answer_key_url, "OBJECTIVE ANSWER KEY"), (reference_url, "REFERENCE MATERIAL")]:
             if not url:
                 continue
             try:
@@ -489,12 +484,32 @@ def grade():
 
         FINAL TOTAL SCORE: [sum of ALL objective points + ALL essay Final Scores]
 
+       =============================================
+        FINAL SCORE CALCULATION — MANDATORY STEP
+        =============================================
+        Before writing the JSON, you MUST do this explicitly:
+
+        STEP A: Write the total objective score as a number.
+            objective_total = [exact number from TOTAL OBJECTIVE SCORE above]
+
+        STEP B: Write the total essay score as a number.
+            essay_total = [exact number from TOTAL ESSAY SCORE above]
+
+        STEP C: Add them.
+            final_score = objective_total + essay_total = [result]
+
+        STEP D: Verify final_score does not exceed the exam total score limit.
+            If final_score > total allowed score, cap it at the total allowed score.
+
+        The "score" field in the JSON MUST equal final_score from STEP C (or capped value from STEP D).
+        Do NOT guess. Do NOT re-derive. Copy the number exactly from STEP C.
+        =============================================
+
         FAIL-SAFE RULES:
         - If rubric is missing: score = 0, explain why.
         - If answer is blank: score = 0.
         - Never fabricate quotes or requirements.
         - Never round up. Always use floor().
-
 
         Return ONLY this JSON, no extra text:
         {{
@@ -502,6 +517,8 @@ def grade():
         "objective_score_log": "Log for ALL objective questions (MCQ, True/False, Matching). Plain text only. Use \\n for line breaks.",
         "essay_score_log": "Log for ALL essay questions only. Plain text only. Use \\n for line breaks.",
         "confidence_score": <0-100>,
+        "objective_total": <numeric — TOTAL OBJECTIVE SCORE>,
+        "essay_total": <numeric — TOTAL ESSAY SCORE>,
         "score": <numeric total — sum of ALL section scores: objective + essay>,
         "feedback": "brief feedback."
         }}
@@ -518,8 +535,17 @@ def grade():
                 ai_inputs.append({"mime_type": "image/jpeg", "data": buf.getvalue()})
 
         data = call_gemini(ai_inputs, grading_model)
-        print(f"✅ Grading done: score={data.get('score')}")
 
+        # Server-side score sanity check
+        obj = data.get("objective_total", 0) or 0
+        essay = data.get("essay_total", 0) or 0
+        expected = obj + essay
+        if data.get("score") != expected:
+            print(f"⚠️ Score mismatch: AI said {data.get('score')} but obj({obj}) + essay({essay}) = {expected}. Correcting.")
+            data["score"] = expected
+
+
+        print(f"✅ Grading done: score={data.get('score')}")
         return jsonify({"success": True, "data": data})
 
     except google.api_core.exceptions.ResourceExhausted as e:
@@ -591,45 +617,6 @@ Include every student listed. Student IDs are typically in format like TUPM-XX-X
     except Exception as e:
         print(f"❌ Masterlist Error: {e}")
         return jsonify({"success": False, "error": "server_error", "message": str(e)}), 500
-    
-@app.route('/upload-masterlist', methods=['POST'])
-def upload_masterlist():
-    """Upload a PDF masterlist to Firebase Storage and extract students via AI."""
-    try:
-        file = request.files.get('file')
-        uid = request.form.get('uid')
-        class_id = request.form.get('classId')
-
-        if not file:
-            return jsonify({"success": False, "error": "No file uploaded"}), 400
-        if not uid or not class_id:
-            return jsonify({"success": False, "error": "Missing uid or classId"}), 400
-
-        file_bytes = file.read()
-        print(f"📄 Masterlist upload: {file.filename}, {len(file_bytes)} bytes, uid={uid}, classId={class_id}")
-
-        # Upload to Firebase Storage via REST API (no admin SDK needed)
-        import requests as req
-        storage_bucket = os.environ.get("FIREBASE_STORAGE_BUCKET")  # e.g. your-project.appspot.com
-        path = f"masterlists/{uid}/{class_id}/{file.filename}"
-        upload_url = f"https://firebasestorage.googleapis.com/v0/b/{storage_bucket}/o?uploadType=media&name={path}"
-
-        upload_response = req.post(
-            upload_url,
-            headers={"Content-Type": "application/pdf"},
-            data=file_bytes,
-        )
-
-        if upload_response.status_code not in (200, 201):
-            print(f"⚠️ Storage upload failed: {upload_response.status_code} {upload_response.text[:200]}")
-            return jsonify({"success": False, "error": "Storage upload failed", "details": upload_response.text[:200]}), 500
-
-        print(f"✅ Uploaded to Firebase Storage: {path}")
-        return jsonify({"success": True, "path": path})
-
-    except Exception as e:
-        print(f"❌ Upload-masterlist error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/upload-file', methods=['POST'])
 def upload_file():

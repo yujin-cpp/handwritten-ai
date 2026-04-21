@@ -4,18 +4,18 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { get, ref, update } from "firebase/database";
 import {
-    getDownloadURL,
-    ref as storageRef,
-    uploadBytes,
+  getDownloadURL,
+  ref as storageRef,
+  uploadBytes,
 } from "firebase/storage";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Platform,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth, db, storage } from "../../../firebase/firebaseConfig";
@@ -156,6 +156,9 @@ export default function ProcessingScreen() {
   const activityId = P(params.activityId);
   const studentId = P(params.studentId);
   const imageUri = P(params.imageUri);
+  const imageUris = useMemo<string[]>(() => {
+    return params.imageUris ? JSON.parse(P(params.imageUris)) : [imageUri];
+  }, [params.imageUris, imageUri]);
   const shouldAutoBackground = P(params.background) === "1";
 
   const safeSetStatus = useCallback((nextStatus: string) => {
@@ -357,7 +360,7 @@ export default function ProcessingScreen() {
       const { processWithAI } = await import("../../../services/AIService");
 
       const result = await processWithAI(
-        imageUri!,
+        imageUris,
         "grade",
         context,
         answerKeyUrls,
@@ -436,6 +439,7 @@ export default function ProcessingScreen() {
     activityId,
     classId,
     continueInBackground,
+    imageUris,
     imageUri,
     resolveNextStudentId,
     router,
@@ -447,14 +451,14 @@ export default function ProcessingScreen() {
   ]);
 
   useEffect(() => {
-    if (!imageUri || !classId || !activityId || !studentId) {
+    if (!imageUris.length || !classId || !activityId || !studentId) {
       showAlert("Error", "Missing data for processing.");
       router.back();
       return;
     }
 
     processExam();
-  }, [activityId, classId, imageUri, processExam, router, studentId]);
+  }, [activityId, classId, imageUris.length, processExam, router, studentId]);
 
   useEffect(() => {
     return () => {
