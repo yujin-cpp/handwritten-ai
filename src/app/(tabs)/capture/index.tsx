@@ -333,7 +333,7 @@ export default function Capture() {
         <Text style={styles.headerTitle}>Capture Score</Text>
       </LinearGradient>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {loading ? (
           <ActivityIndicator
             size="large"
@@ -583,7 +583,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headerTitle: { color: "#fff", fontSize: 20, fontWeight: "700", flex: 1 },
-  content: { padding: 20, paddingBottom: 80 },
+  content: { padding: 20, paddingBottom: 110 },
 
   selectionCard: {
     backgroundColor: "#fff",

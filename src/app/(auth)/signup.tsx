@@ -13,7 +13,8 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View
+    View,
+    ScrollView
 } from "react-native";
 import { auth } from "../../firebase/firebaseConfig";
 import { createProfessor } from "../../services/professor.service";
@@ -119,6 +120,7 @@ export default function SignUp() {
 
   return (
     <LinearGradient colors={['#0EA47A', '#017EBA']} style={styles.container}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }} showsVerticalScrollIndicator={false}>
       <Text style={styles.title}>Create Account</Text>
       <Text style={styles.subtitle}>to get started now!</Text>
 
@@ -140,6 +142,7 @@ export default function SignUp() {
         Already have an account?{' '}
         <Text style={styles.link} onPress={() => router.push('/(auth)/login')}>Login Now</Text>
       </Text>
+      </ScrollView>
 
       {/* 🔹 ERROR POPUP MODAL */}
       <Modal
@@ -167,7 +170,7 @@ export default function SignUp() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 30 },
+  container: { flex: 1, padding: 30 },
   title: { fontSize: 28, color: "#fff", fontWeight: "bold" },
   subtitle: { fontSize: 16, color: "#fff", marginBottom: 40 },
   input: { backgroundColor: "#fff", borderRadius: 8, paddingHorizontal: 15, paddingVertical: 12, marginBottom: 15 },

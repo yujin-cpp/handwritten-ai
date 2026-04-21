@@ -20,6 +20,7 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth, db, functions, storage } from "../../../firebase/firebaseConfig";
@@ -250,7 +251,11 @@ export default function ProfileSettings() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 20 }]}>
+    <ScrollView 
+      style={styles.container} 
+      contentContainerStyle={{ paddingTop: insets.top + 20, paddingBottom: 110 }}
+      showsVerticalScrollIndicator={false}
+    >
       <Text style={styles.title}>Profile & Settings</Text>
 
       <View style={styles.avatarContainer}>
@@ -414,7 +419,7 @@ export default function ProfileSettings() {
           </View>
         </View>
       </Modal>
-    </View>
+    </ScrollView>
   );
 }
 

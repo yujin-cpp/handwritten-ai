@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { Platform } from "react-native";
+import { Platform, StyleSheet } from "react-native";
+import { BlurView } from 'expo-blur';
 import { UI_COLORS } from "../../constants/DesignTokens";
 
 export default function TabsLayout() {
@@ -12,32 +13,32 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         sceneStyle: { backgroundColor: UI_COLORS.appBackground },
-        tabBarActiveTintColor: UI_COLORS.primary,
-        tabBarInactiveTintColor: "#7a838f",
+        tabBarShowLabel: false,
+        tabBarBackground: () => (
+          <BlurView intensity={isWeb ? 100 : 70} style={StyleSheet.absoluteFill} tint="light" />
+        ),
         tabBarStyle: {
           position: "absolute",
-          left: 12,
-          right: 12,
-          bottom: isWeb ? 14 : 12,
-          borderRadius: 18,
-          paddingBottom: isWeb ? 10 : 8,
-          paddingTop: isWeb ? 10 : 8,
-          height: isWeb ? 74 : 68,
-          borderTopWidth: 0,
-          backgroundColor: "#ffffff",
-          borderWidth: 1,
-          borderColor: "#e8edf4",
+          left: "15%",
+          right: "15%",
+          bottom: isWeb ? 20 : 25,
+          borderRadius: 35,
+          height: 60,
+          borderTopWidth: 1,
+          borderColor: "rgba(255, 255, 255, 0.6)",
+          backgroundColor: isWeb ? "#ffffff" : "rgba(255, 255, 255, 0.6)",
+          overflow: "hidden", 
           shadowColor: "#000",
-          shadowOpacity: 0.09,
-          shadowRadius: 14,
-          shadowOffset: { width: 0, height: 6 },
-          elevation: 8,
+          shadowOpacity: 0.1,
+          shadowRadius: 15,
+          shadowOffset: { width: 0, height: 8 },
+          elevation: 10,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
-          lineHeight: 14,
-          fontWeight: "700",
-          marginBottom: isWeb ? 0 : 2,
+          fontSize: 10,
+          lineHeight: 12,
+          fontWeight: "800",
+          marginBottom: isWeb ? 2 : 4,
         },
         tabBarItemStyle: {
           borderRadius: 14,
@@ -49,8 +50,8 @@ export default function TabsLayout() {
         name="home"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="home" color={color} size={size} />
+          tabBarIcon: ({ color }) => (
+            <Feather name="home" color={color} size={22} />
           ),
         }}
       />
@@ -59,13 +60,12 @@ export default function TabsLayout() {
         name="classes"
         options={{
           title: "Classes",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="book" color={color} size={size} />
+          tabBarIcon: ({ color }) => (
+            <Feather name="book" color={color} size={22} />
           ),
         }}
         listeners={({ navigation }) => ({
           tabPress: (e) => {
-            // Prevent default behavior to handle custom navigation
             e.preventDefault();
             navigation.navigate("classes", { screen: "index" });
           },
@@ -75,9 +75,10 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="capture"
         options={{
+          href: null,
           title: "Capture",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="camera" color={color} size={size} />
+          tabBarIcon: ({ color }) => (
+            <Feather name="camera" color={color} size={22} />
           ),
         }}
       />
@@ -86,8 +87,8 @@ export default function TabsLayout() {
         name="analytics"
         options={{
           title: "Analytics",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="bar-chart-2" color={color} size={size} />
+          tabBarIcon: ({ color }) => (
+            <Feather name="bar-chart-2" color={color} size={22} />
           ),
         }}
       />
@@ -96,8 +97,8 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="user" color={color} size={size} />
+          tabBarIcon: ({ color }) => (
+            <Feather name="user" color={color} size={22} />
           ),
         }}
       />

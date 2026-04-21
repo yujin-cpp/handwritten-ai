@@ -18,6 +18,7 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    ScrollView,
 } from "react-native";
 
 import { auth } from "../../firebase/firebaseConfig";
@@ -137,6 +138,7 @@ export default function Login() {
 
   return (
     <LinearGradient colors={["#0EA47A", "#017EBA"]} style={styles.container}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}>
       {/* WRAP CONTENT IN VIEW FOR WEB ALIGNMENT */}
       <View style={styles.contentContainer}>
         <Text style={styles.title}>Welcome,</Text>
@@ -197,6 +199,7 @@ export default function Login() {
           </Text>
         </Text>
       </View>
+      </ScrollView>
     </LinearGradient>
   );
 }

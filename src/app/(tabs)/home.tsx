@@ -1,14 +1,15 @@
+import { BlurView } from 'expo-blur';
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FloatMotion, PageMotion } from "../../components/PageMotion";
@@ -16,7 +17,6 @@ import { auth } from "../../firebase/firebaseConfig";
 import { listenToClasses } from "../../services/class.service";
 import { getProfessorProfile } from "../../services/professor.service";
 
-// Default placeholder if no photo exists
 const DEFAULT_AVATAR = "https://i.imgur.com/4YQZ6uM.png";
 
 export default function HomeScreen() {
@@ -25,6 +25,16 @@ export default function HomeScreen() {
 
   const [professor, setProfessor] = useState<any>(null);
   const [classes, setClasses] = useState<any>({});
+  const [stats, setStats] = useState({
+    totalClasses: 0,
+    totalGraded: 0,
+    lastActivityText: "No recent activity",
+    resumeClassId: "",
+    resumeClassName: "",
+    resumeClassSection: "",
+    resumeClassColor: "",
+    resumeAcademicYear: ""
+  });
 
   // 1. Fetch Professor Profile & Photo
   useFocusEffect(
@@ -32,14 +42,10 @@ export default function HomeScreen() {
       const loadProfile = async () => {
         const currentUser = auth.currentUser;
         if (currentUser) {
-          // Force reload to get the latest photoURL if it just changed
           await currentUser.reload();
-
           const profData = await getProfessorProfile(currentUser.uid);
-
           setProfessor({
-            ...profData, // Name, etc from DB
-            // Use Auth photo first, then fallback to default
+            ...profData,
             photoURL: currentUser.photoURL || DEFAULT_AVATAR,
           });
         }
@@ -48,285 +54,362 @@ export default function HomeScreen() {
     }, []),
   );
 
-  // 2. REAL-TIME LISTENER FOR CLASSES
+  // 2. REAL-TIME LISTENER FOR CLASSES & STATS CALCULATION
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
 
     const unsubscribe = listenToClasses(uid, (data) => {
-      setClasses(data);
+      setClasses(data || {});
+      
+      if (data) {
+        let gradedCount = 0;
+        let recentClass: any = null;
+        let recentClassId = "";
+
+        const classEntries = Object.entries(data);
+        
+        // Just pick the first class to resume for now, or the last one added
+        if (classEntries.length > 0) {
+           recentClassId = classEntries[0][0];
+           recentClass = classEntries[0][1];
+        }
+
+        classEntries.forEach(([classId, cls]: any) => {
+          if (cls.students) {
+            Object.values(cls.students).forEach((student: any) => {
+              if (student.activities) {
+                Object.values(student.activities).forEach((act: any) => {
+                  if (act.status === "graded" || act.score !== undefined) {
+                    gradedCount++;
+                  }
+                });
+              }
+            });
+          }
+        });
+
+        setStats({
+          totalClasses: classEntries.length,
+          totalGraded: gradedCount,
+          lastActivityText: recentClass ? `Last accessed: ${recentClass.className}` : "No recent activity",
+          resumeClassId: recentClassId,
+          resumeClassName: recentClass?.className || "",
+          resumeClassSection: recentClass?.section || "",
+          resumeClassColor: recentClass?.themeColor || "#00b679",
+          resumeAcademicYear: recentClass?.semester || ""
+        });
+      }
     });
 
     return () => unsubscribe();
   }, []);
 
-  const classList = Object.entries(classes);
-  const totalClasses = classList.length;
-
-  const totalStudents = classList.reduce(
-    (sum: number, [, c]: any) =>
-      sum + (c.students ? Object.keys(c.students).length : 0),
-    0,
-  );
-
   if (!professor) return null;
 
+  const handleResume = () => {
+    if (stats.resumeClassId) {
+      router.push({
+        pathname: "/(tabs)/classes/classinformation",
+        params: {
+          classId: stats.resumeClassId,
+          name: stats.resumeClassName,
+          section: stats.resumeClassSection,
+          color: stats.resumeClassColor,
+          academicYear: stats.resumeAcademicYear,
+        },
+      });
+    }
+  };
+
   return (
-    <ScrollView style={styles.container}>
-      {/* HEADER */}
-      <LinearGradient
-        colors={["#0EA47A", "#0079B2"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={[styles.header, { paddingTop: insets.top + 20 }]}
-      >
+    <ScrollView 
+      style={styles.container} 
+      contentContainerStyle={{ paddingBottom: 120 }}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* HERO HEADER */}
+      <View style={{ paddingHorizontal: 20, paddingTop: insets.top + 20 }}>
         <PageMotion delay={30}>
-          <View style={styles.headerContent}>
-            <FloatMotion amplitude={6} duration={2300}>
-              <Image
-                source={{ uri: professor.photoURL }}
-                style={styles.avatar}
-              />
-            </FloatMotion>
-            <View>
-              <Text style={styles.welcomeText}>Welcome, {professor.name}!</Text>
-              <Text style={styles.welcomeSub}>
-                Ready to score your next class.
-              </Text>
+          <LinearGradient
+            colors={["#0EA47A", "#0079B2"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.heroCard}
+          >
+            <View style={styles.heroContent}>
+              <FloatMotion amplitude={6} duration={2300}>
+                <Image
+                  source={{ uri: professor.photoURL }}
+                  style={styles.avatar}
+                />
+              </FloatMotion>
+              <View style={{ flex: 1, marginLeft: 15 }}>
+                <Text style={styles.welcomeText} numberOfLines={2}>
+                  Welcome, {professor.name}!
+                </Text>
+                <Text style={styles.welcomeSub}>
+                  Ready to score your next class.
+                </Text>
+              </View>
+            </View>
+
+            {stats.resumeClassId ? (
+              <TouchableOpacity style={styles.resumeBtnHero} onPress={handleResume}>
+                <Feather name="book-open" size={14} color="#0EA47A" />
+                <Text style={styles.resumeBtnHeroText}>
+                  Resume {stats.resumeClassName} - {stats.resumeClassSection}
+                </Text>
+                <Feather name="chevron-right" size={14} color="#0EA47A" />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.resumeBtnHero} onPress={() => router.push("/(tabs)/classes/addclass")}>
+                <Feather name="plus" size={14} color="#0EA47A" />
+                <Text style={styles.resumeBtnHeroText}>Create your first class</Text>
+                <Feather name="chevron-right" size={14} color="#0EA47A" />
+              </TouchableOpacity>
+            )}
+          </LinearGradient>
+        </PageMotion>
+
+        {/* OVERLAPPING ANALYTICS CARD */}
+        <PageMotion delay={100}>
+          <View style={styles.analyticsCard}>
+            <View style={styles.analyticsRow}>
+              <View style={styles.analyticsIconBox}>
+                <Feather name="book" size={20} color="#0EA47A" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.analyticsTitle}>{stats.totalClasses} Classes Today</Text>
+              </View>
+              {/* REMOVED RESUME BUTTON */}
+            </View>
+
+            <View style={[styles.analyticsRow, { marginTop: 15 }]}>
+              <View style={[styles.analyticsIconBox, { backgroundColor: "#f0f4f8" }]}>
+                <Feather name="users" size={20} color="#5c6b7a" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.analyticsTitle}>{stats.totalGraded} Students graded</Text>
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.lastActivityRow}>
+              <View style={styles.dotIcon}>
+                <Feather name="clock" size={12} color="#fff" />
+              </View>
+              <Text style={styles.lastActivityText}>{stats.lastActivityText}</Text>
             </View>
           </View>
         </PageMotion>
-      </LinearGradient>
+      </View>
 
-      {/* STATS */}
-      <PageMotion delay={110} style={styles.section}>
-        <Text style={styles.sectionTitle}>Here’s your recent activity</Text>
 
-        <View style={styles.statsRow}>
-          <StatCard value={String(totalClasses)} label="Total Classes" />
-          <StatCard value={String(totalStudents)} label="Total Students" />
-        </View>
-      </PageMotion>
 
-      {/* CLASS LIST */}
+      {/* QUICK ACTIONS ROW */}
       <PageMotion delay={180} style={styles.section}>
-        <Text style={styles.sectionTitle}>Class List</Text>
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        
+        <View style={styles.actionsGrid}>
+          <BlurView intensity={80} tint="light" style={styles.actionCardBlur}>
+            <TouchableOpacity 
+              style={styles.actionCardContent}
+              onPress={() => router.push("/(tabs)/capture")}
+            >
+              <Feather name="camera" size={28} color="#0EA47A" style={{ marginBottom: 12 }} />
+              <Text style={styles.actionText}>Scan Papers</Text>
+            </TouchableOpacity>
+          </BlurView>
 
-        <View style={styles.classGrid}>
-          {classList.map(([classId, cls]: any, index) => {
-            const cardColor = cls.themeColor || COLORS[index % COLORS.length];
+          <BlurView intensity={80} tint="light" style={styles.actionCardBlur}>
+            <TouchableOpacity 
+              style={styles.actionCardContent}
+              onPress={() => router.push("/(tabs)/classes/addclass")}
+            >
+              <Feather name="plus" size={28} color="#0079B2" style={{ marginBottom: 12 }} />
+              <Text style={styles.actionText}>Add Class</Text>
+            </TouchableOpacity>
+          </BlurView>
 
-            return (
-              <ClassCard
-                key={classId}
-                name={cls.className}
-                section={cls.section}
-                color={cardColor}
-                onPress={() =>
-                  router.push({
-                    pathname: "/(tabs)/classes/classinformation",
-                    params: {
-                      classId,
-                      name: cls.className,
-                      section: cls.section,
-                      color: cardColor,
-                      academicYear: cls.semester,
-                    },
-                  })
-                }
-              />
-            );
-          })}
-
-          <AddClassCard />
+          <BlurView intensity={80} tint="light" style={styles.actionCardBlur}>
+            <TouchableOpacity 
+              style={styles.actionCardContent}
+              onPress={() => router.push("/(tabs)/analytics")}
+            >
+              <Feather name="bar-chart-2" size={28} color="#f39c12" style={{ marginBottom: 12 }} />
+              <Text style={styles.actionText}>View Reports</Text>
+            </TouchableOpacity>
+          </BlurView>
         </View>
       </PageMotion>
+
     </ScrollView>
   );
 }
 
-/* ===========================
-   STAT CARD COMPONENT
- =========================== */
-function StatCard({ value, label }: { value: string; label: string }) {
-  return (
-    <View style={styles.statCard}>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-}
-
-/* ===========================
-   CLASS CARD COMPONENT
- =========================== */
-function ClassCard({
-  name,
-  section,
-  color,
-  onPress,
-}: {
-  name: string;
-  section: string;
-  color: string;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      style={[styles.classCard, { backgroundColor: color }]}
-      onPress={onPress}
-      activeOpacity={0.85}
-    >
-      <Text style={styles.className}>{name}</Text>
-      <Text style={styles.classSection}>{section}</Text>
-    </TouchableOpacity>
-  );
-}
-
-/* ===========================
-   ADD CLASS COMPONENT
- =========================== */
-function AddClassCard() {
-  const router = useRouter();
-
-  return (
-    <TouchableOpacity
-      style={[styles.classCard, styles.addClass]}
-      onPress={() => router.push("/(tabs)/classes/addclass")}
-    >
-      <Feather name="plus-circle" size={22} color="#009e60" />
-      <Text style={{ color: "#009e60", fontWeight: "600", marginLeft: 8 }}>
-        Add Class
-      </Text>
-    </TouchableOpacity>
-  );
-}
-
-/* ===========================
-   STYLES
- =========================== */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f4f7fb",
   },
-
-  header: {
-    padding: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    overflow: "hidden",
+  heroCard: {
+    borderRadius: 24,
+    padding: 24,
+    paddingBottom: 45, // Leave room for overlapping card
+    shadowColor: "#0079B2",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 15,
+    elevation: 8,
   },
-
-  headerContent: {
+  heroContent: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
   },
-
   avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: "#fff",
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.7)",
+    borderColor: "rgba(255,255,255,0.8)",
   },
-
   welcomeText: {
     color: "#fff",
-    fontSize: 20,
-    fontWeight: "700",
+    fontSize: 22,
+    fontWeight: "800",
   },
   welcomeSub: {
-    color: "rgba(255,255,255,0.88)",
+    color: "rgba(255,255,255,0.9)",
     marginTop: 4,
-    fontSize: 13,
+    fontSize: 14,
   },
-
-  section: {
-    padding: 20,
-  },
-
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 12,
-    color: "#333",
-  },
-
-  statsRow: {
+  resumeBtnHero: {
     flexDirection: "row",
-    justifyContent: "space-between",
-  },
-
-  statCard: {
-    flex: 1,
-    backgroundColor: "#fff",
-    margin: 5,
-    borderRadius: 16,
-    padding: 16,
     alignItems: "center",
-
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: "#eef2f7",
+    backgroundColor: "rgba(255,255,255,0.95)",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    alignSelf: "flex-start",
+    marginTop: 20,
+    gap: 8,
   },
-
-  statValue: {
-    fontSize: 22,
+  resumeBtnHeroText: {
+    color: "#0EA47A",
     fontWeight: "700",
-    color: "#009e60",
-  },
-
-  statLabel: {
     fontSize: 13,
-    color: "#555",
-    textAlign: "center",
   },
 
-  classGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-
-  classCard: {
-    width: "47%",
-    borderRadius: 16,
-    padding: 15,
-    marginVertical: 6,
-
+  analyticsCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 20,
+    marginTop: -25, // Overlap the hero card
+    marginHorizontal: 5,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-
-  className: {
-    color: "#fff",
-    fontSize: 19,
-    fontWeight: "700",
-  },
-
-  classSection: {
-    color: "#fff",
-    fontSize: 15,
-    marginTop: 2,
-  },
-
-  addClass: {
-    backgroundColor: "#fff",
+    shadowRadius: 12,
+    elevation: 5,
     borderWidth: 1,
-    borderColor: "#009e60",
+    borderColor: "#f0f0f0",
+  },
+  analyticsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  analyticsIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#e6f7f2",
     justifyContent: "center",
     alignItems: "center",
   },
-});
+  analyticsTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#333",
+  },
+  resumeBtnSmall: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#0EA47A",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    gap: 4,
+  },
+  resumeBtnSmallText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 12,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#f0f0f0",
+    marginVertical: 16,
+  },
+  lastActivityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  dotIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#0EA47A",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  lastActivityText: {
+    fontSize: 13,
+    color: "#666",
+    fontWeight: "500",
+  },
 
-const COLORS = ["#BB73E0", "#EE89B0", "#AEBAF8", "#F4A261", "#2A9D8F"];
+  section: {
+    paddingHorizontal: 20,
+    marginTop: 30,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#111",
+    marginBottom: 16,
+  },
+  actionsGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  actionCardBlur: {
+    flex: 1,
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  actionCardContent: {
+    paddingVertical: 20,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#333",
+    textAlign: "center",
+  },
+});

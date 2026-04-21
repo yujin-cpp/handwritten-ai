@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
   pill: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 14 },
   pillText: { color: '#fff', fontSize: 13, fontWeight: '700', flex: 1 },
 
-  content: { padding: 20 },
+  content: { padding: 20, paddingBottom: 110 },
   summaryGrid: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 24, padding: 20, elevation: 1, shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 15, marginBottom: 20 },
   summaryCard: { flex: 1, alignItems: 'center' },
   statLabel: { fontSize: 11, fontWeight: '800', color: '#bbb', textTransform: 'uppercase', marginBottom: 5 },

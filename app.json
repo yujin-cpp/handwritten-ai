@@ -15,9 +15,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
-        "foregroundImage": "./src/assets/images/logo-aiscorer.png",
-        "backgroundImage": "./src/assets/images/logo-aiscorer.png",
-        "monochromeImage": "./src/assets/images/logo-aiscorer.png"
+        "foregroundImage": "./src/assets/images/logo-aiscorer.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false

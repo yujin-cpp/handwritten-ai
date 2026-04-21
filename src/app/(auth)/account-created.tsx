@@ -1,11 +1,11 @@
 import { useRouter } from "expo-router";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View, ScrollView } from "react-native";
 
 export default function AccountCreated() {
   const router = useRouter();
 
   return (
-    <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Account Created</Text>
       <Text style={styles.subtitle}>Your account has successfully been created!</Text>
 
@@ -16,13 +16,13 @@ export default function AccountCreated() {
       <TouchableOpacity onPress={() => router.replace("/(auth)/login")}>
         <Text style={styles.link}>Tap to go Back to Login</Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { 
-    flex: 1, 
+    flexGrow: 1, 
     justifyContent: "center", 
     alignItems: "center", 
     padding: 30,
