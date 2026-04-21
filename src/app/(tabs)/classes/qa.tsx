@@ -4,7 +4,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { onValue, push, ref, set, update } from "firebase/database";
 import {
     getDownloadURL,
-    getStorage,
     ref as storageRef,
     uploadBytes,
 } from "firebase/storage";
@@ -21,7 +20,7 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { auth, db } from "../../../firebase/firebaseConfig";
+import { auth, db, storage } from "../../../firebase/firebaseConfig";
 import { showAlert } from "../../../utils/alert";
 
 const P = (v: string | string[] | undefined, fb = "") =>
@@ -252,7 +251,6 @@ export default function QAList() {
 
       const response = await fetch(asset.uri);
       const blob = await response.blob();
-      const storage = getStorage();
 
       const fileRef = storageRef(
         storage,

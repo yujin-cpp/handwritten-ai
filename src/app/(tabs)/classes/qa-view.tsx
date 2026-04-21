@@ -1,23 +1,23 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ref, remove } from "firebase/database";
-import { deleteObject, getStorage, ref as storageRef } from "firebase/storage";
+import { deleteObject, ref as storageRef } from "firebase/storage";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  Linking,
-  Modal,
-  Pressable,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Image,
+    Linking,
+    Modal,
+    Pressable,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { auth, db } from "../../../firebase/firebaseConfig";
+import { auth, db, storage } from "../../../firebase/firebaseConfig";
 import { showAlert } from "../../../utils/alert";
 
 const P = (v: string | string[] | undefined, fb = "") =>
@@ -71,7 +71,6 @@ export default function QAView() {
       await remove(dbRef);
 
       try {
-        const storage = getStorage();
         const fileRef = storageRef(
           storage,
           `qa_uploads/${uid}/${classId}/${activityId}/${fileName}`,

@@ -20,6 +20,8 @@ const firebaseConfig = {
   appId: "1:1093390926434:web:a1ae78fb198e7878b6073b",
 };
 
+const STORAGE_BUCKET_URL = "gs://handwritten-ai-scorer.firebasestorage.app";
+
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 const createAuth = () => {
@@ -41,7 +43,7 @@ const createAuth = () => {
 
 export const db = getDatabase(app);
 export const auth = createAuth();
-export const storage = getStorage(app);
+export const storage = getStorage(app, STORAGE_BUCKET_URL);
 export const functions = getFunctions(app, "us-central1");
 export { app };
 

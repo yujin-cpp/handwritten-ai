@@ -2,20 +2,20 @@ import { Feather } from "@expo/vector-icons";
 import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ref as dbRef, onValue } from "firebase/database";
-import { getStorage, ref as storageRef, uploadBytes } from "firebase/storage";
+import { ref as storageRef, uploadBytes } from "firebase/storage";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Modal,
-  Pressable,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Modal,
+    Pressable,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { auth, db } from "../../../firebase/firebaseConfig";
+import { auth, db, storage } from "../../../firebase/firebaseConfig";
 import { showAlert } from "../../../utils/alert";
 
 const P = (v: string | string[] | undefined, fb = "") =>
@@ -65,14 +65,29 @@ export default function Masterlist() {
       const response = await fetch(fileAsset.uri);
       const blob = await response.blob();
 
-      const storage = getStorage();
       const fileRef = storageRef(storage, `masterlists/${uid}/${classId}/${fileAsset.name}`);
       await uploadBytes(fileRef, blob);
 
       showAlert("Success", "Masterlist uploaded! Processing student data...");
-    } catch (error) {
-      console.error(error);
-      showAlert("Error", "Failed to upload masterlist.");
+    } catch (error: any) {
+      const rawServerResponse =
+        typeof error?.serverResponse === "string" ? error.serverResponse : "";
+      const statusMatch = rawServerResponse.match(/"code"\s*:\s*(\d{3})/);
+      const httpStatus = statusMatch?.[1] ? `HTTP ${statusMatch[1]}` : "";
+
+      console.error("Masterlist upload failed", {
+        code: error?.code,
+        message: error?.message,
+        serverResponse: error?.serverResponse,
+      });
+
+      const detail = [error?.code, httpStatus].filter(Boolean).join(" | ");
+      showAlert(
+        "Error",
+        detail
+          ? `Failed to upload masterlist (${detail}). Check console for details.`
+          : "Failed to upload masterlist.",
+      );
     } finally {
       setUploading(false);
     }
