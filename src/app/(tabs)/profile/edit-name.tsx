@@ -107,7 +107,7 @@ export default function EditProfile() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff", padding: 20 },
+  container: { flex: 1, backgroundColor: "#f4f7fb", padding: 20 },
   backButton: { position: 'absolute', top: 50, left: 20, zIndex: 10 },
   title: {
     fontSize: 20,

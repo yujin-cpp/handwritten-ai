@@ -28,6 +28,7 @@ export default function ResultScreen() {
   const total = getParam(params.total, "100");
   const { objectiveScoreLog, essayScoreLog, feedback } = getGradingResult();
   console.log(" objectiveScoreLog:", objectiveScoreLog);
+
   console.log(" essayScoreLog:", essayScoreLog);
   console.log("feedback:", feedback);
 
@@ -90,7 +91,7 @@ export default function ResultScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={["#00b679", "#009e60"]}
+        colors={["#0EA47A", "#017EBA"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={[styles.header, { paddingTop: insets.top + 20 }]}
@@ -375,7 +376,7 @@ export default function ResultScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8f9fa" },
+  container: { flex: 1, backgroundColor: "#f4f7fb" },
   header: {
     paddingHorizontal: 18,
     paddingTop: 45,

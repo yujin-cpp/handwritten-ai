@@ -6,9 +6,10 @@ import { get, ref, update } from "firebase/database";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Animated,
+  Platform,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,13 +17,136 @@ import { auth, db } from "../../../firebase/firebaseConfig";
 import { showAlert } from "../../../utils/alert";
 import { parseImageUrisParam } from "../../../utils/captureSubmission";
 
+const P = (v: string | string[] | undefined, fb = "") =>
+  Array.isArray(v) ? v[0] : (v ?? fb);
+
+const isHttpUrl = (value: unknown): value is string =>
+  typeof value === "string" && value.startsWith("http");
+
+const isPersistableProofUri = (value: unknown): value is string =>
+  typeof value === "string" && /^https?:\/\//i.test(value);
+
+const normalizeItemCount = (value: unknown) => {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+};
+
+type NormalizedExamSettings = {
+  totalScore: number;
+  professorInstructions: string;
+  objectiveTypes: {
+    multipleChoice: { enabled: boolean; items: number };
+    trueFalse: { enabled: boolean; items: number };
+    identification: { enabled: boolean; items: number };
+  };
+};
+
+const normalizeExamSettings = (activityData: any): NormalizedExamSettings => {
+  const savedSettings = activityData?.examSettings || {};
+  const savedTypes = savedSettings?.objectiveTypes || {};
+
+  const totalScore = Number(savedSettings?.totalScore);
+
+  return {
+    totalScore,
+    professorInstructions: String(
+      savedSettings?.professorInstructions || "",
+    ).trim(),
+    objectiveTypes: {
+      multipleChoice: {
+        enabled: Boolean(savedTypes?.multipleChoice?.enabled),
+        items: normalizeItemCount(savedTypes?.multipleChoice?.items),
+      },
+      trueFalse: {
+        enabled: Boolean(savedTypes?.trueFalse?.enabled),
+        items: normalizeItemCount(savedTypes?.trueFalse?.items),
+      },
+      identification: {
+        enabled: Boolean(savedTypes?.identification?.enabled),
+        items: normalizeItemCount(savedTypes?.identification?.items),
+      },
+    },
+  };
+};
+
+const buildContextPayload = (
+  activityData: any,
+  examSettings: NormalizedExamSettings,
+) => {
+  const contextParts: string[] = [];
+
+  const essayInstructions = activityData?.essayInstructions
+    ? (Object.values(activityData.essayInstructions) as any[])
+    : [];
+
+  const rubricTexts = essayInstructions
+    .map((instruction: any) => instruction?.fullInstructions)
+    .filter(
+      (text: unknown) => typeof text === "string" && text.trim().length > 0,
+    );
+
+  if (examSettings.professorInstructions) {
+    contextParts.push(
+      `=== PROFESSOR INSTRUCTIONS ===\n${examSettings.professorInstructions}`,
+    );
+  }
+
+  if (rubricTexts.length > 0) {
+    contextParts.push(
+      `=== RUBRICS / ESSAY INSTRUCTIONS ===\n${rubricTexts.join("\n\n")}`,
+    );
+  }
+
+  const objectiveSummaryLines = [
+    `Total exam score: ${examSettings.totalScore}`,
+    `Multiple Choice: ${examSettings.objectiveTypes.multipleChoice.enabled ? "ENABLED" : "DISABLED"} (${examSettings.objectiveTypes.multipleChoice.items} items)`,
+    `True/False: ${examSettings.objectiveTypes.trueFalse.enabled ? "ENABLED" : "DISABLED"} (${examSettings.objectiveTypes.trueFalse.items} items)`,
+    `Identification: ${examSettings.objectiveTypes.identification.enabled ? "ENABLED" : "DISABLED"} (${examSettings.objectiveTypes.identification.items} items)`,
+  ];
+  contextParts.push(
+    `=== OBJECTIVE EXAM SETTINGS ===\n${objectiveSummaryLines.join("\n")}`,
+  );
+
+  const objectiveFiles = activityData?.files
+    ? (Object.values(activityData.files) as any[])
+    : [];
+  const answerKeyUrls = objectiveFiles
+    .map((file: any) => file?.url)
+    .filter(isHttpUrl);
+
+  if (objectiveFiles.length > 0) {
+    const fileNames = objectiveFiles
+      .map(
+        (file: any, index: number) =>
+          `${index + 1}. ${file?.name || "Unnamed answer key"}`,
+      )
+      .join("\n");
+    contextParts.push(`=== OBJECTIVE ANSWER KEY FILES ===\n${fileNames}`);
+  }
+
+  const referenceUrls = [
+    ...essayInstructions.map((instruction: any) => instruction?.rubricsUrl),
+    ...essayInstructions.map((instruction: any) => instruction?.lessonUrl),
+  ].filter(isHttpUrl);
+
+  return {
+    context: contextParts.join("\n\n").trim(),
+    answerKeyUrls: Array.from(new Set(answerKeyUrls)),
+    referenceUrls: Array.from(new Set(referenceUrls)),
+  };
+};
+
 export default function ProcessingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
 
   const [status, setStatus] = useState("Initializing...");
-  const spinValue = React.useRef(new Animated.Value(0)).current;
+  const [backgroundCountdown, setBackgroundCountdown] = useState<number | null>(
+    null,
+  );
+  const mountedRef = React.useRef(true);
+  const backgroundModeRef = React.useRef(false);
 
   const { classId, activityId, studentId } = params;
   const imageUris = useMemo(
@@ -44,7 +168,7 @@ export default function ProcessingScreen() {
     if (!uid) return;
 
     try {
-      setStatus("Loading Activity...");
+      safeSetStatus("Loading Activity...");
       const activityRef = ref(
         db,
         `professors/${uid}/classes/${classId}/activities/${activityId}`,
@@ -54,68 +178,136 @@ export default function ProcessingScreen() {
       if (!snapshot.exists()) throw new Error("Activity not found.");
 
       const activityData = snapshot.val();
-      let context = "";
-      let answerKeyUrl: string | undefined;
-      let referencePdfUrl: string | undefined;
+      const examSettings = normalizeExamSettings(activityData);
 
-      // Get URLs from essayInstructions
-      if (activityData.essayInstructions) {
-        const instructions = Object.values(
-          activityData.essayInstructions,
-        ) as any[];
-
-        const rubricTexts = instructions
-          .map((i: any) => i.fullInstructions)
-          .filter(Boolean);
-        context = rubricTexts.join("\n\n");
-
-        // Rubric DOCX → answerKeyUrl
-        const rubricUrl = instructions
-          .map((i: any) => i.rubricsUrl)
-          .find((u: string) => u && u.startsWith("http"));
-        if (rubricUrl) answerKeyUrl = rubricUrl;
-
-        // Lesson reference → referencePdfUrl
-        const lessonUrl = instructions
-          .map((i: any) => i.lessonUrl)
-          .find((u: string) => u && u.startsWith("http"));
-        if (lessonUrl) referencePdfUrl = lessonUrl;
+      if (
+        !Number.isFinite(examSettings.totalScore) ||
+        examSettings.totalScore <= 0
+      ) {
+        throw new Error(
+          "Please set the Total Score in Activity > Objective (Q&A) before grading this test.",
+        );
       }
 
-      // Fallback to files (for Q&A type)
-      if (!answerKeyUrl && activityData.files) {
-        const files = Object.values(activityData.files) as any[];
-        answerKeyUrl = files[0]?.url;
-        if (!context)
-          context = files
-            .map((f: any) => `Answer key file: ${f.name}`)
-            .join("\n");
+      const { context, answerKeyUrls, referenceUrls } = buildContextPayload(
+        activityData,
+        examSettings,
+      );
+
+      const gradePath = `professors/${uid}/classes/${classId}/students/${studentId}/activities/${activityId}`;
+
+      const gradeSnapshot = await get(ref(db, gradePath));
+      const existingGrade = gradeSnapshot.exists() ? gradeSnapshot.val() : {};
+      const existingLatestImage = isPersistableProofUri(
+        existingGrade?.latestImage,
+      )
+        ? existingGrade.latestImage
+        : "";
+      const existingImages = Array.isArray(existingGrade?.images)
+        ? existingGrade.images.filter((img: unknown) =>
+            isPersistableProofUri(img),
+          )
+        : [];
+
+      let proofImageUrl = "";
+      if (imageUri) {
+        try {
+          proofImageUrl = await uploadProofImage(uid, imageUri);
+        } catch (error) {
+          console.warn(
+            "Proof upload failed; skipping local URI fallback:",
+            error,
+          );
+
+          // Never persist local/blob URIs; they break when reopening proof pages.
+          if (Platform.OS === "web" && imageUri.startsWith("blob:")) {
+            safeSetStatus(
+              "Proof upload is delayed. Grading continues while keeping previous proof images.",
+            );
+          }
+
+          proofImageUrl = "";
+        }
       }
 
-      console.log("📋 Context:", context);
-      console.log("📎 Answer key URL:", answerKeyUrl);
-      console.log("📎 Reference URL:", referencePdfUrl);
-      //analyzing
-      setStatus("Analyzing Handwriting...");
+      const mergedImages = Array.from(
+        new Set([...(proofImageUrl ? [proofImageUrl] : []), ...existingImages]),
+      );
+
+      await update(ref(db, gradePath), {
+        status: "grading",
+        total: examSettings.totalScore,
+        images: mergedImages,
+        latestImage: proofImageUrl || existingLatestImage || "",
+        gradingQueuedAt: new Date().toISOString(),
+      });
+
+      if (shouldAutoBackground && !backgroundModeRef.current) {
+        const nextStudentId = await resolveNextStudentId(uid);
+        for (let seconds = 5; seconds >= 1; seconds -= 1) {
+          if (backgroundModeRef.current) break;
+
+          setBackgroundCountdown(seconds);
+          safeSetStatus(
+            `Validation complete. Continuing in background in ${seconds}s...`,
+          );
+          await sleep(1000);
+        }
+
+        setBackgroundCountdown(null);
+        if (!backgroundModeRef.current) {
+          safeSetStatus("Opening next student while grading continues...");
+          continueInBackground(nextStudentId || undefined);
+        }
+      }
+
+      safeSetStatus("Analyzing Handwriting...");
       const { processWithAI } = await import("../../../services/AIService");
 
       const result = await processWithAI(
         imageUris,
         "grade",
         context,
-        answerKeyUrl,
-        referencePdfUrl,
+        answerKeyUrls,
+        referenceUrls,
+        {
+          totalScore: examSettings.totalScore,
+          professorInstructions: examSettings.professorInstructions,
+          objectiveTypes: examSettings.objectiveTypes,
+        },
       );
 
-      setStatus("Saving Results...");
-      const gradePath = `professors/${uid}/classes/${classId}/students/${studentId}/activities/${activityId}`;
+      if (!result || typeof result.score === "undefined") {
+        throw new Error("No grading result returned by AI server.");
+      }
+
+      safeSetStatus("Saving Results...");
+      const resolvedTotal =
+        Number.isFinite(Number(result.total)) && Number(result.total) > 0
+          ? Number(result.total)
+          : examSettings.totalScore;
+
+      const essayScoreLog =
+        result.essay_score_log || result.true_enough_reasoning || "";
+
       await update(ref(db, gradePath), {
         status: "graded",
         score: result.score,
+        total: resolvedTotal,
         feedback: result.feedback,
         confidence: result.confidence_score,
+        confidenceScore: result.confidence_score,
+        legibility: result.legibility,
         gradingType: result.grading_type,
+        verificationLog: essayScoreLog,
+        transcribedText: result.transcribed_text,
         transcription: result.transcribed_text,
+        essayScoreLog,
+        images: mergedImages,
+        latestImage: proofImageUrl || existingLatestImage || "",
+        professorInstructions: examSettings.professorInstructions,
+        objectiveTypes: examSettings.objectiveTypes,
+        totalConfiguredScore: examSettings.totalScore,
         gradedAt: new Date().toISOString(),
       });
 
@@ -129,24 +321,29 @@ export default function ProcessingScreen() {
         feedback: result.feedback ?? "",
       });
 
-      router.replace({
-        pathname: "/(tabs)/capture/result",
-        params: {
-          score: String(result.score),
-          total: String(result.total ?? 100),
-          feedback: result.feedback,
-          classId,
-          activityId,
-          studentId,
-        },
-      });
+      if (!backgroundModeRef.current && mountedRef.current) {
+        router.replace({
+          pathname: "/(tabs)/capture/result",
+          params: {
+            score: String(result.score),
+            total: String(resolvedTotal),
+            feedback: result.feedback,
+            classId,
+            activityId,
+            studentId,
+          },
+        });
+      }
     } catch (error: any) {
       console.error("Processing Error:", error);
-      showAlert(
-        "Processing Failed",
-        error.message || "Could not process the exam.",
-        () => router.back(),
-      );
+      setBackgroundCountdown(null);
+      if (!backgroundModeRef.current && mountedRef.current) {
+        showAlert(
+          "Processing Failed",
+          error.message || "Could not process the exam.",
+          () => router.back(),
+        );
+      }
     }
   }, [classId, activityId, studentId, imageUris, router]);
 
@@ -171,7 +368,7 @@ export default function ProcessingScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={["#00b679", "#009e60"]}
+        colors={["#0EA47A", "#017EBA"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={[styles.header, { paddingTop: insets.top + 20 }]}
@@ -194,6 +391,25 @@ export default function ProcessingScreen() {
         <Text style={styles.title}>Processing Exam</Text>
         <Text style={styles.subtitle}>{status}</Text>
 
+        {backgroundCountdown !== null ? (
+          <View style={styles.validationBox}>
+            <Feather name="check-circle" size={16} color="#00b679" />
+            <Text style={styles.validationText}>
+              Validation passed. Background processing starts in{" "}
+              {backgroundCountdown}s.
+            </Text>
+          </View>
+        ) : null}
+
+        <TouchableOpacity
+          style={styles.backgroundBtn}
+          onPress={handleContinueNow}
+          activeOpacity={0.85}
+        >
+          <Feather name="minimize-2" size={16} color="#00b679" />
+          <Text style={styles.backgroundBtnText}>Continue In Background</Text>
+        </TouchableOpacity>
+
         <View style={styles.infoBox}>
           <Feather
             name="clock"
@@ -204,7 +420,7 @@ export default function ProcessingScreen() {
           <Text style={styles.hint}>This usually takes 5-10 seconds.</Text>
         </View>
 
-        <View style={styles.tipBox}>
+        <View style={[styles.tipBox, { bottom: insets.bottom + 96 }]}>
           <Text style={styles.tipTitle}>Did you know?</Text>
           <Text style={styles.tipText}>
             Our AI model works best with clear, high-contrast photos of
@@ -217,7 +433,7 @@ export default function ProcessingScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8f9fa" },
+  container: { flex: 1, backgroundColor: "#f4f7fb" },
   header: {
     paddingHorizontal: 18,
     paddingTop: 45,
@@ -261,7 +477,45 @@ const styles = StyleSheet.create({
     color: "#00b679",
     fontSize: 16,
     fontWeight: "600",
-    marginBottom: 40,
+    marginBottom: 18,
+  },
+  backgroundBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#00b67933",
+    backgroundColor: "#ecfff7",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginBottom: 18,
+  },
+  backgroundBtnText: {
+    color: "#00b679",
+    fontSize: 13,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  validationBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f4fffa",
+    borderWidth: 1,
+    borderColor: "#00b67933",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 12,
+    gap: 8,
+  },
+  validationText: {
+    color: "#0a7c56",
+    fontSize: 13,
+    fontWeight: "600",
   },
   infoBox: {
     flexDirection: "row",

@@ -1,19 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { httpsCallable } from "firebase/functions"; // 1. Import callable
+import { httpsCallable } from "firebase/functions";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  Modal,
-  Platform,
-  SafeAreaView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Modal,
+    Platform,
+    SafeAreaView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { functions } from "../../firebase/firebaseConfig"; // 2. Import functions
 
@@ -47,8 +47,8 @@ export default function ForgotPass() {
     setLoading(true);
     try {
       // 3. Call the Cloud Function
-      const sendOtpFn = httpsCallable(functions, 'sendOtpEmail');
-      await sendOtpFn({ email });
+      const sendOtpFn = httpsCallable(functions, "sendOtpEmail");
+      await sendOtpFn({ email, type: "password_reset" });
 
       // 4. Success handling
       setModalContent({

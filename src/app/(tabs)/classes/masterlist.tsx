@@ -1,24 +1,21 @@
 import { Feather } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-
-import { ref as dbRef, onValue, set } from "firebase/database";
-
-import { auth, db } from "../../../firebase/firebaseConfig";
-
+import { ref as dbRef, onValue } from "firebase/database";
+import { ref as storageRef, uploadBytes } from "firebase/storage";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Modal,
-  Pressable,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Modal,
+    Pressable,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
+import { auth, db, storage } from "../../../firebase/firebaseConfig";
 import { showAlert } from "../../../utils/alert";
 
 import { AI_SERVER_URL } from "../../../constants/Config";
@@ -50,7 +47,7 @@ export default function Masterlist() {
     );
     const unsubscribe = onValue(studentsRef, (snapshot) => {
       setHasFile(snapshot.exists() && snapshot.hasChildren());
-    });
+    */
 
     return () => unsubscribe();
   }, [classId]);
@@ -60,7 +57,7 @@ export default function Masterlist() {
       const result = await DocumentPicker.getDocumentAsync({
         type: "application/pdf",
         copyToCacheDirectory: true,
-      });
+      */
 
       if (result.canceled) return;
       const fileAsset = result.assets[0];
@@ -70,66 +67,38 @@ export default function Masterlist() {
       const uid = auth.currentUser?.uid;
       if (!uid) throw new Error("User not authenticated");
 
-      // STEP 1: Upload to Firebase Storage via server
-      console.log("☁️ Uploading via server:", fileAsset.name);
-      const uploadForm = new FormData();
-      uploadForm.append("file", {
-        uri: fileAsset.uri,
-        name: fileAsset.name,
-        type: "application/pdf",
-      } as any);
-      uploadForm.append("uid", uid);
-      uploadForm.append("classId", classId);
+      // uploading via REST API...
+      
 
-      const uploadResponse = await fetch(`${AI_SERVER_URL}/upload-masterlist`, {
-        method: "POST",
-        body: uploadForm,
-      });
-      const uploadJson = await uploadResponse.json();
-      if (!uploadJson.success) throw new Error(uploadJson.error);
-      console.log("✅ Upload success:", uploadJson.path);
+      const fileRef = storageRef(storage, `masterlists/${uid}/${classId}/${fileAsset.name}`);
+      const aiResponse = await fetch('https://handwritten-ai-server-1093390926434.us-central1.run.app/upload-masterlist', { method: 'POST', body: formData });
+      const data = await aiResponse.json();
+      if (!aiResponse.ok || !data.success) throw new Error(data.error || 'Failed to upload to AI Server');
+      /*
+        // Ensure the storage trigger sees a PDF content type.
+        
+      */
 
-      // STEP 2: Extract students via AI
-      console.log("🤖 Extracting students from PDF...");
-      const aiForm = new FormData();
-      aiForm.append("file", {
-        uri: fileAsset.uri,
-        name: fileAsset.name,
-        type: "application/pdf",
-      } as any);
-
-      const aiResponse = await fetch(`${AI_SERVER_URL}/masterlist`, {
-        method: "POST",
-        body: aiForm,
-      });
-      const aiJson = await aiResponse.json();
-      if (!aiJson.success) throw new Error("AI extraction failed");
-
-      const students: { name: string; id: string }[] = aiJson.data;
-      console.log(`👥 Extracted ${students.length} students`);
-
-      // STEP 3: Save students to Firebase Database
-      for (const student of students) {
-        if (!student.name) continue;
-        const studentId = student.id || student.name.replace(/\s+/g, "_");
-        const studentRef = dbRef(
-          db,
-          `professors/${uid}/classes/${classId}/students/${studentId}`,
-        );
-        await set(studentRef, {
-          name: student.name,
-          studentId: studentId,
-          addedAt: new Date().toISOString(),
-        });
-      }
-      console.log("✅ Students saved to database");
-      showAlert(
-        "Success",
-        `Masterlist uploaded! ${students.length} students added.`,
-      );
+      showAlert("Success", "Masterlist uploaded! Processing student data...");
     } catch (error: any) {
-      console.error("❌ Upload error:", error.message);
-      showAlert("Error", "Failed to upload masterlist.");
+      const rawServerResponse =
+        typeof error?.serverResponse === "string" ? error.serverResponse : "";
+      const statusMatch = rawServerResponse.match(/"code"\s*:\s*(\d{3})/);
+      const httpStatus = statusMatch?.[1] ? `HTTP ${statusMatch[1]}` : "";
+
+      console.error("Masterlist upload failed", {
+        code: error?.code,
+        message: error?.message,
+        serverResponse: error?.serverResponse,
+      */
+
+      const detail = [error?.code, httpStatus].filter(Boolean).join(" | ");
+      showAlert(
+        "Error",
+        detail
+          ? `Failed to upload masterlist (${detail}). Check console for details.`
+          : "Failed to upload masterlist.",
+      );
     } finally {
       setUploading(false);
     }
@@ -297,23 +266,9 @@ export default function Masterlist() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8f9fa" },
-  header: {
-    paddingHorizontal: 20,
-    paddingBottom: 25,
-    flexDirection: "row",
-    alignItems: "center",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "flex-start",
-  },
+  container: { flex: 1, backgroundColor: "#f4f7fb" },
+  header: { paddingHorizontal: 20, paddingBottom: 25, flexDirection: "row", alignItems: "center", elevation: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
+  backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
   headerInfo: { flex: 1, paddingHorizontal: 10 },
   headerSmall: {
     color: "#fff",
@@ -460,36 +415,10 @@ const styles = StyleSheet.create({
   },
   modalTitle: { fontSize: 20, fontWeight: "800", color: "#111" },
   modalBody: {},
-  formatCard: {
-    flexDirection: "row",
-    gap: 12,
-    backgroundColor: "#fff7ed",
-    padding: 15,
-    borderRadius: 16,
-    marginBottom: 20,
-    alignItems: "center",
-  },
-  formatText: {
-    flex: 1,
-    fontSize: 13,
-    color: "#c2410c",
-    fontWeight: "600",
-    lineHeight: 18,
-  },
-  selectBtn: {
-    paddingVertical: 18,
-    borderRadius: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-  },
-  selectBtnText: { color: "#fff", fontWeight: "800", fontSize: 16 },
-  modalHelp: {
-    textAlign: "center",
-    fontSize: 12,
-    color: "#bbb",
-    marginTop: 20,
-    fontStyle: "italic",
-  },
-});
+  formatCard: { flexDirection: 'row', gap: 12, backgroundColor: '#fff7ed', padding: 15, borderRadius: 16, marginBottom: 20, alignItems: 'center' },
+  formatText: { flex: 1, fontSize: 13, color: '#c2410c', fontWeight: '600', lineHeight: 18 },
+  selectBtn: { paddingVertical: 18, borderRadius: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  selectBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  modalHelp: { textAlign: 'center', fontSize: 12, color: '#bbb', marginTop: 20, fontStyle: 'italic' },
+*/
+

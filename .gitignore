@@ -9,6 +9,7 @@ firebase-debug.log
 
 # Environment variables
 .env
+.env*.local
 .DS_Store
 
 # Expo
@@ -38,9 +39,6 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
-.env*.local
-
 # typescript
 *.tsbuildinfo
 
@@ -52,3 +50,9 @@ app-example
 
 # email html folder
 /email html tests
+
+# AI server deploy logs
+/ai-server-deploy/deploy_out.txt
+
+# Firebase functions deploy logs
+/firebase-functions-deploy.log

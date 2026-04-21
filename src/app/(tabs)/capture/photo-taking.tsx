@@ -17,10 +17,41 @@ import {
   serializeImageUrisParam,
 } from "../../../utils/captureSubmission";
 
+const P = (v: string | string[] | undefined, fb = "") =>
+  Array.isArray(v) ? v[0] : (v ?? fb);
+
 export default function PhotoTaking() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+
+  const returnTo = P(params.returnTo);
+  const classId = P(params.classId);
+  const activityId = P(params.activityId);
+  const studentId = P(params.studentId);
+  const originName = P(params.name, "Class");
+  const originSection = P(params.section, "Section");
+  const originColor = P(params.color, "#00b679");
+  const originTitle = P(params.title, "Activity");
+
+  const goBackToOrigin = () => {
+    if (returnTo === "quiz-score" && classId && activityId) {
+      router.replace({
+        pathname: "/(tabs)/classes/quiz-score",
+        params: {
+          classId,
+          activityId,
+          name: originName,
+          section: originSection,
+          color: originColor,
+          title: originTitle,
+        },
+      });
+      return;
+    }
+
+    router.back();
+  };
 
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
@@ -44,9 +75,14 @@ export default function PhotoTaking() {
       pathname: "/(tabs)/capture/image-captured",
       params: {
         imageUris: serializeImageUrisParam([...existingImageUris, uri]),
-        classId: params.classId,
-        activityId: params.activityId,
-        studentId: params.studentId,
+        classId,
+        activityId,
+        studentId,
+        returnTo,
+        name: originName,
+        section: originSection,
+        color: originColor,
+        title: originTitle,
       },
     });
   };
@@ -134,7 +170,7 @@ export default function PhotoTaking() {
     <View style={styles.container}>
       {/* Header Over Camera */}
       <View style={[styles.header, { paddingTop: insets.top + 15 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={goBackToOrigin} style={styles.backBtn}>
           <Feather name="x" size={26} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Position Paper</Text>

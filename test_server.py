@@ -1,13 +1,8 @@
 import requests
 
-url = "https://handwritten-ai-server-9183885350.us-central1.run.app/process_exam"
-
-files = {
-    'file': ('test.jpg', open('test.jpg', 'rb'), 'image/jpeg')
-}
+url = "https://handwritten-ai-server-1093390926434.us-central1.run.app/transcribe"
 data = {
-    'mode': 'grade',
-    'rubric': 'Grade based on general correctness.'
+    'mode': 'grade'
 }
 
 # Create a dummy image

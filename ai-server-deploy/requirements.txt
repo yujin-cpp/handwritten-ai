@@ -6,3 +6,6 @@ opencv-python-headless
 numpy
 pillow
 gunicorn
+python-dotenv
+python-docx
+requests

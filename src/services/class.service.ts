@@ -179,6 +179,16 @@ export const addActivity = async (
   );
   await push(activitiesRef, {
     title,
+    examSettings: {
+      totalScore: 0,
+      professorInstructions: "",
+      objectiveTypes: {
+        multipleChoice: { enabled: true, items: 0 },
+        trueFalse: { enabled: false, items: 0 },
+        identification: { enabled: false, items: 0 },
+      },
+      updatedAt: new Date().toISOString(),
+    },
     createdAt: new Date().toISOString(),
   });
 };

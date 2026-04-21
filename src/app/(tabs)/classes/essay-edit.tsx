@@ -2,6 +2,11 @@ import { Feather } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { push, ref, set } from "firebase/database";
+import {
+  getDownloadURL,
+  ref as storageRef,
+  uploadBytes,
+} from "firebase/storage";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -14,9 +19,8 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { auth, db } from "../../../firebase/firebaseConfig";
+import { auth, db, storage } from "../../../firebase/firebaseConfig";
 import { showAlert } from "../../../utils/alert";
-import { uploadFileViaServer } from "../../../utils/uploadFile";
 
 const P = (v: string | string[] | undefined, fb = "") =>
   Array.isArray(v) ? v[0] : (v ?? fb);
@@ -82,15 +86,14 @@ export default function EssayEdit() {
   ): Promise<string> {
     if (!asset) return "No file attached";
     try {
-      const storagePath = `${basePath}/${asset.name}`;
-      return await uploadFileViaServer(
-        asset.uri,
-        asset.name,
-        storagePath,
-        asset.mimeType || "application/pdf",
-      );
-    } catch (e: any) {
-      console.error("File upload failed", e.message);
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+      const fileRef = storageRef(storage, path + "/" + asset.name);
+
+      await uploadBytes(fileRef, blob);
+      return await getDownloadURL(fileRef);
+    } catch (e) {
+      console.error("File upload failed", e);
       return "Upload Failed";
     }
   }
@@ -289,7 +292,7 @@ export default function EssayEdit() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8f9fa" },
+  container: { flex: 1, backgroundColor: "#f4f7fb" },
   header: {
     paddingHorizontal: 20,
     paddingBottom: 25,

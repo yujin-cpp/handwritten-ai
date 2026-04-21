@@ -3,23 +3,27 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { onValue, ref, update } from "firebase/database";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Modal,
-  Pressable,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Modal,
+    Pressable,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { PageMotion } from "../../../components/PageMotion";
 import { auth, db } from "../../../firebase/firebaseConfig";
 import { showAlert } from "../../../utils/alert";
 
 const P = (v: string | string[] | undefined, fb = "") =>
   Array.isArray(v) ? v[0] : (v ?? fb);
+
+const isRemoteProofUrl = (value: unknown): value is string =>
+  typeof value === "string" && /^https?:\/\//i.test(value);
 
 type Student = {
   id: string;
@@ -96,12 +100,22 @@ export default function QuizScore() {
       const parsedStudents: Student[] = Object.keys(data).map((key) => {
         const studentData = data[key];
         const activityRecord = studentData.activities?.[activityId];
+        const imageList = Array.isArray(activityRecord?.images)
+          ? activityRecord.images.filter((img: unknown) =>
+              isRemoteProofUrl(img),
+            )
+          : isRemoteProofUrl(activityRecord?.latestImage)
+            ? [activityRecord.latestImage]
+            : isRemoteProofUrl(activityRecord?.imageUri)
+              ? [activityRecord.imageUri]
+              : [];
+
         return {
           id: key,
           name: studentData.name,
           score: activityRecord?.score,
           total: activityRecord?.total,
-          images: activityRecord?.images || [],
+          images: imageList,
           status: activityRecord?.status || "pending",
           confidenceScore: activityRecord?.confidenceScore,
           legibility: activityRecord?.legibility,
@@ -157,7 +171,16 @@ export default function QuizScore() {
   function openCameraFor(student: Student) {
     router.push({
       pathname: "/(tabs)/capture",
-      params: { classId, activityId, studentId: student.id },
+      params: {
+        classId,
+        activityId,
+        studentId: student.id,
+        returnTo: "quiz-score",
+        name: className,
+        section,
+        color: headerColor,
+        title: activityTitle,
+      },
     });
     setMissingOpen(false);
   }
@@ -170,7 +193,7 @@ export default function QuizScore() {
     router.push({
       pathname: "/(tabs)/classes/uploaded-image",
       params: {
-        images: JSON.stringify(student.images),
+        images: encodeURIComponent(JSON.stringify(student.images)),
         student: student.name,
         section: section,
         title: activityTitle,
@@ -263,7 +286,7 @@ export default function QuizScore() {
         showsVerticalScrollIndicator={false}
       >
         {/* Statistics Widgets */}
-        <View style={styles.statsGrid}>
+        <PageMotion delay={40} style={styles.statsGrid}>
           <View style={styles.statWidget}>
             <View style={[styles.statIconBox, { backgroundColor: "#f0fdf4" }]}>
               <Feather name="award" size={20} color="#00b679" />
@@ -279,50 +302,52 @@ export default function QuizScore() {
             <Text style={styles.statVal}>{missingCount}</Text>
             <Text style={styles.statLab}>Pending Grades</Text>
           </View>
-        </View>
+        </PageMotion>
 
-        <TouchableOpacity
-          style={[styles.progressCard, { borderColor: headerColor + "30" }]}
-          onPress={() => setMissingOpen(true)}
-          disabled={missingStudents.length === 0}
-        >
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressTitle}>Grading Progress</Text>
-            <Text style={styles.progressVal}>
-              {completed} / {totalStudents}
-            </Text>
-          </View>
-          <View style={styles.progressBarBg}>
-            <View
-              style={[
-                styles.progressBarFill,
-                {
-                  backgroundColor: headerColor,
-                  width: totalStudents
-                    ? `${(completed / totalStudents) * 100}%`
-                    : "0%",
-                },
-              ]}
-            />
-          </View>
-          {missingStudents.length > 0 && (
-            <View style={styles.missingBadge}>
-              <Feather name="alert-circle" size={14} color="#ff3b30" />
-              <Text style={styles.missingBadgeText}>
-                {missingStudents.length} students missing scores
+        <PageMotion delay={95}>
+          <TouchableOpacity
+            style={[styles.progressCard, { borderColor: headerColor + "30" }]}
+            onPress={() => setMissingOpen(true)}
+            disabled={missingStudents.length === 0}
+          >
+            <View style={styles.progressHeader}>
+              <Text style={styles.progressTitle}>Grading Progress</Text>
+              <Text style={styles.progressVal}>
+                {completed} / {totalStudents}
               </Text>
-              <Feather
-                name="chevron-right"
-                size={14}
-                color="#ccc"
-                style={{ marginLeft: "auto" }}
+            </View>
+            <View style={styles.progressBarBg}>
+              <View
+                style={[
+                  styles.progressBarFill,
+                  {
+                    backgroundColor: headerColor,
+                    width: totalStudents
+                      ? `${(completed / totalStudents) * 100}%`
+                      : "0%",
+                  },
+                ]}
               />
             </View>
-          )}
-        </TouchableOpacity>
+            {missingStudents.length > 0 && (
+              <View style={styles.missingBadge}>
+                <Feather name="alert-circle" size={14} color="#ff3b30" />
+                <Text style={styles.missingBadgeText}>
+                  {missingStudents.length} students missing scores
+                </Text>
+                <Feather
+                  name="chevron-right"
+                  size={14}
+                  color="#ccc"
+                  style={{ marginLeft: "auto" }}
+                />
+              </View>
+            )}
+          </TouchableOpacity>
+        </PageMotion>
 
         {/* Toolbar */}
-        <View style={styles.toolbar}>
+        <PageMotion delay={130} style={styles.toolbar}>
           <View style={styles.searchContainer}>
             <Feather name="search" size={16} color="#999" />
             <TextInput
@@ -341,10 +366,10 @@ export default function QuizScore() {
             <Feather name="sliders" size={16} color="#444" />
             <Text style={styles.filterText}>{sortLabel}</Text>
           </TouchableOpacity>
-        </View>
+        </PageMotion>
 
         {/* Student List Table */}
-        <View style={styles.listSection}>
+        <PageMotion delay={180} style={styles.listSection}>
           <View style={styles.listHeader}>
             <Text style={[styles.headCell, { flex: 2 }]}>STUDENT NAME</Text>
             <Text style={[styles.headCell, { flex: 1, textAlign: "center" }]}>
@@ -452,7 +477,7 @@ export default function QuizScore() {
               </View>
             ))
           )}
-        </View>
+        </PageMotion>
       </ScrollView>
 
       {/* Sort Modal */}
@@ -736,7 +761,7 @@ export default function QuizScore() {
                 <View style={styles.aiStatItem}>
                   <Text style={styles.aiStatLabel}>SCORE</Text>
                   <Text style={[styles.aiStatValue, { color: headerColor }]}>
-                    {aiTarget?.score}/{aiTarget?.total || 100}
+                    {aiTarget?.score}/{aiTarget?.total ?? "N/A"}
                   </Text>
                 </View>
               </View>
@@ -786,7 +811,7 @@ export default function QuizScore() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8f9fa" },
+  container: { flex: 1, backgroundColor: "#f4f7fb" },
   header: {
     paddingHorizontal: 20,
     paddingBottom: 20,
@@ -823,12 +848,14 @@ const styles = StyleSheet.create({
   statWidget: {
     flex: 1,
     backgroundColor: "#fff",
-    borderRadius: 24,
+    borderRadius: 20,
     padding: 20,
-    elevation: 1,
+    elevation: 2,
     shadowColor: "#000",
-    shadowOpacity: 0.03,
-    shadowRadius: 10,
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: "#edf1f6",
   },
   statIconBox: {
     width: 40,
@@ -843,13 +870,13 @@ const styles = StyleSheet.create({
 
   progressCard: {
     backgroundColor: "#fff",
-    borderRadius: 24,
+    borderRadius: 20,
     padding: 20,
     borderWidth: 1,
-    elevation: 1,
+    elevation: 2,
     shadowColor: "#000",
-    shadowOpacity: 0.03,
-    shadowRadius: 10,
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
     marginBottom: 25,
   },
   progressHeader: {
@@ -909,12 +936,14 @@ const styles = StyleSheet.create({
 
   listSection: {
     backgroundColor: "#fff",
-    borderRadius: 24,
+    borderRadius: 20,
     overflow: "hidden",
-    elevation: 1,
+    elevation: 2,
     shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 15,
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    borderWidth: 1,
+    borderColor: "#edf1f6",
   },
   listHeader: {
     flexDirection: "row",

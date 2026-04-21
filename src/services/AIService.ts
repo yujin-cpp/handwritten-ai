@@ -1,67 +1,167 @@
-import { getDownloadURL, ref } from "firebase/storage";
+import { Platform } from "react-native";
 import { AI_SERVER_URL } from "../constants/Config";
-import { storage } from "../firebase/firebaseConfig";
 
-const resolveDownloadUrl = async (pathOrUrl: string): Promise<string> => {
-  if (!pathOrUrl) return "";
-  if (pathOrUrl.startsWith("https://")) return pathOrUrl; // already a signed URL
+export type ObjectiveSectionConfig = {
+  enabled: boolean;
+  items: number;
+};
+
+export type ExamSettingsPayload = {
+  totalScore?: number;
+  professorInstructions?: string;
+  objectiveTypes?: {
+    multipleChoice?: ObjectiveSectionConfig;
+    trueFalse?: ObjectiveSectionConfig;
+    identification?: ObjectiveSectionConfig;
+  };
+};
+
+const parseJsonSafe = async (response: Response) => {
   try {
-    return await getDownloadURL(ref(storage, pathOrUrl));
+    return await response.json();
   } catch {
-    console.warn("⚠️ Could not resolve download URL for:", pathOrUrl);
-    return "";
+    return null;
   }
 };
 
+const sleep = (ms: number) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+const fetchWith429Retry = async (
+  requestFactory: () => Promise<Response>,
+  label: string,
+  maxRetries = 2,
+) => {
+  let attempt = 0;
+
+  while (true) {
+    const response = await requestFactory();
+    if (response.status !== 429 || attempt >= maxRetries) {
+      return response;
+    }
+
+    const retryAfterSeconds = Number(response.headers.get("Retry-After"));
+    const retryDelayMs =
+      Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+        ? retryAfterSeconds * 1000
+        : 1200 * Math.pow(2, attempt + 1);
+
+    console.warn(
+      `[AIService] ${label} hit rate limit (429). Retrying in ${retryDelayMs}ms...`,
+    );
+
+    await sleep(retryDelayMs);
+    attempt += 1;
+  }
+};
+
+const resolveMimeTypeFromUri = (uri: string) => {
+  const cleanUri = uri.split("?")[0];
+  const match = /\.([a-zA-Z0-9]+)$/.exec(cleanUri);
+  const ext = match?.[1]?.toLowerCase();
+
+  if (ext === "png") return "image/png";
+  if (ext === "webp") return "image/webp";
+  if (ext === "heic") return "image/heic";
+  return "image/jpeg";
+};
+
+const resolveFileNameFromUri = (uri: string) => {
+  const cleanUri = uri.split("?")[0];
+  const name = cleanUri.split("/").pop() || "upload.jpg";
+  return name.includes(".") ? name : `${name}.jpg`;
+};
+
+const appendImageToFormData = async (formData: FormData, imageUri: string) => {
+  // On web, always convert URI -> Blob -> File so multipart sends a real file part.
+  if (Platform.OS === "web") {
+    const blobResponse = await fetch(imageUri);
+    if (!blobResponse.ok) {
+      throw new Error("Unable to read selected image for upload.");
+    }
+
+    const blob = await blobResponse.blob();
+    const fallbackType = resolveMimeTypeFromUri(imageUri);
+    const type = blob.type || fallbackType;
+    const filename = resolveFileNameFromUri(imageUri);
+    const file = new File([blob], filename, { type });
+    formData.append("file", file);
+    return;
+  }
+
+  // Native path (Android/iOS)
+  const filename = resolveFileNameFromUri(imageUri);
+  const type = resolveMimeTypeFromUri(imageUri);
+  formData.append("file", { uri: imageUri, name: filename, type } as any);
+};
+/**
+ * Sends an image to the Python AI server for grading.
+ * @param imageUri - The local URI of the image (from ImagePicker).
+ * @param mode - 'grade' or 'masterlist'.
+ * @param context - The Rubric or Answer Key.
+ */
 export const processWithAI = async (
   imageUris: string | string[],
   mode: "grade" | "masterlist",
   context: string,
-  answerKeyUrl?: string,
-  referencePdfUrl?: string,
+  answerKeyUrlsOrUrl?: string[] | string,
+  referenceUrlsOrUrl?: string[] | string,
+  examSettings?: ExamSettingsPayload,
 ) => {
   try {
+    const answerKeyUrls = Array.isArray(answerKeyUrlsOrUrl)
+      ? answerKeyUrlsOrUrl.filter(Boolean)
+      : answerKeyUrlsOrUrl
+        ? [answerKeyUrlsOrUrl]
+        : [];
+
+    const referenceUrls = Array.isArray(referenceUrlsOrUrl)
+      ? referenceUrlsOrUrl.filter(Boolean)
+      : referenceUrlsOrUrl
+        ? [referenceUrlsOrUrl]
+        : [];
+
     const formData = new FormData();
     const uris = Array.isArray(imageUris) ? imageUris : [imageUris];
     console.log(`🖼️ Processing ${uris.length} image(s)`);
 
-    uris.forEach((uri, index) => {
-      console.log(`📎 Image ${index + 1}:`, uri.slice(0, 60));
-      const isPdf = uri.toLowerCase().includes(".pdf");
-      formData.append("file", {
-        uri,
-        name: isPdf ? `upload-${index + 1}.pdf` : `upload-${index + 1}.jpg`,
-        type: isPdf ? "application/pdf" : "image/jpeg",
-      } as any);
-    });
+    await appendImageToFormData(formData, imageUri);
 
     formData.append("mode", mode);
     formData.append("rubric", context);
-    if (answerKeyUrl) formData.append("answer_key_url", answerKeyUrl);
-    if (referencePdfUrl) formData.append("reference_url", referencePdfUrl);
+    // Include answer key/reference URL metadata to preserve context across services.
+    if (answerKeyUrls.length > 0) {
+      formData.append("answer_key_urls", JSON.stringify(answerKeyUrls));
+    }
+    if (referenceUrls.length > 0) {
+      formData.append("reference_urls", JSON.stringify(referenceUrls));
+    }
 
     // STEP 1: TRANSCRIBE
     console.log("Step 1: Transcribing...");
-    let transcribeResponse: Response;
-    try {
-      transcribeResponse = await fetch(`${AI_SERVER_URL}/transcribe`, {
-        method: "POST",
-        body: formData,
-      });
-      console.log("📡 Transcribe status:", transcribeResponse.status);
-    } catch (error: any) {
-      throw new Error(
-        `Cannot reach AI server at ${AI_SERVER_URL}. Check your IP. Error: ${error.message}`,
-      );
+    const transcribeResponse = await fetchWith429Retry(
+      () =>
+        fetch(`${AI_SERVER_URL}/transcribe`, {
+          method: "POST",
+          body: formData,
+        }),
+      "transcribe",
+    );
+    const transcribeResult = await parseJsonSafe(transcribeResponse);
+
+    if (!transcribeResponse.ok) {
+      const message =
+        transcribeResult?.message ||
+        transcribeResult?.error ||
+        `Transcribe request failed (${transcribeResponse.status})`;
+      throw new Error(message);
     }
 
-    const rawText = await transcribeResponse.text();
-    console.log("📄 Transcribe response:", rawText.slice(0, 300));
-    const transcribeResult = JSON.parse(rawText);
-
-    if (!transcribeResult.success)
-      throw new Error(`Transcription failed: ${rawText.slice(0, 200)}`);
-
+    if (!transcribeResult?.success) {
+      throw new Error(transcribeResult?.message || "Transcription failed");
+    }
     const { transcribed_text, legibility, confidence_score } =
       transcribeResult.data;
 
@@ -75,26 +175,45 @@ export const processWithAI = async (
 
     // STEP 2: GRADE
     console.log("Step 2: Grading...");
-    const gradeResponse = await fetch(`${AI_SERVER_URL}/grade`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        transcribed_text,
-        context,
-        mode,
-        answer_key_url: resolvedAnswerKeyUrl, // ✅ signed URL, not storage path
-        reference_url: resolvedReferenceUrl, // ✅ signed URL, not storage path
-      }),
-    });
+    const gradeResponse = await fetchWith429Retry(
+      () =>
+        fetch(`${AI_SERVER_URL}/grade`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            transcribed_text,
+            context,
+            mode,
+            answer_key_url: answerKeyUrls[0] ?? "",
+            reference_url: referenceUrls[0] ?? "",
+            answer_key_urls: answerKeyUrls,
+            reference_urls: referenceUrls,
+            exam_settings: examSettings ?? {},
+          }),
+        }),
+      "grade",
+    );
 
-    const gradeRawText = await gradeResponse.text();
-    console.log("📡 Grade status:", gradeResponse.status);
-    const gradeResult = JSON.parse(gradeRawText);
+    const gradeResult = await parseJsonSafe(gradeResponse);
 
-    if (!gradeResult.success)
-      throw new Error(`Grading failed: ${gradeRawText.slice(0, 200)}`);
+    if (!gradeResponse.ok) {
+      if (gradeResponse.status === 422) {
+        const malformedMessage =
+          gradeResult?.message ||
+          "AI returned an invalid grading format. Please retry the scan.";
+        throw new Error(malformedMessage);
+      }
 
-    console.log("🎉 Score:", gradeResult.data?.score);
+      const message =
+        gradeResult?.message ||
+        gradeResult?.error ||
+        `Grading request failed (${gradeResponse.status})`;
+      throw new Error(message);
+    }
+
+    if (!gradeResult?.success) {
+      throw new Error(gradeResult?.message || "Grading failed");
+    }
 
     return {
       ...gradeResult.data,
@@ -102,8 +221,11 @@ export const processWithAI = async (
       legibility,
       confidence_score: gradeResult.data.confidence_score ?? confidence_score,
     };
-  } catch (error: any) {
-    console.log("❌ AI Service Error:", error.message);
-    throw error;
+  } catch (error) {
+    console.log("❌ AI Service Error:", error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error("AI service request failed");
   }
 };

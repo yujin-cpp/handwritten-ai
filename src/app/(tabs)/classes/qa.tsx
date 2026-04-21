@@ -1,21 +1,22 @@
 import { Feather } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { onValue, push, ref, set } from "firebase/database";
+import { onValue, push, ref, set, update } from "firebase/database";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
   StatusBar,
   StyleSheet,
+  Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AI_SERVER_URL } from "../../../constants/Config";
 import { auth, db } from "../../../firebase/firebaseConfig";
-import { uploadFileViaServer } from "../../../utils/uploadFile";
-
 import { showAlert } from "../../../utils/alert";
 
 const P = (v: string | string[] | undefined, fb = "") =>
@@ -26,6 +27,30 @@ type QAFile = {
   name: string;
   url: string;
   type?: string;
+};
+
+type ExamTypeKey = "multipleChoice" | "trueFalse" | "identification";
+
+type ObjectiveTypeState = Record<
+  ExamTypeKey,
+  { enabled: boolean; items: string }
+>;
+
+const createDefaultObjectiveTypes = (): ObjectiveTypeState => ({
+  multipleChoice: { enabled: true, items: "0" },
+  trueFalse: { enabled: false, items: "0" },
+  identification: { enabled: false, items: "0" },
+});
+
+const parsePositiveInt = (value: string) => {
+  const parsed = Number.parseInt(value.trim(), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+};
+
+const examTypeLabelMap: Record<ExamTypeKey, string> = {
+  multipleChoice: "Multiple Choice",
+  trueFalse: "True/False",
+  identification: "Identification",
 };
 
 export default function QAList() {
@@ -43,36 +68,147 @@ export default function QAList() {
   const [qaFiles, setQaFiles] = useState<QAFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [totalScore, setTotalScore] = useState("");
+  const [professorInstructions, setProfessorInstructions] = useState("");
+  const [objectiveTypes, setObjectiveTypes] = useState<ObjectiveTypeState>(
+    createDefaultObjectiveTypes(),
+  );
 
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid || !classId || !activityId) return;
 
-    const filesRef = ref(
+    const activityRef = ref(
       db,
-      `professors/${uid}/classes/${classId}/activities/${activityId}/files`,
+      `professors/${uid}/classes/${classId}/activities/${activityId}`,
     );
-    const unsubscribe = onValue(filesRef, (snapshot) => {
+    const unsubscribe = onValue(activityRef, (snapshot) => {
       if (!snapshot.exists()) {
         setQaFiles([]);
+        setTotalScore("");
+        setProfessorInstructions("");
+        setObjectiveTypes(createDefaultObjectiveTypes());
         setLoading(false);
         return;
       }
 
-      const data = snapshot.val();
-      const loadedFiles = Object.keys(data).map((key) => ({
+      const activityData = snapshot.val() || {};
+      const filesData = activityData.files || {};
+      const loadedFiles = Object.keys(filesData).map((key) => ({
         id: key,
-        name: data[key].name,
-        url: data[key].url,
-        type: data[key].type,
+        name: filesData[key].name,
+        url: filesData[key].url,
+        type: filesData[key].type,
       }));
 
+      const savedSettings = activityData.examSettings || {};
+      const savedTypes = savedSettings.objectiveTypes || {};
+
       setQaFiles(loadedFiles);
+      setTotalScore(
+        savedSettings.totalScore ? String(savedSettings.totalScore) : "",
+      );
+      setProfessorInstructions(savedSettings.professorInstructions || "");
+      setObjectiveTypes({
+        multipleChoice: {
+          enabled: savedTypes.multipleChoice?.enabled ?? true,
+          items: String(savedTypes.multipleChoice?.items ?? 0),
+        },
+        trueFalse: {
+          enabled: savedTypes.trueFalse?.enabled ?? false,
+          items: String(savedTypes.trueFalse?.items ?? 0),
+        },
+        identification: {
+          enabled: savedTypes.identification?.enabled ?? false,
+          items: String(savedTypes.identification?.items ?? 0),
+        },
+      });
       setLoading(false);
     });
 
     return () => unsubscribe();
   }, [classId, activityId]);
+
+  const saveExamSettings = async () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || !classId || !activityId) {
+      showAlert("Error", "Missing class/activity information.");
+      return;
+    }
+
+    const parsedTotalScore = parsePositiveInt(totalScore);
+    if (parsedTotalScore <= 0) {
+      showAlert(
+        "Missing Total Score",
+        "Please enter the total exam score for this test.",
+      );
+      return;
+    }
+
+    const normalizedTypes = {
+      multipleChoice: {
+        enabled: objectiveTypes.multipleChoice.enabled,
+        items: parsePositiveInt(objectiveTypes.multipleChoice.items),
+      },
+      trueFalse: {
+        enabled: objectiveTypes.trueFalse.enabled,
+        items: parsePositiveInt(objectiveTypes.trueFalse.items),
+      },
+      identification: {
+        enabled: objectiveTypes.identification.enabled,
+        items: parsePositiveInt(objectiveTypes.identification.items),
+      },
+    };
+
+    const enabledTypes = (Object.keys(normalizedTypes) as ExamTypeKey[]).filter(
+      (key) => normalizedTypes[key].enabled,
+    );
+
+    if (enabledTypes.length === 0) {
+      showAlert(
+        "No Exam Type Enabled",
+        "Enable at least one objective exam type.",
+      );
+      return;
+    }
+
+    const invalidType = enabledTypes.find(
+      (key) => normalizedTypes[key].items <= 0,
+    );
+    if (invalidType) {
+      showAlert(
+        "Missing Item Count",
+        `Set the number of items for ${examTypeLabelMap[invalidType]}.`,
+      );
+      return;
+    }
+
+    try {
+      setSavingSettings(true);
+      await update(
+        ref(
+          db,
+          `professors/${uid}/classes/${classId}/activities/${activityId}`,
+        ),
+        {
+          examSettings: {
+            totalScore: parsedTotalScore,
+            professorInstructions: professorInstructions.trim(),
+            objectiveTypes: normalizedTypes,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      );
+
+      showAlert("Saved", "Exam settings updated successfully.");
+    } catch (error) {
+      console.error("Settings save error", error);
+      showAlert("Error", "Failed to save exam settings.");
+    } finally {
+      setSavingSettings(false);
+    }
+  };
 
   const handleUpload = async () => {
     try {
@@ -94,23 +230,57 @@ export default function QAList() {
       const uid = auth.currentUser?.uid;
       if (!uid) throw new Error("User not logged in");
 
-      const storagePath = `qa_uploads/${uid}/${classId}/${activityId}/${asset.name}`;
-      const downloadUrl = await uploadFileViaServer(
-        asset.uri,
-        asset.name,
-        storagePath,
-        asset.mimeType || "application/pdf",
-      );
+      const answerKeyFor = {
+        multipleChoice: {
+          enabled: objectiveTypes.multipleChoice.enabled,
+          items: parsePositiveInt(objectiveTypes.multipleChoice.items),
+        },
+        trueFalse: {
+          enabled: objectiveTypes.trueFalse.enabled,
+          items: parsePositiveInt(objectiveTypes.trueFalse.items),
+        },
+        identification: {
+          enabled: objectiveTypes.identification.enabled,
+          items: parsePositiveInt(objectiveTypes.identification.items),
+        },
+      };
 
-      const dbReference = ref(
+      const formData = new FormData();
+      formData.append("file", {
+        uri: asset.uri,
+        name: asset.name,
+        type: asset.mimeType || "application/pdf",
+      } as any);
+      formData.append(
+        "path",
+        `qa_uploads/${uid}/${classId}/${activityId}/${asset.name}`,
+      );
+      formData.append("contentType", asset.mimeType || "application/pdf");
+
+      const response = await fetch(`${AI_SERVER_URL}/upload-file`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to upload file to AI Server");
+      }
+
+      const downloadUrl = data.url;
+
+      const dbRef = ref(
         db,
         `professors/${uid}/classes/${classId}/activities/${activityId}/files`,
       );
-      const newFileRef = push(dbReference);
+      const newFileRef = push(dbRef);
+
       await set(newFileRef, {
         name: asset.name,
         url: downloadUrl,
         type: asset.mimeType || "application/pdf",
+        gradingRole: "objective-answer-key",
+        answerKeyFor,
         uploadedAt: new Date().toISOString(),
       });
 
@@ -156,6 +326,176 @@ export default function QAList() {
             Upload PDF, Word, or Image files containing the correct answers. Our
             AI will use these to grade objective portions.
           </Text>
+        </View>
+
+        <View style={styles.settingsCard}>
+          <Text style={styles.settingsTitle}>Exam Blueprint</Text>
+          <Text style={styles.settingsDesc}>
+            Set the total score and active objective sections before grading.
+            Uploaded keys are treated as the official correct answers for
+            enabled sections.
+          </Text>
+
+          <Text style={styles.inputLabel}>Total Score (required)</Text>
+          <TextInput
+            value={totalScore}
+            onChangeText={setTotalScore}
+            keyboardType="number-pad"
+            placeholder="e.g. 75"
+            placeholderTextColor="#bbb"
+            style={styles.input}
+          />
+
+          <Text style={styles.inputLabel}>
+            Professor Instructions for AI (optional)
+          </Text>
+          <TextInput
+            value={professorInstructions}
+            onChangeText={setProfessorInstructions}
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+            placeholder="Add constraints or grading priorities for this exam..."
+            placeholderTextColor="#bbb"
+            style={[styles.input, styles.multilineInput]}
+          />
+
+          <Text style={styles.inputLabel}>Objective Sections</Text>
+
+          <View style={styles.typeRow}>
+            <View style={styles.typeLabelWrap}>
+              <Text style={styles.typeTitle}>Multiple Choice</Text>
+              <Text style={styles.typeSub}>Auto-grade this section</Text>
+            </View>
+            <Switch
+              value={objectiveTypes.multipleChoice.enabled}
+              onValueChange={(enabled) =>
+                setObjectiveTypes((prev) => ({
+                  ...prev,
+                  multipleChoice: { ...prev.multipleChoice, enabled },
+                }))
+              }
+              trackColor={{ false: "#ddd", true: headerColor + "66" }}
+              thumbColor={
+                objectiveTypes.multipleChoice.enabled ? headerColor : "#fff"
+              }
+            />
+          </View>
+          <TextInput
+            value={objectiveTypes.multipleChoice.items}
+            onChangeText={(items) =>
+              setObjectiveTypes((prev) => ({
+                ...prev,
+                multipleChoice: { ...prev.multipleChoice, items },
+              }))
+            }
+            editable={objectiveTypes.multipleChoice.enabled}
+            keyboardType="number-pad"
+            placeholder="Number of items"
+            placeholderTextColor="#bbb"
+            style={[
+              styles.itemsInput,
+              !objectiveTypes.multipleChoice.enabled && styles.inputDisabled,
+            ]}
+          />
+
+          <View style={styles.typeRow}>
+            <View style={styles.typeLabelWrap}>
+              <Text style={styles.typeTitle}>True/False</Text>
+              <Text style={styles.typeSub}>Auto-grade this section</Text>
+            </View>
+            <Switch
+              value={objectiveTypes.trueFalse.enabled}
+              onValueChange={(enabled) =>
+                setObjectiveTypes((prev) => ({
+                  ...prev,
+                  trueFalse: { ...prev.trueFalse, enabled },
+                }))
+              }
+              trackColor={{ false: "#ddd", true: headerColor + "66" }}
+              thumbColor={
+                objectiveTypes.trueFalse.enabled ? headerColor : "#fff"
+              }
+            />
+          </View>
+          <TextInput
+            value={objectiveTypes.trueFalse.items}
+            onChangeText={(items) =>
+              setObjectiveTypes((prev) => ({
+                ...prev,
+                trueFalse: { ...prev.trueFalse, items },
+              }))
+            }
+            editable={objectiveTypes.trueFalse.enabled}
+            keyboardType="number-pad"
+            placeholder="Number of items"
+            placeholderTextColor="#bbb"
+            style={[
+              styles.itemsInput,
+              !objectiveTypes.trueFalse.enabled && styles.inputDisabled,
+            ]}
+          />
+
+          <View style={styles.typeRow}>
+            <View style={styles.typeLabelWrap}>
+              <Text style={styles.typeTitle}>Identification</Text>
+              <Text style={styles.typeSub}>Auto-grade this section</Text>
+            </View>
+            <Switch
+              value={objectiveTypes.identification.enabled}
+              onValueChange={(enabled) =>
+                setObjectiveTypes((prev) => ({
+                  ...prev,
+                  identification: { ...prev.identification, enabled },
+                }))
+              }
+              trackColor={{ false: "#ddd", true: headerColor + "66" }}
+              thumbColor={
+                objectiveTypes.identification.enabled ? headerColor : "#fff"
+              }
+            />
+          </View>
+          <TextInput
+            value={objectiveTypes.identification.items}
+            onChangeText={(items) =>
+              setObjectiveTypes((prev) => ({
+                ...prev,
+                identification: { ...prev.identification, items },
+              }))
+            }
+            editable={objectiveTypes.identification.enabled}
+            keyboardType="number-pad"
+            placeholder="Number of items"
+            placeholderTextColor="#bbb"
+            style={[
+              styles.itemsInput,
+              !objectiveTypes.identification.enabled && styles.inputDisabled,
+            ]}
+          />
+
+          <TouchableOpacity
+            style={[
+              styles.saveSettingsBtn,
+              { backgroundColor: headerColor },
+              savingSettings && { opacity: 0.75 },
+            ]}
+            onPress={saveExamSettings}
+            disabled={savingSettings}
+          >
+            {savingSettings ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Feather
+                  name="save"
+                  size={16}
+                  color="#fff"
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={styles.saveSettingsText}>Save Exam Settings</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
 
         <TouchableOpacity
@@ -264,7 +604,7 @@ export default function QAList() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8f9fa" },
+  container: { flex: 1, backgroundColor: "#f4f7fb" },
   header: {
     paddingHorizontal: 20,
     paddingBottom: 25,
@@ -307,6 +647,84 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionDesc: { fontSize: 15, color: "#666", lineHeight: 22 },
+
+  settingsCard: {
+    backgroundColor: "#fff",
+    borderRadius: 22,
+    padding: 18,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+  },
+  settingsTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#111",
+    marginBottom: 6,
+  },
+  settingsDesc: {
+    fontSize: 13,
+    color: "#777",
+    lineHeight: 20,
+    marginBottom: 14,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#999",
+    textTransform: "uppercase",
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  input: {
+    backgroundColor: "#fafafa",
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: "#222",
+  },
+  multilineInput: {
+    minHeight: 90,
+  },
+  typeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 10,
+  },
+  typeLabelWrap: { flex: 1, paddingRight: 10 },
+  typeTitle: { fontSize: 15, fontWeight: "700", color: "#222" },
+  typeSub: { fontSize: 12, color: "#999", marginTop: 2 },
+  itemsInput: {
+    backgroundColor: "#fafafa",
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: "#222",
+    marginTop: 8,
+  },
+  inputDisabled: {
+    backgroundColor: "#f3f3f3",
+    color: "#bbb",
+  },
+  saveSettingsBtn: {
+    marginTop: 16,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+  },
+  saveSettingsText: { color: "#fff", fontWeight: "800", fontSize: 14 },
 
   uploadCard: {
     backgroundColor: "#fff",
@@ -374,7 +792,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: "#f4f7fb",
     justifyContent: "center",
     alignItems: "center",
   },

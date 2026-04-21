@@ -2,15 +2,13 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useMemo } from "react";
-import {
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { PageMotion } from "../../../components/PageMotion";
+import {
+  UI_COLORS,
+  UI_GRADIENT_PRIMARY,
+} from "../../../constants/DesignTokens";
 import { showAlert } from "../../../utils/alert";
 import {
   parseImageUrisParam,
@@ -34,6 +32,31 @@ export default function ImageCaptured() {
     () => parseImageUrisParam(params.imageUris ?? params.imageUri),
     [params.imageUri, params.imageUris],
   );
+  const imageUri = P(params.imageUri);
+  const returnTo = P(params.returnTo);
+  const originName = P(params.name, "Class");
+  const originSection = P(params.section, "Section");
+  const originColor = P(params.color, "#00b679");
+  const originTitle = P(params.title, "Activity");
+
+  const goBackToOrigin = () => {
+    if (returnTo === "quiz-score" && classId && activityId) {
+      router.replace({
+        pathname: "/(tabs)/classes/quiz-score",
+        params: {
+          classId,
+          activityId,
+          name: originName,
+          section: originSection,
+          color: originColor,
+          title: originTitle,
+        },
+      });
+      return;
+    }
+
+    router.back();
+  };
 
   const handleRetake = () => router.back();
 
@@ -54,19 +77,15 @@ export default function ImageCaptured() {
       showAlert("Error", "No image data found.");
       return;
     }
-    if (
-      !classId ||
-      !activityId ||
-      !studentId ||
-      classId === "0" ||
-      activityId === "0"
-    ) {
+
+    if (!classId || !activityId || !studentId) {
       showAlert(
         "Missing Data",
         "Class or Student information was lost. Please go back and select again.",
       );
       return;
     }
+
     router.push({
       pathname: "/(tabs)/capture/processing",
       params: {
@@ -74,6 +93,12 @@ export default function ImageCaptured() {
         classId,
         activityId,
         studentId,
+        background: "1",
+        returnTo,
+        name: originName,
+        section: originSection,
+        color: originColor,
+        title: originTitle,
       },
     });
   };
@@ -84,7 +109,7 @@ export default function ImageCaptured() {
     <View style={styles.container}>
       {/* Header */}
       <LinearGradient
-        colors={["#00b679", "#009e60"]}
+        colors={UI_GRADIENT_PRIMARY}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={[
@@ -92,53 +117,50 @@ export default function ImageCaptured() {
           { paddingTop: insets.top + 16, height: headerHeight },
         ]}
       >
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={goBackToOrigin} style={styles.backBtn}>
           <Feather name="x" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Review Scan</Text>
         <View style={{ width: 32 }} />
       </LinearGradient>
 
-      {/* Content */}
-      <View style={[styles.content, { paddingTop: headerHeight + 12 }]}>
-        <ScrollView
-          contentContainerStyle={styles.imageList}
-          showsVerticalScrollIndicator={false}
-        >
-          {imageUris.length > 0 ? (
-            imageUris.map((uri, index) => (
-              <View key={`${uri}-${index}`} style={styles.imageCard}>
-                <Text style={styles.pageLabel}>Page {index + 1}</Text>
-                <Image
-                  source={{ uri }}
-                  style={styles.image}
-                  resizeMode="contain"
-                />
+      <PageMotion delay={40} style={styles.content}>
+        <View style={styles.imageCardContainer}>
+          <Text style={styles.imageLabel}>Captured Sheet</Text>
+          <View style={styles.imageCard}>
+            {imageUri ? (
+              <Image
+                source={{ uri: imageUri }}
+                style={styles.image}
+                resizeMode="contain"
+              />
+            ) : (
+              <View style={styles.noImage}>
+                <Feather name="image" size={40} color="#333" />
+                <Text style={{ color: "#666", marginTop: 10 }}>
+                  No Image Captured
+                </Text>
               </View>
-            ))
-          ) : (
-            <View style={styles.noImage}>
-              <Feather name="image" size={40} color="#555" />
-              <Text style={styles.noImageText}>No Image Captured</Text>
-            </View>
-          )}
-        </ScrollView>
+            )}
+          </View>
+        </View>
 
         <View style={styles.hintContainer}>
           <Feather
             name="info"
             size={16}
-            color="#00b679"
+            color={UI_COLORS.primary}
             style={{ marginRight: 8 }}
           />
           <Text style={styles.hint}>
-            Check if all handwriting is clear and readable.
+            Tap Continue to start AI validation. If clear, grading runs in
+            background and the app auto-moves to the next student after 5
+            seconds.
           </Text>
         </View>
-      </View>
+      </PageMotion>
 
-      {/* Footer */}
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 104 }]}>
         <TouchableOpacity style={styles.retakeBtn} onPress={handleRetake}>
           <Text style={styles.retakeText}>Retake</Text>
         </TouchableOpacity>
@@ -151,7 +173,7 @@ export default function ImageCaptured() {
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.confirmBtn} onPress={handleProceed}>
-          <Text style={styles.confirmText}>Proceed</Text>
+          <Text style={styles.confirmText}>Continue</Text>
           <Feather
             name="arrow-right"
             size={18}
@@ -165,28 +187,17 @@ export default function ImageCaptured() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
+  container: { flex: 1, backgroundColor: UI_COLORS.appBackground },
 
   // ── Header ─────────────────────────────────────────────
   header: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
     paddingHorizontal: 18,
-    paddingBottom: 16,
+    paddingTop: 18,
+    paddingBottom: 20,
     flexDirection: "row",
     alignItems: "center",
-    // No backgroundColor here — LinearGradient handles it
   },
-  backBtn: {
-    padding: 4,
-    width: 32,
-  },
+  backBtn: { padding: 4, width: 30 },
   headerTitle: {
     flex: 1,
     color: "#fff",
@@ -198,29 +209,44 @@ const styles = StyleSheet.create({
   // ── Content ────────────────────────────────────────────
   content: {
     flex: 1,
-    paddingHorizontal: 15,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  imageCard: {
+    backgroundColor: UI_COLORS.appSurface,
+    borderRadius: 22,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#e8edf4",
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  imageLabel: {
+    color: "#52606d",
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 10,
   },
   imageList: {
     flexGrow: 1,
     paddingBottom: 12,
   },
-  imageCard: {
+  imageCardContainer: {
     width: "100%",
-    borderRadius: 24,
+    height: 500,
+    maxHeight: "72%",
+    borderRadius: 18,
     overflow: "hidden",
-    backgroundColor: "#111",
+    backgroundColor: "#0b1220",
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: "#222",
-    marginBottom: 16,
-  },
-  pageLabel: {
-    color: "#e2e8f0",
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    padding: 14,
-    backgroundColor: "#0f172a",
+    borderColor: "#1c283a",
   },
   image: {
     width: "100%",
@@ -240,18 +266,21 @@ const styles = StyleSheet.create({
   },
   hintContainer: {
     flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 12,
-    backgroundColor: "rgba(0,182,121,0.1)",
+    alignItems: "flex-start",
+    marginTop: 18,
+    backgroundColor: "#ecfff7",
+    borderWidth: 1,
+    borderColor: "#d5f5e7",
     paddingHorizontal: 15,
     paddingVertical: 10,
     borderRadius: 12,
   },
   hint: {
-    color: "#00b679",
+    flex: 1,
+    color: "#0d7b5a",
     fontSize: 13,
-    fontWeight: "500",
-    flexShrink: 1,
+    fontWeight: "600",
+    lineHeight: 18,
   },
 
   // ── Footer ─────────────────────────────────────────────
@@ -259,24 +288,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingTop: 16,
-    backgroundColor: "#000",
-    borderTopWidth: 1,
-    borderTopColor: "#1a1a1a",
+    paddingTop: 14,
+    backgroundColor: UI_COLORS.appBackground,
   },
   retakeBtn: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: "#333",
+    borderColor: "#cad3df",
     alignItems: "center",
-    justifyContent: "center",
-    marginRight: 8,
+    marginRight: 10,
+    backgroundColor: "#fff",
   },
   retakeText: {
-    color: "#fff",
-    fontSize: 15,
+    color: "#4b5563",
+    fontSize: 16,
     fontWeight: "600",
   },
   addPageBtn: {
@@ -297,13 +324,18 @@ const styles = StyleSheet.create({
   },
   confirmBtn: {
     flex: 1.5,
-    backgroundColor: "#00b679",
-    paddingVertical: 14,
+    backgroundColor: UI_COLORS.primary,
+    paddingVertical: 16,
     borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: 8,
+    marginLeft: 10,
+    elevation: 3,
+    shadowColor: UI_COLORS.primary,
+    shadowOpacity: 0.22,
+    shadowRadius: 9,
+    shadowOffset: { width: 0, height: 4 },
   },
   confirmText: {
     color: "#fff",
