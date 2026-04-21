@@ -66,7 +66,10 @@ export default function Masterlist() {
       const blob = await response.blob();
 
       const fileRef = storageRef(storage, `masterlists/${uid}/${classId}/${fileAsset.name}`);
-      await uploadBytes(fileRef, blob);
+      await uploadBytes(fileRef, blob, {
+        // Ensure the storage trigger sees a PDF content type.
+        contentType: fileAsset.mimeType || "application/pdf",
+      });
 
       showAlert("Success", "Masterlist uploaded! Processing student data...");
     } catch (error: any) {

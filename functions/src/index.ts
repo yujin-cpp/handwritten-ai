@@ -22,11 +22,12 @@ export const processMasterlist = onObjectFinalized(
     const contentType = event.data.contentType;
 
     // Validate file
-    if (
-      !filePath ||
-      !filePath.startsWith("masterlists/") ||
-      !contentType?.startsWith("application/pdf")
-    ) {
+    const isMasterlistPdf =
+      Boolean(filePath?.startsWith("masterlists/")) &&
+      (contentType?.startsWith("application/pdf") ||
+        filePath?.toLowerCase().endsWith(".pdf"));
+
+    if (!isMasterlistPdf) {
       logger.info("File is not a masterlist PDF.");
       return;
     }
