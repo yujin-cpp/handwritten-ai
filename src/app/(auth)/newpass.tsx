@@ -1,21 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { httpsCallable } from "firebase/functions";
+import { httpsCallableFromURL } from "firebase/functions";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  Modal,
-  Platform,
-  SafeAreaView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Modal,
+    Platform,
+    SafeAreaView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { functions } from "../../firebase/firebaseConfig";
+import { CALLABLE_URLS } from "../../firebase/functionEndpoints";
 
 export default function NewPassword() {
   const router = useRouter();
@@ -68,7 +69,7 @@ export default function NewPassword() {
     setLoading(true);
     try {
       // 1. Call the Cloud Function
-      const resetFn = httpsCallable(functions, 'resetPasswordWithOtp');
+      const resetFn = httpsCallableFromURL(functions, CALLABLE_URLS.resetPasswordWithOtp);
       
       // 2. Pass all 3 required fields
       await resetFn({ 

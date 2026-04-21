@@ -3,7 +3,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 import { sendEmailVerification, signOut, updateProfile } from "firebase/auth";
 import { get, ref } from "firebase/database";
-import { httpsCallable } from "firebase/functions";
+import { httpsCallableFromURL } from "firebase/functions";
 import {
     getDownloadURL,
     ref as storageRef,
@@ -23,6 +23,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth, db, functions, storage } from "../../../firebase/firebaseConfig";
+import { CALLABLE_URLS } from "../../../firebase/functionEndpoints";
 import { showAlert, showConfirm } from "../../../utils/alert";
 
 // Default placeholder if no photo exists
@@ -174,7 +175,7 @@ export default function ProfileSettings() {
     setVerifying(true);
 
     try {
-      const sendOtpFn = httpsCallable(functions, "sendOtpEmail");
+      const sendOtpFn = httpsCallableFromURL(functions, CALLABLE_URLS.sendOtpEmail);
       await sendOtpFn({
         email: user.personalEmail,
         type: "personal_verification",
@@ -200,7 +201,7 @@ export default function ProfileSettings() {
     setOtpLoading(true);
 
     try {
-      const verifyFn = httpsCallable(functions, "verifyPersonalEmail");
+      const verifyFn = httpsCallableFromURL(functions, CALLABLE_URLS.verifyPersonalEmail);
       await verifyFn({
         email: user.personalEmail,
         otp: otpInput,
