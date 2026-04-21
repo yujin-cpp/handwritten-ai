@@ -10,13 +10,13 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
-import { PageMotion } from "../../../components/PageMotion";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { PageMotion } from "../../../components/PageMotion";
 import { auth, db } from "../../../firebase/firebaseConfig";
 import { listenToClasses } from "../../../services/class.service";
-import { showAlert, showConfirm } from "../../../utils/alert";
+import { showAlert } from "../../../utils/alert";
 
 type ClassItem = {
   id: string;
@@ -44,14 +44,16 @@ export default function ClassesScreen() {
 
     const unsubscribe = listenToClasses(uid, (data) => {
       if (data) {
-        const classArray = Object.entries(data).map(([key, val]: any, index) => ({
-          id: key,
-          name: val.className,
-          section: val.section,
-          color: val.themeColor || COLORS[index % COLORS.length],
-          academicYear: val.semester,
-          studentCount: val.students ? Object.keys(val.students).length : 0
-        }));
+        const classArray = Object.entries(data).map(
+          ([key, val]: any, index) => ({
+            id: key,
+            name: val.className,
+            section: val.section,
+            color: val.themeColor || COLORS[index % COLORS.length],
+            academicYear: val.semester,
+            studentCount: val.students ? Object.keys(val.students).length : 0,
+          }),
+        );
         setItems(classArray);
       } else {
         setItems([]);
@@ -63,8 +65,12 @@ export default function ClassesScreen() {
 
   const anySelected = selected.size > 0;
   const selectedNames = useMemo(
-    () => items.filter(i => selected.has(i.id)).map(i => i.name).join(", "),
-    [selected, items]
+    () =>
+      items
+        .filter((i) => selected.has(i.id))
+        .map((i) => i.name)
+        .join(", "),
+    [selected, items],
   );
 
   function toggleEdit() {
@@ -73,7 +79,7 @@ export default function ClassesScreen() {
   }
 
   function toggleSelect(id: string) {
-    setSelected(prev => {
+    setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
@@ -95,7 +101,7 @@ export default function ClassesScreen() {
 
     try {
       const deletePromises = Array.from(selected).map((classId) =>
-        remove(ref(db, `professors/${uid}/classes/${classId}`))
+        remove(ref(db, `professors/${uid}/classes/${classId}`)),
       );
 
       await Promise.all(deletePromises);
@@ -104,7 +110,6 @@ export default function ClassesScreen() {
       setSelected(new Set());
       setEditMode(false);
       setConfirmModalVisible(false);
-
     } catch (error) {
       console.error(error);
       showAlert("Error", "Failed to delete selected classes.");
@@ -112,7 +117,7 @@ export default function ClassesScreen() {
   }
 
   return (
-    <ScrollView 
+    <ScrollView
       style={styles.page}
       contentContainerStyle={{ paddingBottom: 150 }}
       showsVerticalScrollIndicator={false}
@@ -129,14 +134,21 @@ export default function ClassesScreen() {
             <View style={styles.heroHeaderRow}>
               <Text style={styles.welcomeText}>Your Classes</Text>
               {items.length > 0 && (
-                <TouchableOpacity onPress={toggleEdit} style={[styles.pill, editMode && styles.pillActive]}>
-                  <Text style={[styles.pillText, editMode && { color: "#fff" }]}>
+                <TouchableOpacity
+                  onPress={toggleEdit}
+                  style={[styles.pill, editMode && styles.pillActive]}
+                >
+                  <Text
+                    style={[styles.pillText, editMode && { color: "#fff" }]}
+                  >
                     {editMode ? "Cancel" : "Edit"}
                   </Text>
                 </TouchableOpacity>
               )}
             </View>
-            <Text style={styles.welcomeSub}>Manage your class lists and sections.</Text>
+            <Text style={styles.welcomeSub}>
+              Manage your class lists and sections.
+            </Text>
           </LinearGradient>
         </PageMotion>
 
@@ -148,7 +160,9 @@ export default function ClassesScreen() {
                 <Feather name="book" size={20} color="#0EA47A" />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.analyticsTitle}>{items.length} Total Classes</Text>
+                <Text style={styles.analyticsTitle}>
+                  {items.length} Total Classes
+                </Text>
               </View>
             </View>
           </View>
@@ -157,49 +171,83 @@ export default function ClassesScreen() {
 
       {/* Content */}
       <View style={styles.content}>
-
         {items.length === 0 && !editMode && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No classes found.</Text>
-            <Text style={styles.emptySub}>Tap "Add Class" to get started!</Text>
+            <Text style={styles.emptySub}>Tap Add Class to get started!</Text>
           </View>
         )}
 
         <View style={styles.classGrid}>
-          {items.map(item => (
+          {items.map((item) => (
             <Pressable
               key={item.id}
               style={[
-                styles.classCard, 
+                styles.classCard,
                 { backgroundColor: item.color },
-                editMode && selected.has(item.id) && { opacity: 0.8, borderWidth: 2, borderColor: '#fff' }
+                editMode &&
+                  selected.has(item.id) && {
+                    opacity: 0.8,
+                    borderWidth: 2,
+                    borderColor: "#fff",
+                  },
               ]}
               onPress={() =>
                 editMode
                   ? toggleSelect(item.id)
                   : router.push({
-                    pathname: "/(tabs)/classes/classinformation",
-                    params: {
-                      classId: item.id,
-                      name: item.name,
-                      section: item.section,
-                      color: item.color,
-                      academicYear: item.academicYear
-                    },
-                  })
+                      pathname: "/(tabs)/classes/classinformation",
+                      params: {
+                        classId: item.id,
+                        name: item.name,
+                        section: item.section,
+                        color: item.color,
+                        academicYear: item.academicYear,
+                      },
+                    })
               }
             >
-              <Text style={styles.className} numberOfLines={1}>{item.name}</Text>
-              <Text style={styles.classSection} numberOfLines={1}>{item.section}</Text>
-              
-              <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center' }}>
-                <Feather name="users" size={14} color="rgba(255,255,255,0.9)" style={{ marginRight: 6 }} />
-                <Text style={{ color: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: "500" }}>{item.studentCount} Students</Text>
+              <Text style={styles.className} numberOfLines={1}>
+                {item.name}
+              </Text>
+              <Text style={styles.classSection} numberOfLines={1}>
+                {item.section}
+              </Text>
+
+              <View
+                style={{
+                  marginTop: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                }}
+              >
+                <Feather
+                  name="users"
+                  size={14}
+                  color="rgba(255,255,255,0.9)"
+                  style={{ marginRight: 6 }}
+                />
+                <Text
+                  style={{
+                    color: "rgba(255,255,255,0.9)",
+                    fontSize: 13,
+                    fontWeight: "500",
+                  }}
+                >
+                  {item.studentCount} Students
+                </Text>
               </View>
 
               {editMode && (
-                <View style={[styles.selectCircle, selected.has(item.id) && styles.selectCircleActive]}>
-                  {selected.has(item.id) && <Feather name="check" size={12} color="#0EA47A" />}
+                <View
+                  style={[
+                    styles.selectCircle,
+                    selected.has(item.id) && styles.selectCircleActive,
+                  ]}
+                >
+                  {selected.has(item.id) && (
+                    <Feather name="check" size={12} color="#0EA47A" />
+                  )}
                 </View>
               )}
             </Pressable>
@@ -210,7 +258,12 @@ export default function ClassesScreen() {
               style={[styles.classCard, styles.addClassGridCard]}
               onPress={() => router.push("/(tabs)/classes/addclass")}
             >
-              <Feather name="plus" size={32} color="#0EA47A" style={{ marginBottom: 6 }} />
+              <Feather
+                name="plus"
+                size={32}
+                color="#0EA47A"
+                style={{ marginBottom: 6 }}
+              />
               <Text style={styles.addGridText}>Add Class</Text>
             </TouchableOpacity>
           )}
@@ -223,13 +276,15 @@ export default function ClassesScreen() {
             onPress={handleDeleteRequest}
           >
             <Text style={styles.deleteBarText}>
-              Delete {selected.size} selected {selected.size === 1 ? 'class' : 'classes'}
+              Delete {selected.size} selected{" "}
+              {selected.size === 1 ? "class" : "classes"}
             </Text>
           </TouchableOpacity>
         )}
       </View>
 
       {/* Custom Delete Confirmation Modal */}
+
       <Modal
         visible={confirmModalVisible}
         transparent
@@ -240,7 +295,11 @@ export default function ClassesScreen() {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Delete Class?</Text>
             <Text style={styles.modalSub}>
-              Are you sure you want to delete {selected.size === 1 ? selectedNames : `${selected.size} selected classes`}? This action cannot be undone.
+              Are you sure you want to delete{" "}
+              {selected.size === 1
+                ? selectedNames
+                : `${selected.size} selected classes`}
+              ? This action cannot be undone.
             </Text>
             <View style={styles.modalActions}>
               <TouchableOpacity
@@ -259,7 +318,6 @@ export default function ClassesScreen() {
           </View>
         </View>
       </Modal>
-
     </ScrollView>
   );
 }
@@ -270,7 +328,7 @@ const styles = StyleSheet.create({
   heroCard: {
     borderRadius: 24,
     padding: 24,
-    paddingBottom: 45, 
+    paddingBottom: 45,
     shadowColor: "#0079B2",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
@@ -336,9 +394,9 @@ const styles = StyleSheet.create({
 
   content: { paddingHorizontal: 20, marginTop: 30 },
 
-  emptyState: { alignItems: 'center', marginTop: 30, marginBottom: 20 },
-  emptyText: { fontSize: 18, color: '#333', fontWeight: '600' },
-  emptySub: { fontSize: 14, color: '#888', marginTop: 4 },
+  emptyState: { alignItems: "center", marginTop: 30, marginBottom: 20 },
+  emptyText: { fontSize: 18, color: "#333", fontWeight: "600" },
+  emptySub: { fontSize: 14, color: "#888", marginTop: 4 },
 
   classGrid: {
     flexDirection: "row",
@@ -355,7 +413,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 10,
     elevation: 2,
-    position: 'relative',
+    position: "relative",
   },
   className: {
     color: "#fff",
@@ -369,7 +427,7 @@ const styles = StyleSheet.create({
   },
 
   selectCircle: {
-    position: 'absolute',
+    position: "absolute",
     top: 10,
     right: 10,
     width: 22,
@@ -379,18 +437,18 @@ const styles = StyleSheet.create({
     borderColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    backgroundColor: "rgba(0,0,0,0.2)",
   },
   selectCircleActive: {
-    backgroundColor: '#fff',
-    borderColor: '#fff',
+    backgroundColor: "#fff",
+    borderColor: "#fff",
   },
 
   addClassGridCard: {
-    backgroundColor: 'rgba(14, 164, 122, 0.05)',
+    backgroundColor: "rgba(14, 164, 122, 0.05)",
     borderWidth: 2,
-    borderColor: 'rgba(14, 164, 122, 0.4)',
-    borderStyle: 'dashed',
+    borderColor: "rgba(14, 164, 122, 0.4)",
+    borderStyle: "dashed",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -413,4 +471,57 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   deleteBarText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 24,
+    marginHorizontal: 32,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 8,
+    color: "#1a1a1a",
+  },
+  modalSub: {
+    fontSize: 14,
+    color: "#555",
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  modalCancel: {
+    backgroundColor: "#f0f0f0",
+  },
+  modalCancelText: {
+    color: "#333",
+    fontWeight: "600",
+  },
+  modalDelete: {
+    backgroundColor: "#e53935",
+  },
+  modalDeleteText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
 });

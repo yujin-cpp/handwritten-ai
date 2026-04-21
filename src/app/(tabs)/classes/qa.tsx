@@ -2,27 +2,29 @@ import { Feather } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { onValue, push, ref, set, update } from "firebase/database";
+
 import {
-    getDownloadURL,
-    ref as storageRef,
-    uploadBytes,
+  getDownloadURL,
+  ref as storageRef,
+  uploadBytes,
 } from "firebase/storage";
+import { auth, db, storage } from "../../../firebase/firebaseConfig";
+
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { auth, db, storage } from "../../../firebase/firebaseConfig";
+
 import { showAlert } from "../../../utils/alert";
-import { AI_SERVER_URL } from "../../../constants/Config";
 
 const P = (v: string | string[] | undefined, fb = "") =>
   Array.isArray(v) ? v[0] : (v ?? fb);
@@ -250,37 +252,24 @@ export default function QAList() {
         },
       };
 
-      const formData = new FormData();
-      formData.append("file", {
-        uri: asset.uri,
-        name: asset.name,
-        type: asset.mimeType || "application/pdf",
-      } as any);
-      formData.append("path", `qa_uploads/${uid}/${classId}/${activityId}/${asset.name}`);
-      formData.append("contentType", asset.mimeType || "application/pdf");
+      const fileResponse = await fetch(asset.uri);
+      const blob = await fileResponse.blob();
+      const contentType = asset.mimeType || "application/pdf";
+      const storagePath = `qa_uploads/${uid}/${classId}/${activityId}/${asset.name}`;
+      const fileRef = storageRef(storage, storagePath);
 
-      const response = await fetch(`${AI_SERVER_URL}/upload-file`, {
-        method: "POST",
-        body: formData,
-      });
+      await uploadBytes(fileRef, blob, { contentType });
+      const downloadUrl = await getDownloadURL(fileRef);
 
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Failed to upload file to AI Server");
-      }
-      
-      const downloadUrl = data.url;
-
-      const dbRef = ref(
+      const filesRef = ref(
         db,
         `professors/${uid}/classes/${classId}/activities/${activityId}/files`,
       );
-      const newFileRef = push(dbRef);
-
+      const newFileRef = push(filesRef);
       await set(newFileRef, {
         name: asset.name,
         url: downloadUrl,
-        type: asset.mimeType || "application/pdf",
+        type: contentType,
         gradingRole: "objective-answer-key",
         answerKeyFor,
         uploadedAt: new Date().toISOString(),
@@ -802,4 +791,3 @@ const styles = StyleSheet.create({
   fileName: { fontSize: 15, fontWeight: "700", color: "#222" },
   fileType: { fontSize: 12, color: "#aaa", marginTop: 2 },
 });
-

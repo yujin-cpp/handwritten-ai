@@ -1,5 +1,5 @@
-import { BlurView } from 'expo-blur';
 import { Feather } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -24,7 +24,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
 
   const [professor, setProfessor] = useState<any>(null);
-  const [classes, setClasses] = useState<any>({});
+
   const [stats, setStats] = useState({
     totalClasses: 0,
     totalGraded: 0,
@@ -33,7 +33,7 @@ export default function HomeScreen() {
     resumeClassName: "",
     resumeClassSection: "",
     resumeClassColor: "",
-    resumeAcademicYear: ""
+    resumeAcademicYear: "",
   });
 
   // 1. Fetch Professor Profile & Photo
@@ -60,19 +60,17 @@ export default function HomeScreen() {
     if (!uid) return;
 
     const unsubscribe = listenToClasses(uid, (data) => {
-      setClasses(data || {});
-      
       if (data) {
         let gradedCount = 0;
         let recentClass: any = null;
         let recentClassId = "";
 
         const classEntries = Object.entries(data);
-        
+
         // Just pick the first class to resume for now, or the last one added
         if (classEntries.length > 0) {
-           recentClassId = classEntries[0][0];
-           recentClass = classEntries[0][1];
+          recentClassId = classEntries[0][0];
+          recentClass = classEntries[0][1];
         }
 
         classEntries.forEach(([classId, cls]: any) => {
@@ -92,12 +90,14 @@ export default function HomeScreen() {
         setStats({
           totalClasses: classEntries.length,
           totalGraded: gradedCount,
-          lastActivityText: recentClass ? `Last accessed: ${recentClass.className}` : "No recent activity",
+          lastActivityText: recentClass
+            ? `Last accessed: ${recentClass.className}`
+            : "No recent activity",
           resumeClassId: recentClassId,
           resumeClassName: recentClass?.className || "",
           resumeClassSection: recentClass?.section || "",
           resumeClassColor: recentClass?.themeColor || "#00b679",
-          resumeAcademicYear: recentClass?.semester || ""
+          resumeAcademicYear: recentClass?.semester || "",
         });
       }
     });
@@ -123,15 +123,48 @@ export default function HomeScreen() {
   };
 
   return (
-    <ScrollView 
-      style={styles.container} 
+    <ScrollView
+      style={styles.container}
       contentContainerStyle={{ paddingBottom: 120 }}
       showsVerticalScrollIndicator={false}
     >
       {/* ABSTRACT BACKGROUND ORBS FOR GLASS REFRACTION */}
-      <View style={[styles.bgOrb, { top: 250, left: -100, backgroundColor: 'rgba(14, 164, 122, 0.12)', width: 350, height: 350 }]} />
-      <View style={[styles.bgOrb, { top: 400, right: -150, backgroundColor: 'rgba(0, 121, 178, 0.08)', width: 400, height: 400 }]} />
-      <View style={[styles.bgOrb, { top: 600, left: 50, backgroundColor: 'rgba(243, 156, 18, 0.06)', width: 300, height: 300 }]} />
+      <View
+        style={[
+          styles.bgOrb,
+          {
+            top: 250,
+            left: -100,
+            backgroundColor: "rgba(14, 164, 122, 0.12)",
+            width: 350,
+            height: 350,
+          },
+        ]}
+      />
+      <View
+        style={[
+          styles.bgOrb,
+          {
+            top: 400,
+            right: -150,
+            backgroundColor: "rgba(0, 121, 178, 0.08)",
+            width: 400,
+            height: 400,
+          },
+        ]}
+      />
+      <View
+        style={[
+          styles.bgOrb,
+          {
+            top: 600,
+            left: 50,
+            backgroundColor: "rgba(243, 156, 18, 0.06)",
+            width: 300,
+            height: 300,
+          },
+        ]}
+      />
 
       {/* HERO HEADER */}
       <View style={{ paddingHorizontal: 20, paddingTop: insets.top + 20 }}>
@@ -161,11 +194,19 @@ export default function HomeScreen() {
 
             {stats.resumeClassId ? (
               <View style={styles.resumeGlassContainer}>
-                <BlurView intensity={70} tint="light" style={styles.resumeBtnBlur}>
-                  <TouchableOpacity style={styles.resumeBtnHeroContent} onPress={handleResume}>
+                <BlurView
+                  intensity={70}
+                  tint="light"
+                  style={styles.resumeBtnBlur}
+                >
+                  <TouchableOpacity
+                    style={styles.resumeBtnHeroContent}
+                    onPress={handleResume}
+                  >
                     <Feather name="book-open" size={14} color="#ffffff" />
                     <Text style={styles.resumeBtnHeroTextGlass}>
-                      Resume {stats.resumeClassName} - {stats.resumeClassSection}
+                      Resume {stats.resumeClassName} -{" "}
+                      {stats.resumeClassSection}
                     </Text>
                     <Feather name="chevron-right" size={14} color="#ffffff" />
                   </TouchableOpacity>
@@ -173,10 +214,19 @@ export default function HomeScreen() {
               </View>
             ) : (
               <View style={styles.resumeGlassContainer}>
-                <BlurView intensity={70} tint="light" style={styles.resumeBtnBlur}>
-                  <TouchableOpacity style={styles.resumeBtnHeroContent} onPress={() => router.push("/(tabs)/classes/addclass")}>
+                <BlurView
+                  intensity={70}
+                  tint="light"
+                  style={styles.resumeBtnBlur}
+                >
+                  <TouchableOpacity
+                    style={styles.resumeBtnHeroContent}
+                    onPress={() => router.push("/(tabs)/classes/addclass")}
+                  >
                     <Feather name="plus" size={14} color="#ffffff" />
-                    <Text style={styles.resumeBtnHeroTextGlass}>Create your first class</Text>
+                    <Text style={styles.resumeBtnHeroTextGlass}>
+                      Create your first class
+                    </Text>
                     <Feather name="chevron-right" size={14} color="#ffffff" />
                   </TouchableOpacity>
                 </BlurView>
@@ -193,17 +243,26 @@ export default function HomeScreen() {
                 <Feather name="book" size={20} color="#0EA47A" />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.analyticsTitle}>{stats.totalClasses} Classes Today</Text>
+                <Text style={styles.analyticsTitle}>
+                  {stats.totalClasses} Classes Today
+                </Text>
               </View>
               {/* REMOVED RESUME BUTTON */}
             </View>
 
             <View style={[styles.analyticsRow, { marginTop: 15 }]}>
-              <View style={[styles.analyticsIconBox, { backgroundColor: "#f0f4f8" }]}>
+              <View
+                style={[
+                  styles.analyticsIconBox,
+                  { backgroundColor: "#f0f4f8" },
+                ]}
+              >
                 <Feather name="users" size={20} color="#5c6b7a" />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.analyticsTitle}>{stats.totalGraded} Students graded</Text>
+                <Text style={styles.analyticsTitle}>
+                  {stats.totalGraded} Students graded
+                </Text>
               </View>
             </View>
 
@@ -213,26 +272,31 @@ export default function HomeScreen() {
               <View style={styles.dotIcon}>
                 <Feather name="clock" size={12} color="#fff" />
               </View>
-              <Text style={styles.lastActivityText}>{stats.lastActivityText}</Text>
+              <Text style={styles.lastActivityText}>
+                {stats.lastActivityText}
+              </Text>
             </View>
           </View>
         </PageMotion>
       </View>
 
-
-
       {/* QUICK ACTIONS ROW */}
       <PageMotion delay={180} style={styles.section}>
         <Text style={styles.sectionTitle}>Quick Actions</Text>
-        
+
         <View style={styles.actionsGrid}>
           <View style={styles.glassContainer}>
             <BlurView intensity={90} tint="light" style={styles.actionCardBlur}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.actionCardContent}
                 onPress={() => router.push("/(tabs)/capture")}
               >
-                <Feather name="camera" size={28} color="#0EA47A" style={[styles.glassIcon, { shadowColor: '#0EA47A' }]} />
+                <Feather
+                  name="camera"
+                  size={28}
+                  color="#0EA47A"
+                  style={[styles.glassIcon, { shadowColor: "#0EA47A" }]}
+                />
                 <Text style={styles.actionText}>Scan Papers</Text>
               </TouchableOpacity>
             </BlurView>
@@ -240,11 +304,16 @@ export default function HomeScreen() {
 
           <View style={styles.glassContainer}>
             <BlurView intensity={90} tint="light" style={styles.actionCardBlur}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.actionCardContent}
                 onPress={() => router.push("/(tabs)/classes/addclass")}
               >
-                <Feather name="plus" size={28} color="#0079B2" style={[styles.glassIcon, { shadowColor: '#0079B2' }]} />
+                <Feather
+                  name="plus"
+                  size={28}
+                  color="#0079B2"
+                  style={[styles.glassIcon, { shadowColor: "#0079B2" }]}
+                />
                 <Text style={styles.actionText}>Add Class</Text>
               </TouchableOpacity>
             </BlurView>
@@ -252,18 +321,22 @@ export default function HomeScreen() {
 
           <View style={styles.glassContainer}>
             <BlurView intensity={90} tint="light" style={styles.actionCardBlur}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.actionCardContent}
                 onPress={() => router.push("/(tabs)/analytics")}
               >
-                <Feather name="bar-chart-2" size={28} color="#f39c12" style={[styles.glassIcon, { shadowColor: '#f39c12' }]} />
+                <Feather
+                  name="bar-chart-2"
+                  size={28}
+                  color="#f39c12"
+                  style={[styles.glassIcon, { shadowColor: "#f39c12" }]}
+                />
                 <Text style={styles.actionText}>View Reports</Text>
               </TouchableOpacity>
             </BlurView>
           </View>
         </View>
       </PageMotion>
-
     </ScrollView>
   );
 }
@@ -274,7 +347,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#f4f7fb",
   },
   bgOrb: {
-    position: 'absolute',
+    position: "absolute",
     borderRadius: 200,
   },
   heroCard: {
@@ -320,13 +393,13 @@ const styles = StyleSheet.create({
   },
   resumeBtnBlur: {
     borderRadius: 20,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.8)',
-    borderLeftColor: 'rgba(255, 255, 255, 0.5)',
-    borderRightColor: 'rgba(255, 255, 255, 0.1)',
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderTopColor: "rgba(255, 255, 255, 0.8)",
+    borderLeftColor: "rgba(255, 255, 255, 0.5)",
+    borderRightColor: "rgba(255, 255, 255, 0.1)",
+    borderBottomColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
   },
   resumeBtnHeroContent: {
     flexDirection: "row",
@@ -436,18 +509,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 20,
     elevation: 6,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   actionCardBlur: {
     flex: 1, // Stretches to fill square
     borderRadius: 24,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderWidth: 1.5,
-    borderTopColor: 'rgba(255, 255, 255, 1)',
-    borderLeftColor: 'rgba(255, 255, 255, 0.7)',
-    borderRightColor: 'rgba(255, 255, 255, 0.2)',
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.35)',
+    borderTopColor: "rgba(255, 255, 255, 1)",
+    borderLeftColor: "rgba(255, 255, 255, 0.7)",
+    borderRightColor: "rgba(255, 255, 255, 0.2)",
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+    backgroundColor: "rgba(255, 255, 255, 0.35)",
   },
   actionCardContent: {
     flex: 1, // Centers content perfectly within the square
