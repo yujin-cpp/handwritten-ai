@@ -15,6 +15,7 @@ const firebaseConfig = {
   storageBucket: "handwritten-ai-scorer.firebasestorage.app",
   messagingSenderId: "1093390926434",
   appId: "1:1093390926434:web:a1ae78fb198e7878b6073b",
+  measurementId: "G-XVR67R4V4D",
 };
 
 const STORAGE_BUCKET_URL = "gs://handwritten-ai-scorer.firebasestorage.app";
