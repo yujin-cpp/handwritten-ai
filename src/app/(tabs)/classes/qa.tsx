@@ -22,6 +22,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth, db, storage } from "../../../firebase/firebaseConfig";
 import { showAlert } from "../../../utils/alert";
+import { AI_SERVER_URL } from "../../../constants/Config";
 
 const P = (v: string | string[] | undefined, fb = "") =>
   Array.isArray(v) ? v[0] : (v ?? fb);
@@ -249,16 +250,26 @@ export default function QAList() {
         },
       };
 
-      const response = await fetch(asset.uri);
-      const blob = await response.blob();
+      const formData = new FormData();
+      formData.append("file", {
+        uri: asset.uri,
+        name: asset.name,
+        type: asset.mimeType || "application/pdf",
+      } as any);
+      formData.append("path", `qa_uploads/${uid}/${classId}/${activityId}/${asset.name}`);
+      formData.append("contentType", asset.mimeType || "application/pdf");
 
-      const fileRef = storageRef(
-        storage,
-        `qa_uploads/${uid}/${classId}/${activityId}/${asset.name}`,
-      );
+      const response = await fetch(`${AI_SERVER_URL}/upload-file`, {
+        method: "POST",
+        body: formData,
+      });
 
-      await uploadBytes(fileRef, blob);
-      const downloadUrl = await getDownloadURL(fileRef);
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to upload file to AI Server");
+      }
+      
+      const downloadUrl = data.url;
 
       const dbRef = ref(
         db,
@@ -791,3 +802,4 @@ const styles = StyleSheet.create({
   fileName: { fontSize: 15, fontWeight: "700", color: "#222" },
   fileType: { fontSize: 12, color: "#aaa", marginTop: 2 },
 });
+

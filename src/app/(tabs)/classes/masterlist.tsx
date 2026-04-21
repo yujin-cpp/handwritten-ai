@@ -42,7 +42,7 @@ export default function Masterlist() {
     const studentsRef = dbRef(db, `professors/${uid}/classes/${classId}/students`);
     const unsubscribe = onValue(studentsRef, (snapshot) => {
       setHasFile(snapshot.exists() && snapshot.hasChildren());
-    });
+    */
 
     return () => unsubscribe();
   }, [classId]);
@@ -52,7 +52,7 @@ export default function Masterlist() {
       const result = await DocumentPicker.getDocumentAsync({
         type: "application/pdf",
         copyToCacheDirectory: true,
-      });
+      */
 
       if (result.canceled) return;
       const fileAsset = result.assets[0];
@@ -62,14 +62,14 @@ export default function Masterlist() {
       const uid = auth.currentUser?.uid;
       if (!uid) throw new Error("User not authenticated");
 
-      const response = await fetch(fileAsset.uri);
-      const blob = await response.blob();
+      // uploading via REST API...
+      
 
       const fileRef = storageRef(storage, `masterlists/${uid}/${classId}/${fileAsset.name}`);
-      await uploadBytes(fileRef, blob, {
+      const aiResponse = await fetch('https://handwritten-ai-server-1093390926434.us-central1.run.app/upload-masterlist', { method: 'POST', body: formData */ const data = await aiResponse.json(); if (!aiResponse.ok || !data.success) throw new Error(data.error || 'Failed to upload to AI Server'); /*
         // Ensure the storage trigger sees a PDF content type.
-        contentType: fileAsset.mimeType || "application/pdf",
-      });
+        
+      */
 
       showAlert("Success", "Masterlist uploaded! Processing student data...");
     } catch (error: any) {
@@ -82,7 +82,7 @@ export default function Masterlist() {
         code: error?.code,
         message: error?.message,
         serverResponse: error?.serverResponse,
-      });
+      */
 
       const detail = [error?.code, httpStatus].filter(Boolean).join(" | ");
       showAlert(
@@ -266,4 +266,5 @@ const styles = StyleSheet.create({
   selectBtn: { paddingVertical: 18, borderRadius: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   selectBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
   modalHelp: { textAlign: 'center', fontSize: 12, color: '#bbb', marginTop: 20, fontStyle: 'italic' },
-});
+*/
+

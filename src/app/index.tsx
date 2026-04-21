@@ -3,6 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { BlurView } from 'expo-blur';
 import { FloatMotion, PageMotion } from "../components/PageMotion";
 
 export default function SplashScreen() {
@@ -14,19 +15,23 @@ export default function SplashScreen() {
       <View style={styles.backdropOrbOne} />
       <View style={styles.backdropOrbTwo} />
 
-      <PageMotion delay={30} style={styles.logoWrap}>
-        <FloatMotion>
-          <Image
-            source={require("../assets/images/logo-aiscorer.png")}
-            style={styles.logo}
-            resizeMode="contain"
-          />
-        </FloatMotion>
-        <Text style={styles.title}>AI Scorer</Text>
-        <Text style={styles.tagline}>Fast. Accurate. Automated.</Text>
-        <Text style={styles.subline}>
-          Modern grading, built for busy classrooms.
-        </Text>
+      <PageMotion delay={30} style={[styles.glassContainer, styles.logoWrapContainer]}>
+        <BlurView intensity={90} tint="light" style={styles.logoWrapBlur}>
+          <View style={styles.logoWrapContent}>
+            <FloatMotion>
+              <Image
+                source={require("../assets/images/logo-aiscorer.png")}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </FloatMotion>
+            <Text style={styles.title}>AI Scorer</Text>
+            <Text style={styles.tagline}>Fast. Accurate. Automated.</Text>
+            <Text style={styles.subline}>
+              Modern grading, built for busy classrooms.
+            </Text>
+          </View>
+        </BlurView>
       </PageMotion>
 
       <PageMotion delay={180} style={styles.buttonContainer}>
@@ -76,17 +81,33 @@ const styles = StyleSheet.create({
     bottom: -80,
     left: -60,
   },
-  logoWrap: {
-    alignItems: "center",
+  glassContainer: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.15,
+    shadowRadius: 25,
+    elevation: 10,
+    backgroundColor: 'transparent',
+  },
+  logoWrapContainer: {
     marginBottom: 40,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
-    borderRadius: 24,
-    paddingVertical: 28,
-    paddingHorizontal: 22,
     width: "100%",
     maxWidth: 420,
+  },
+  logoWrapBlur: {
+    borderRadius: 32,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderTopColor: 'rgba(255, 255, 255, 0.9)',
+    borderLeftColor: 'rgba(255, 255, 255, 0.6)',
+    borderRightColor: 'rgba(255, 255, 255, 0.2)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  logoWrapContent: {
+    alignItems: "center",
+    paddingVertical: 32,
+    paddingHorizontal: 24,
   },
   logo: { width: 120, height: 120, marginBottom: 6 },
   title: { fontSize: 32, fontWeight: "800", color: "#fff", letterSpacing: 0.3 },
@@ -119,8 +140,8 @@ const styles = StyleSheet.create({
   // Outline button
   signup: {
     borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.9)",
-    backgroundColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,255,255,0.4)",
+    backgroundColor: "rgba(255,255,255,0.15)",
   },
   signupText: { color: "#fff" },
 

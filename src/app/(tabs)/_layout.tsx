@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { Platform, StyleSheet } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import { BlurView } from 'expo-blur';
 import { UI_COLORS } from "../../constants/DesignTokens";
 
@@ -15,23 +15,27 @@ export default function TabsLayout() {
         sceneStyle: { backgroundColor: UI_COLORS.appBackground },
         tabBarShowLabel: false,
         tabBarBackground: () => (
-          <BlurView intensity={isWeb ? 100 : 70} style={StyleSheet.absoluteFill} tint="light" />
+          <View style={{ flex: 1, borderRadius: 40, overflow: 'hidden' }}>
+            <BlurView intensity={isWeb ? 100 : 85} style={StyleSheet.absoluteFill} tint="light" />
+          </View>
         ),
         tabBarStyle: {
           position: "absolute",
-          left: "15%",
-          right: "15%",
-          bottom: isWeb ? 20 : 25,
-          borderRadius: 35,
-          height: 60,
-          borderTopWidth: 1,
-          borderColor: "rgba(255, 255, 255, 0.6)",
-          backgroundColor: isWeb ? "#ffffff" : "rgba(255, 255, 255, 0.6)",
-          overflow: "hidden", 
+          left: "12%",
+          right: "12%",
+          bottom: isWeb ? 20 : 30,
+          borderRadius: 40,
+          height: 64,
+          borderWidth: 1.5,
+          borderTopColor: "rgba(255, 255, 255, 0.9)",
+          borderLeftColor: "rgba(255, 255, 255, 0.6)",
+          borderRightColor: "rgba(255, 255, 255, 0.2)",
+          borderBottomColor: "rgba(255, 255, 255, 0.1)",
+          backgroundColor: isWeb ? "#ffffff" : "rgba(255, 255, 255, 0.25)",
           shadowColor: "#000",
-          shadowOpacity: 0.1,
-          shadowRadius: 15,
-          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.15,
+          shadowRadius: 25,
+          shadowOffset: { width: 0, height: 12 },
           elevation: 10,
         },
         tabBarLabelStyle: {
@@ -43,6 +47,7 @@ export default function TabsLayout() {
         tabBarItemStyle: {
           borderRadius: 14,
           marginHorizontal: 2,
+          paddingTop: 10,
         },
       }}
     >

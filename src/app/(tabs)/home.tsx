@@ -128,6 +128,11 @@ export default function HomeScreen() {
       contentContainerStyle={{ paddingBottom: 120 }}
       showsVerticalScrollIndicator={false}
     >
+      {/* ABSTRACT BACKGROUND ORBS FOR GLASS REFRACTION */}
+      <View style={[styles.bgOrb, { top: 250, left: -100, backgroundColor: 'rgba(14, 164, 122, 0.12)', width: 350, height: 350 }]} />
+      <View style={[styles.bgOrb, { top: 400, right: -150, backgroundColor: 'rgba(0, 121, 178, 0.08)', width: 400, height: 400 }]} />
+      <View style={[styles.bgOrb, { top: 600, left: 50, backgroundColor: 'rgba(243, 156, 18, 0.06)', width: 300, height: 300 }]} />
+
       {/* HERO HEADER */}
       <View style={{ paddingHorizontal: 20, paddingTop: insets.top + 20 }}>
         <PageMotion delay={30}>
@@ -155,19 +160,27 @@ export default function HomeScreen() {
             </View>
 
             {stats.resumeClassId ? (
-              <TouchableOpacity style={styles.resumeBtnHero} onPress={handleResume}>
-                <Feather name="book-open" size={14} color="#0EA47A" />
-                <Text style={styles.resumeBtnHeroText}>
-                  Resume {stats.resumeClassName} - {stats.resumeClassSection}
-                </Text>
-                <Feather name="chevron-right" size={14} color="#0EA47A" />
-              </TouchableOpacity>
+              <View style={styles.resumeGlassContainer}>
+                <BlurView intensity={70} tint="light" style={styles.resumeBtnBlur}>
+                  <TouchableOpacity style={styles.resumeBtnHeroContent} onPress={handleResume}>
+                    <Feather name="book-open" size={14} color="#ffffff" />
+                    <Text style={styles.resumeBtnHeroTextGlass}>
+                      Resume {stats.resumeClassName} - {stats.resumeClassSection}
+                    </Text>
+                    <Feather name="chevron-right" size={14} color="#ffffff" />
+                  </TouchableOpacity>
+                </BlurView>
+              </View>
             ) : (
-              <TouchableOpacity style={styles.resumeBtnHero} onPress={() => router.push("/(tabs)/classes/addclass")}>
-                <Feather name="plus" size={14} color="#0EA47A" />
-                <Text style={styles.resumeBtnHeroText}>Create your first class</Text>
-                <Feather name="chevron-right" size={14} color="#0EA47A" />
-              </TouchableOpacity>
+              <View style={styles.resumeGlassContainer}>
+                <BlurView intensity={70} tint="light" style={styles.resumeBtnBlur}>
+                  <TouchableOpacity style={styles.resumeBtnHeroContent} onPress={() => router.push("/(tabs)/classes/addclass")}>
+                    <Feather name="plus" size={14} color="#ffffff" />
+                    <Text style={styles.resumeBtnHeroTextGlass}>Create your first class</Text>
+                    <Feather name="chevron-right" size={14} color="#ffffff" />
+                  </TouchableOpacity>
+                </BlurView>
+              </View>
             )}
           </LinearGradient>
         </PageMotion>
@@ -213,35 +226,41 @@ export default function HomeScreen() {
         <Text style={styles.sectionTitle}>Quick Actions</Text>
         
         <View style={styles.actionsGrid}>
-          <BlurView intensity={80} tint="light" style={styles.actionCardBlur}>
-            <TouchableOpacity 
-              style={styles.actionCardContent}
-              onPress={() => router.push("/(tabs)/capture")}
-            >
-              <Feather name="camera" size={28} color="#0EA47A" style={{ marginBottom: 12 }} />
-              <Text style={styles.actionText}>Scan Papers</Text>
-            </TouchableOpacity>
-          </BlurView>
+          <View style={styles.glassContainer}>
+            <BlurView intensity={90} tint="light" style={styles.actionCardBlur}>
+              <TouchableOpacity 
+                style={styles.actionCardContent}
+                onPress={() => router.push("/(tabs)/capture")}
+              >
+                <Feather name="camera" size={28} color="#0EA47A" style={[styles.glassIcon, { shadowColor: '#0EA47A' }]} />
+                <Text style={styles.actionText}>Scan Papers</Text>
+              </TouchableOpacity>
+            </BlurView>
+          </View>
 
-          <BlurView intensity={80} tint="light" style={styles.actionCardBlur}>
-            <TouchableOpacity 
-              style={styles.actionCardContent}
-              onPress={() => router.push("/(tabs)/classes/addclass")}
-            >
-              <Feather name="plus" size={28} color="#0079B2" style={{ marginBottom: 12 }} />
-              <Text style={styles.actionText}>Add Class</Text>
-            </TouchableOpacity>
-          </BlurView>
+          <View style={styles.glassContainer}>
+            <BlurView intensity={90} tint="light" style={styles.actionCardBlur}>
+              <TouchableOpacity 
+                style={styles.actionCardContent}
+                onPress={() => router.push("/(tabs)/classes/addclass")}
+              >
+                <Feather name="plus" size={28} color="#0079B2" style={[styles.glassIcon, { shadowColor: '#0079B2' }]} />
+                <Text style={styles.actionText}>Add Class</Text>
+              </TouchableOpacity>
+            </BlurView>
+          </View>
 
-          <BlurView intensity={80} tint="light" style={styles.actionCardBlur}>
-            <TouchableOpacity 
-              style={styles.actionCardContent}
-              onPress={() => router.push("/(tabs)/analytics")}
-            >
-              <Feather name="bar-chart-2" size={28} color="#f39c12" style={{ marginBottom: 12 }} />
-              <Text style={styles.actionText}>View Reports</Text>
-            </TouchableOpacity>
-          </BlurView>
+          <View style={styles.glassContainer}>
+            <BlurView intensity={90} tint="light" style={styles.actionCardBlur}>
+              <TouchableOpacity 
+                style={styles.actionCardContent}
+                onPress={() => router.push("/(tabs)/analytics")}
+              >
+                <Feather name="bar-chart-2" size={28} color="#f39c12" style={[styles.glassIcon, { shadowColor: '#f39c12' }]} />
+                <Text style={styles.actionText}>View Reports</Text>
+              </TouchableOpacity>
+            </BlurView>
+          </View>
         </View>
       </PageMotion>
 
@@ -253,6 +272,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f4f7fb",
+  },
+  bgOrb: {
+    position: 'absolute',
+    borderRadius: 200,
   },
   heroCard: {
     borderRadius: 24,
@@ -286,21 +309,39 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 14,
   },
-  resumeBtnHero: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.95)",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+  resumeGlassContainer: {
     alignSelf: "flex-start",
     marginTop: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  resumeBtnBlur: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.8)',
+    borderLeftColor: 'rgba(255, 255, 255, 0.5)',
+    borderRightColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  resumeBtnHeroContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     gap: 8,
   },
-  resumeBtnHeroText: {
-    color: "#0EA47A",
+  resumeBtnHeroTextGlass: {
+    color: "#fff",
     fontWeight: "700",
     fontSize: 13,
+    textShadowColor: "rgba(0,0,0,0.1)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 
   analyticsCard: {
@@ -385,26 +426,41 @@ const styles = StyleSheet.create({
   actionsGrid: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 10,
+    gap: 12,
+  },
+  glassContainer: {
+    flex: 1,
+    aspectRatio: 1, // Ensures perfect squares
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 6,
+    backgroundColor: 'transparent',
   },
   actionCardBlur: {
-    flex: 1,
-    borderRadius: 18,
+    flex: 1, // Stretches to fill square
+    borderRadius: 24,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.8)',
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
+    borderWidth: 1.5,
+    borderTopColor: 'rgba(255, 255, 255, 1)',
+    borderLeftColor: 'rgba(255, 255, 255, 0.7)',
+    borderRightColor: 'rgba(255, 255, 255, 0.2)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.35)',
   },
   actionCardContent: {
-    paddingVertical: 20,
-    paddingHorizontal: 12,
+    flex: 1, // Centers content perfectly within the square
+    padding: 10,
     alignItems: "center",
     justifyContent: "center",
+  },
+  glassIcon: {
+    marginBottom: 14,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 2,
   },
   actionText: {
     fontSize: 13,
