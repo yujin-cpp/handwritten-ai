@@ -1,6 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
+import { GlassCard } from "../../../components/GlassCard";
+import { PageMotion } from "../../../components/PageMotion";
 import {
     Dimensions,
     Image,
@@ -84,20 +86,24 @@ export default function UploadedImageScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: 150 }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.metaCard}>
-          <View style={styles.metaIconBox}>
-            <Feather name="user" size={24} color={headerColor} />
-          </View>
-          <View style={styles.metaInfo}>
-            <Text style={styles.metaLabel}>EXAM TITLE</Text>
-            <Text style={styles.metaVal}>{title}</Text>
-          </View>
-        </View>
+        <PageMotion delay={50}>
+          <GlassCard>
+            <View style={{ padding: 20, flexDirection: 'row', alignItems: 'center' }}>
+              <View style={styles.metaIconBox}>
+                <Feather name="user" size={24} color={headerColor} />
+              </View>
+              <View style={styles.metaInfo}>
+                <Text style={styles.metaLabel}>EXAM TITLE</Text>
+                <Text style={styles.metaVal}>{title}</Text>
+              </View>
+            </View>
+          </GlassCard>
+        </PageMotion>
 
-        <View style={styles.sectionHeaderRow}>
+        <View style={[styles.sectionHeaderRow, { marginTop: 30 }]}>
           <Text style={styles.sectionLabel}>CAPTURED PAGES</Text>
           <View style={[styles.badge, { backgroundColor: headerColor + "15" }]}>
             <Text style={[styles.badgeText, { color: headerColor }]}>
@@ -116,40 +122,41 @@ export default function UploadedImageScreen() {
         ) : (
           <View style={styles.imageGrid}>
             {images.map((uri, idx) => (
-              <TouchableOpacity
-                key={`${uri}-${idx}`}
-                activeOpacity={0.9}
-                onPress={() => setFullScreenUri(uri)}
-                style={styles.imageCard}
-              >
-                <Image
-                  source={{ uri }}
-                  style={styles.pageImg}
-                  resizeMode="contain"
-                  onError={() =>
-                    setFailedImages((prev) => ({
-                      ...prev,
-                      [uri]: true,
-                    }))
-                  }
-                />
-                <View style={styles.pageOverlay}>
-                  <View style={styles.pageBadge}>
-                    <Text style={styles.pageBadgeText}>PAGE {idx + 1}</Text>
+              <PageMotion key={`${uri}-${idx}`} delay={100 + idx * 50}>
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  onPress={() => setFullScreenUri(uri)}
+                  style={styles.imageCard}
+                >
+                  <Image
+                    source={{ uri }}
+                    style={styles.pageImg}
+                    resizeMode="contain"
+                    onError={() =>
+                      setFailedImages((prev) => ({
+                        ...prev,
+                        [uri]: true,
+                      }))
+                    }
+                  />
+                  <View style={styles.pageOverlay}>
+                    <View style={styles.pageBadge}>
+                      <Text style={styles.pageBadgeText}>PAGE {idx + 1}</Text>
+                    </View>
+                    <View style={styles.expandIcon}>
+                      <Feather name="maximize-2" size={16} color="#fff" />
+                    </View>
                   </View>
-                  <View style={styles.expandIcon}>
-                    <Feather name="maximize-2" size={16} color="#fff" />
-                  </View>
-                </View>
-                {failedImages[uri] ? (
-                  <View style={styles.failedOverlay}>
-                    <Feather name="alert-circle" size={18} color="#dc2626" />
-                    <Text style={styles.failedOverlayText}>
-                      Failed to load this proof image.
-                    </Text>
-                  </View>
-                ) : null}
-              </TouchableOpacity>
+                  {failedImages[uri] ? (
+                    <View style={styles.failedOverlay}>
+                      <Feather name="alert-circle" size={18} color="#dc2626" />
+                      <Text style={styles.failedOverlayText}>
+                        Failed to load proof image.
+                      </Text>
+                    </View>
+                  ) : null}
+                </TouchableOpacity>
+              </PageMotion>
             ))}
           </View>
         )}
@@ -182,10 +189,10 @@ export default function UploadedImageScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f7fb" },
+  container: { flex: 1, backgroundColor: "transparent" },
   header: {
     paddingHorizontal: 20,
-    paddingBottom: 25,
+    paddingBottom: 45,
     flexDirection: "row",
     alignItems: "center",
     elevation: 4,
@@ -210,23 +217,11 @@ const styles = StyleSheet.create({
   headerBig: { color: "#fff", fontSize: 18, fontWeight: "800" },
 
   content: { padding: 20 },
-  metaCard: {
-    backgroundColor: "#fff",
-    borderRadius: 24,
-    padding: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOpacity: 0.03,
-    shadowRadius: 15,
-    marginBottom: 30,
-  },
   metaIconBox: {
     width: 50,
     height: 50,
     borderRadius: 16,
-    backgroundColor: "#f9f9f9",
+    backgroundColor: "rgba(0,0,0,0.03)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -264,7 +259,7 @@ const styles = StyleSheet.create({
 
   imageGrid: { gap: 20 },
   imageCard: {
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
     borderRadius: 28,
     overflow: "hidden",
     elevation: 2,

@@ -15,7 +15,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PageMotion } from "../../../components/PageMotion";
-import { auth } from "../../../firebase/firebaseConfig";
+import { GlassCard } from "../../../components/GlassCard";
+import { useAuthSession } from "../../../hooks/useAuthSession";
 import {
     getActivities,
     getStudentsInClass,
@@ -24,6 +25,13 @@ import {
 import { showAlert } from "../../../utils/alert";
 
 type PickerType = "section" | "activity" | "name" | null;
+type ClassOption = {
+  id: string;
+  name: string;
+  section: string;
+  color: string;
+  label: string;
+};
 
 const P = (v: string | string[] | undefined, fb = "") =>
   Array.isArray(v) ? v[0] : (v ?? fb);
@@ -32,6 +40,7 @@ export default function Capture() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const { uid } = useAuthSession();
 
   const returnTo = P(params.returnTo);
   const originClassId = P(params.classId);
@@ -42,13 +51,15 @@ export default function Capture() {
   const originTitle = P(params.title, "Activity");
 
   // --- DATA LISTS ---
-  const [classesList, setClassesList] = useState<any[]>([]);
+  const [classesList, setClassesList] = useState<ClassOption[]>([]);
   const [activitiesList, setActivitiesList] = useState<any[]>([]);
   const [studentsList, setStudentsList] = useState<any[]>([]);
 
   // --- SELECTION STATE ---
   const [selectedClassId, setSelectedClassId] = useState<string>("");
   const [selectedClassName, setSelectedClassName] = useState<string>("");
+  const [selectedClassSection, setSelectedClassSection] = useState<string>("");
+  const [selectedClassColor, setSelectedClassColor] = useState<string>(originColor);
 
   const [selectedActivityId, setSelectedActivityId] = useState<string>("");
   const [selectedActivityName, setSelectedActivityName] = useState<string>("");
@@ -66,8 +77,11 @@ export default function Capture() {
 
   // 1. INITIAL LOAD & DATA VALIDATION
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
+    if (!uid) {
+      setClassesList([]);
+      setLoading(false);
+      return;
+    }
 
     setConfirmed(false);
     setLoading(true);
@@ -81,7 +95,10 @@ export default function Capture() {
 
       const list = Object.keys(data).map((key) => ({
         id: key,
-        name: `${data[key].className} - ${data[key].section}`,
+        name: data[key].className,
+        section: data[key].section,
+        color: data[key].themeColor || originColor,
+        label: `${data[key].className} - ${data[key].section}`,
       }));
       setClassesList(list);
 
@@ -94,6 +111,8 @@ export default function Capture() {
         if (foundClass) {
           setSelectedClassId(foundClass.id);
           setSelectedClassName(foundClass.name);
+          setSelectedClassSection(foundClass.section);
+          setSelectedClassColor(foundClass.color);
 
           fetchSubData(foundClass.id).then((result) => {
             let validActId = "";
@@ -144,10 +163,9 @@ export default function Capture() {
     });
 
     return () => unsubscribe();
-  }, [params.classId, params.activityId, params.studentId]);
+  }, [originColor, params.activityId, params.classId, params.studentId, uid]);
 
   const fetchSubData = async (classId: string) => {
-    const uid = auth.currentUser?.uid;
     if (!uid) return { activities: [], students: [] };
 
     setFetchingSubData(true);
@@ -195,16 +213,18 @@ export default function Capture() {
     }
   };
 
-  const handleSelectClass = async (classId: string, className: string) => {
-    setSelectedClassId(classId);
-    setSelectedClassName(className);
+  const handleSelectClass = async (selectedClass: ClassOption) => {
+    setSelectedClassId(selectedClass.id);
+    setSelectedClassName(selectedClass.name);
+    setSelectedClassSection(selectedClass.section);
+    setSelectedClassColor(selectedClass.color);
     setPickerType(null);
     setSelectedActivityId("");
     setSelectedActivityName("");
     setSelectedStudentId("");
     setSelectedStudentName("");
     setConfirmed(false);
-    await fetchSubData(classId);
+    await fetchSubData(selectedClass.id);
   };
 
   const handleSelectActivity = (id: string, name: string) => {
@@ -277,10 +297,10 @@ export default function Capture() {
           activityId: selectedActivityId,
           studentId: selectedStudentId,
           returnTo,
-          name: originName,
-          section: originSection,
-          color: originColor,
-          title: originTitle,
+          name: selectedClassName || originName,
+          section: selectedClassSection || originSection,
+          color: selectedClassColor || originColor,
+          title: selectedActivityName || originTitle,
         },
       });
     }
@@ -295,17 +315,17 @@ export default function Capture() {
         activityId: selectedActivityId,
         studentId: selectedStudentId,
         returnTo,
-        name: originName,
-        section: originSection,
-        color: originColor,
-        title: originTitle,
+        name: selectedClassName || originName,
+        section: selectedClassSection || originSection,
+        color: selectedClassColor || originColor,
+        title: selectedActivityName || originTitle,
       },
     });
   };
 
   const getPickerOptions = () => {
     if (pickerType === "section")
-      return classesList.map((c) => ({ id: c.id, label: c.name }));
+      return classesList.map((c) => ({ id: c.id, label: c.label }));
     if (pickerType === "activity")
       return activitiesList.map((a) => ({ id: a.id, label: a.title }));
     if (pickerType === "name")
@@ -314,7 +334,12 @@ export default function Capture() {
   };
 
   const handlePickerSelect = (id: string, label: string) => {
-    if (pickerType === "section") handleSelectClass(id, label);
+    if (pickerType === "section") {
+      const selectedClass = classesList.find((item) => item.id === id);
+      if (selectedClass) {
+        handleSelectClass(selectedClass);
+      }
+    }
     if (pickerType === "activity") handleSelectActivity(id, label);
     if (pickerType === "name") handleSelectStudent(id, label);
   };
@@ -343,7 +368,9 @@ export default function Capture() {
         ) : (
           <>
             {!confirmed ? (
-              <PageMotion delay={80} style={styles.selectionCard}>
+              <PageMotion delay={80}>
+              <GlassCard>
+                <View style={{ padding: 20 }}>
                 <Text style={styles.label}>Select Section</Text>
                 <Pressable
                   style={styles.dropdownBtn}
@@ -358,7 +385,9 @@ export default function Capture() {
                     }
                     numberOfLines={1}
                   >
-                    {selectedClassName || "Choose a class..."}
+                    {selectedClassId
+                      ? `${selectedClassName} - ${selectedClassSection}`
+                      : "Choose a class..."}
                   </Text>
                   <Feather name="chevron-down" size={18} color="#999" />
                 </Pressable>
@@ -431,10 +460,14 @@ export default function Capture() {
                   <Text style={styles.nextText}>Next Step</Text>
                   <Feather name="arrow-right" size={20} color="#fff" />
                 </TouchableOpacity>
+                </View>
+              </GlassCard>
               </PageMotion>
             ) : (
               <>
-                <PageMotion delay={40} style={styles.summaryCard}>
+                <PageMotion delay={40}>
+                <GlassCard>
+                  <View style={{ padding: 20 }}>
                   <View style={styles.summaryRow}>
                     <Feather name="map-pin" size={14} color="#00b679" />
                     <Text style={styles.summaryLabel}>Section:</Text>
@@ -465,55 +498,49 @@ export default function Capture() {
                       Change Selection
                     </Text>
                   </TouchableOpacity>
+                  </View>
+                </GlassCard>
                 </PageMotion>
 
-                <PageMotion
-                  delay={120}
-                  style={[
-                    styles.cameraBox,
-                    confirmed && styles.cameraBoxFocused,
-                  ]}
-                >
-                  <Feather
-                    name="maximize"
-                    size={60}
-                    color={confirmed ? "#00b679" : "#ccc"}
-                  />
-                  <Text
-                    style={[
-                      styles.cameraBoxLabel,
-                      { color: confirmed ? "#00b679" : "#999" },
-                    ]}
-                  >
-                    Ready to Score
-                  </Text>
+                <PageMotion delay={120} style={{ marginTop: 25 }}>
+                  <GlassCard color={confirmed ? 'rgba(14, 164, 122, 0.08)' : undefined} borderRadius={24}>
+                    <View style={{ width: '100%', height: 180, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: confirmed ? '#00b679' : 'rgba(0,0,0,0.05)', borderStyle: confirmed ? 'solid' : 'dashed', borderRadius: 24 }}>
+                      <Feather
+                        name="maximize"
+                        size={60}
+                        color={confirmed ? "#00b679" : "#ccc"}
+                      />
+                      <Text
+                        style={[
+                          styles.cameraBoxLabel,
+                          { color: confirmed ? "#00b679" : "#999" },
+                        ]}
+                      >
+                        Ready to Score
+                      </Text>
+                    </View>
+                  </GlassCard>
                 </PageMotion>
 
-                <PageMotion delay={190} style={styles.actionContainer}>
-                  <TouchableOpacity
-                    style={styles.takePhotoBtn}
-                    onPress={handleTakePhoto}
-                  >
-                    <Feather
-                      name="camera"
-                      size={20}
-                      color="#fff"
-                      style={{ marginRight: 10 }}
-                    />
-                    <Text style={styles.takePhotoText}>Open Camera</Text>
+                <PageMotion delay={190} style={{ marginTop: 30 }}>
+                  <TouchableOpacity onPress={handleTakePhoto}>
+                    <GlassCard color="rgba(14, 164, 122, 0.9)" borderRadius={16}>
+                      <View style={{ paddingVertical: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
+                        <Feather name="camera" size={20} color="#fff" style={{ marginRight: 10 }} />
+                        <Text style={styles.takePhotoText}>Open Camera</Text>
+                      </View>
+                    </GlassCard>
                   </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={styles.galleryBtn}
-                    onPress={handlePickImage}
-                  >
-                    <Feather
-                      name="image"
-                      size={20}
-                      color="#00b679"
-                      style={{ marginRight: 10 }}
-                    />
-                    <Text style={styles.galleryText}>Upload from Gallery</Text>
+                  <View style={{ height: 15 }} />
+
+                  <TouchableOpacity onPress={handlePickImage}>
+                    <GlassCard color="rgba(255,255,255,0.5)" borderRadius={16}>
+                      <View style={{ paddingVertical: 18, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: '#00b679', borderRadius: 16 }}>
+                        <Feather name="image" size={20} color="#00b679" style={{ marginRight: 10 }} />
+                        <Text style={styles.galleryText}>Upload from Gallery</Text>
+                      </View>
+                    </GlassCard>
                   </TouchableOpacity>
                 </PageMotion>
               </>
@@ -574,7 +601,7 @@ export default function Capture() {
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#f4f7fb" },
+  page: { flex: 1, backgroundColor: "transparent" },
   header: {
     paddingHorizontal: 18,
     paddingTop: 45,
@@ -583,7 +610,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headerTitle: { color: "#fff", fontSize: 20, fontWeight: "700", flex: 1 },
-  content: { padding: 20, paddingBottom: 110 },
+  content: { padding: 20, paddingBottom: 150 },
 
   selectionCard: {
     backgroundColor: "#fff",

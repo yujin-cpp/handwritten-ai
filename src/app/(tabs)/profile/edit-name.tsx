@@ -1,10 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
+import { GlassCard } from "../../../components/GlassCard";
+import { PageMotion } from "../../../components/PageMotion";
 import {
   ActivityIndicator,
   Alert,
   Image,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -67,7 +70,11 @@ export default function EditProfile() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 20 }]}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 20 }]}
+      showsVerticalScrollIndicator={false}
+    >
       {/* Back Button */}
       <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
         <Ionicons name="arrow-back" size={24} color="#000" />
@@ -75,39 +82,48 @@ export default function EditProfile() {
 
       <Text style={styles.title}>Edit Profile</Text>
 
-      {/* Profile Image */}
-      <Image
-        source={{ uri: user?.photoURL || "https://i.imgur.com/4YQZ6uM.png" }}
-        style={styles.profileImage}
-      />
+      <PageMotion delay={50}>
+      <GlassCard>
+        <View style={{ padding: 20, alignItems: 'center' }}>
+          {/* Profile Image */}
+          <Image
+            source={{ uri: user?.photoURL || "https://i.imgur.com/4YQZ6uM.png" }}
+            style={styles.profileImage}
+          />
 
-      <Text style={styles.label}>Name</Text>
-      <TextInput
-        style={styles.input}
-        value={name}
-        onChangeText={setName}
-        placeholder="Enter your full name"
-        placeholderTextColor="#999"
-      />
+          <View style={{ width: '100%' }}>
+            <Text style={styles.label}>Name</Text>
+            <TextInput
+              style={styles.input}
+              value={name}
+              onChangeText={setName}
+              placeholder="Enter your full name"
+              placeholderTextColor="#999"
+            />
 
-      {/* Save Button */}
-      <TouchableOpacity
-        style={[styles.saveBtn, loading && { opacity: 0.7 }]}
-        onPress={handleSave}
-        disabled={loading}
-      >
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.saveText}>Save</Text>
-        )}
-      </TouchableOpacity>
-    </View>
+            {/* Save Button */}
+            <TouchableOpacity
+              style={[styles.saveBtn, loading && { opacity: 0.7 }]}
+              onPress={handleSave}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.saveText}>Save</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </GlassCard>
+      </PageMotion>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f7fb", padding: 20 },
+  container: { flex: 1, backgroundColor: "transparent", padding: 20 },
+  scrollContent: { paddingBottom: 150 },
   backButton: { position: 'absolute', top: 50, left: 20, zIndex: 10 },
   title: {
     fontSize: 20,

@@ -2,9 +2,10 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { GlassCard } from "../../../components/GlassCard";
 import { PageMotion } from "../../../components/PageMotion";
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
     UI_COLORS,
     UI_GRADIENT_PRIMARY,
@@ -105,43 +106,51 @@ export default function ImageCaptured() {
         <View style={{ width: 24 }} />
       </LinearGradient>
 
-      <PageMotion delay={40} style={styles.content}>
-        <View style={styles.imageCard}>
-          <Text style={styles.imageLabel}>Captured Sheet</Text>
-          <View style={styles.imageContainer}>
-            {imageUri ? (
-              <Image
-                source={{ uri: imageUri }}
-                style={styles.image}
-                resizeMode="contain"
-              />
-            ) : (
-              <View style={styles.noImage}>
-                <Feather name="image" size={40} color="#333" />
-                <Text style={{ color: "#666", marginTop: 10 }}>
-                  No Image Captured
-                </Text>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 150 }]} showsVerticalScrollIndicator={false}>
+        <PageMotion delay={40}>
+          <GlassCard>
+            <View style={{ padding: 14 }}>
+              <Text style={styles.imageLabel}>Captured Sheet</Text>
+              <View style={styles.imageContainer}>
+                {imageUri ? (
+                  <Image
+                    source={{ uri: imageUri }}
+                    style={styles.image}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <View style={styles.noImage}>
+                    <Feather name="image" size={40} color="#333" />
+                    <Text style={{ color: "#666", marginTop: 10 }}>
+                      No Image Captured
+                    </Text>
+                  </View>
+                )}
               </View>
-            )}
-          </View>
-        </View>
+            </View>
+          </GlassCard>
+        </PageMotion>
 
-        <View style={styles.hintContainer}>
-          <Feather
-            name="info"
-            size={16}
-            color={UI_COLORS.primary}
-            style={{ marginRight: 8 }}
-          />
-          <Text style={styles.hint}>
-            Tap Continue to start AI validation. If clear, grading runs in
-            background and the app auto-moves to the next student after 5
-            seconds.
-          </Text>
-        </View>
-      </PageMotion>
+        <PageMotion delay={80}>
+          <GlassCard style={{ marginTop: 18 }}>
+            <View style={{ padding: 15, flexDirection: 'row', alignItems: 'flex-start' }}>
+              <Feather
+                name="info"
+                size={16}
+                color={UI_COLORS.primary}
+                style={{ marginRight: 10, marginTop: 2 }}
+              />
+              <Text style={styles.hint}>
+                Tap Continue to start AI validation. If clear, grading runs in
+                background and the app auto-moves to the next student after 5
+                seconds.
+              </Text>
+            </View>
+          </GlassCard>
+        </PageMotion>
+      </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 104 }]}>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
         <TouchableOpacity style={styles.retakeBtn} onPress={handleRetake}>
           <Text style={styles.retakeText}>Retake</Text>
         </TouchableOpacity>
@@ -161,12 +170,12 @@ export default function ImageCaptured() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: UI_COLORS.appBackground },
+  container: { flex: 1, backgroundColor: "transparent" },
 
   header: {
     paddingHorizontal: 18,
     paddingTop: 18,
-    paddingBottom: 20,
+    paddingBottom: 45,
     flexDirection: "row",
     alignItems: "center",
   },
@@ -180,21 +189,8 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    flex: 1,
     paddingHorizontal: 16,
     paddingTop: 16,
-  },
-  imageCard: {
-    backgroundColor: UI_COLORS.appSurface,
-    borderRadius: 22,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#e8edf4",
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
   },
   imageLabel: {
     color: "#52606d",
@@ -206,8 +202,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: "100%",
-    height: 500,
-    maxHeight: "72%",
+    height: 450,
     borderRadius: 18,
     overflow: "hidden",
     backgroundColor: "#0b1220",
@@ -221,17 +216,6 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   noImage: { alignItems: "center" },
-  hintContainer: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginTop: 18,
-    backgroundColor: "#ecfff7",
-    borderWidth: 1,
-    borderColor: "#d5f5e7",
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
   hint: {
     flex: 1,
     color: "#0d7b5a",
@@ -241,11 +225,15 @@ const styles = StyleSheet.create({
   },
 
   footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingTop: 14,
-    backgroundColor: UI_COLORS.appBackground,
+    backgroundColor: 'transparent',
   },
   retakeBtn: {
     flex: 1,
@@ -255,7 +243,7 @@ const styles = StyleSheet.create({
     borderColor: "#cad3df",
     alignItems: "center",
     marginRight: 10,
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
   },
   retakeText: {
     color: "#4b5563",

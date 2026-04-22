@@ -3,6 +3,8 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
+import { GlassCard } from "../../../components/GlassCard";
+import { PageMotion } from "../../../components/PageMotion";
 import {
     ActivityIndicator,
     StyleSheet,
@@ -218,7 +220,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
   },
   container: { flex: 1, backgroundColor: "#000" },
 
@@ -232,7 +234,7 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 10,
     backgroundColor: "rgba(0,0,0,0.3)",
-    paddingBottom: 15,
+    paddingBottom: 45,
   },
 
   backBtn: {
@@ -289,7 +291,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingBottom: 50,
+    paddingBottom: 45,
     paddingTop: 30,
     paddingHorizontal: 40,
     backgroundColor: "black",
@@ -308,7 +310,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
   },
 
   sideBtn: {

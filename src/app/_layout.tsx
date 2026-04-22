@@ -72,12 +72,14 @@ export default function RootLayout() {
     <AlertProvider>
       <View style={styles.webWrapper}>
         <Stack
+          initialRouteName="index"
           screenOptions={{
             headerShown: false,
             animation: "fade_from_bottom",
             contentStyle: { backgroundColor: UI_COLORS.appBackground },
           }}
         >
+          <Stack.Screen name="index" />
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(tabs)" />
         </Stack>

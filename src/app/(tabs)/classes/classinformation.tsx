@@ -1,6 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { get, ref } from "firebase/database";
+import { GlassCard } from "../../../components/GlassCard";
+import { PageMotion } from "../../../components/PageMotion";
 import React, { useCallback, useState } from "react";
 import {
   ScrollView,
@@ -11,12 +13,14 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { auth, db } from "../../../firebase/firebaseConfig";
+import { db } from "../../../firebase/firebaseConfig";
+import { useAuthSession } from "../../../hooks/useAuthSession";
 
 export default function ClassInformationScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
+  const { uid } = useAuthSession();
 
   const getParam = (v: any) => (Array.isArray(v) ? v[0] : v);
   const currentClassId = getParam(params.classId);
@@ -33,7 +37,6 @@ export default function ClassInformationScreen() {
   useFocusEffect(
     useCallback(() => {
       const fetchData = async () => {
-        const uid = auth.currentUser?.uid;
         if (!uid || !currentClassId) return;
 
         try {
@@ -59,7 +62,7 @@ export default function ClassInformationScreen() {
       };
 
       fetchData();
-    }, [currentClassId])
+    }, [currentClassId, uid])
   );
 
   return (
@@ -92,88 +95,110 @@ export default function ClassInformationScreen() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Info Card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Feather name="info" size={16} color={classData.color} />
-            <Text style={[styles.cardTitle, { color: classData.color }]}>Class Details</Text>
-          </View>
+        <PageMotion delay={50}>
+          <GlassCard>
+            <View style={{ padding: 24 }}>
+              <View style={styles.cardHeader}>
+                <Feather name="info" size={16} color={classData.color} />
+                <Text style={[styles.cardTitle, { color: classData.color }]}>Class Details</Text>
+              </View>
 
-          <View style={styles.detailRow}>
-            <Text style={styles.infoLabel}>Academic Year</Text>
-            <Text style={styles.infoValue}>{classData.academicYear}</Text>
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.detailRow}>
-            <Text style={styles.infoLabel}>Section</Text>
-            <Text style={styles.infoValue}>{classData.section}</Text>
-          </View>
-        </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.infoLabel}>Academic Year</Text>
+                <Text style={styles.infoValue}>{classData.academicYear}</Text>
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.detailRow}>
+                <Text style={styles.infoLabel}>Section</Text>
+                <Text style={styles.infoValue}>{classData.section}</Text>
+              </View>
+            </View>
+          </GlassCard>
+        </PageMotion>
 
         {/* Quick Actions */}
         <Text style={styles.sectionHeading}>Quick Actions</Text>
 
-        <TouchableOpacity
-          style={styles.actionCard}
-          onPress={() =>
-            router.push({
-              pathname: "/(tabs)/classes/masterlist",
-              params: {
-                classId: currentClassId,
-                name: classData.name,
-                section: classData.section,
-                color: classData.color
-              }
-            })
-          }
-        >
-          <View style={[styles.iconBox, { backgroundColor: classData.color + '15' }]}>
-            <Feather name="users" size={20} color={classData.color} />
-          </View>
-          <View style={styles.actionInfo}>
-            <Text style={styles.actionTitle}>Student Masterlist</Text>
-            <Text style={styles.actionSubtitle}>Manage and view all students</Text>
-          </View>
-          <Feather name="chevron-right" size={20} color="#ccc" />
-        </TouchableOpacity>
+        <PageMotion delay={100}>
+          <TouchableOpacity
+            onPress={() =>
+              router.push({
+                pathname: "/(tabs)/classes/masterlist",
+                params: {
+                  classId: currentClassId,
+                  name: classData.name,
+                  section: classData.section,
+                  color: classData.color
+                }
+              })
+            }
+          >
+            <GlassCard borderRadius={20} style={{ marginBottom: 12 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", padding: 16 }}>
+                <View style={[styles.iconBox, { backgroundColor: classData.color + '15' }]}>
+                  <Feather name="users" size={20} color={classData.color} />
+                </View>
+                <View style={styles.actionInfo}>
+                  <Text style={styles.actionTitle}>Student Masterlist</Text>
+                  <Text style={styles.actionSubtitle}>Manage and view all students</Text>
+                </View>
+                <Feather name="chevron-right" size={20} color="#ccc" />
+              </View>
+            </GlassCard>
+          </TouchableOpacity>
+        </PageMotion>
 
-        <TouchableOpacity
-          style={styles.actionCard}
-          onPress={() =>
-            router.push({
-              pathname: "/(tabs)/classes/activities",
-              params: {
-                classId: currentClassId,
-                name: classData.name,
-                section: classData.section,
-                color: classData.color
-              }
-            })
-          }
-        >
-          <View style={[styles.iconBox, { backgroundColor: classData.color + '15' }]}>
-            <Feather name="book-open" size={20} color={classData.color} />
-          </View>
-          <View style={styles.actionInfo}>
-            <Text style={styles.actionTitle}>Class Activities</Text>
-            <Text style={styles.actionSubtitle}>Track scores and gradings</Text>
-          </View>
-          <Feather name="chevron-right" size={20} color="#ccc" />
-        </TouchableOpacity>
+        <PageMotion delay={150}>
+          <TouchableOpacity
+            onPress={() =>
+              router.push({
+                pathname: "/(tabs)/classes/activities",
+                params: {
+                  classId: currentClassId,
+                  name: classData.name,
+                  section: classData.section,
+                  color: classData.color
+                }
+              })
+            }
+          >
+            <GlassCard borderRadius={20} style={{ marginBottom: 12 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", padding: 16 }}>
+                <View style={[styles.iconBox, { backgroundColor: classData.color + '15' }]}>
+                  <Feather name="book-open" size={20} color={classData.color} />
+                </View>
+                <View style={styles.actionInfo}>
+                  <Text style={styles.actionTitle}>Class Activities</Text>
+                  <Text style={styles.actionSubtitle}>Track scores and gradings</Text>
+                </View>
+                <Feather name="chevron-right" size={20} color="#ccc" />
+              </View>
+            </GlassCard>
+          </TouchableOpacity>
+        </PageMotion>
 
         {/* Summary Stats */}
         <Text style={styles.sectionHeading}>At a Glance</Text>
         <View style={styles.statsRow}>
-          <View style={styles.statBox}>
-            <Text style={[styles.statValue, { color: classData.color }]}>{counts.students}</Text>
-            <Text style={styles.statLabel}>Students</Text>
-            <View style={[styles.statBar, { backgroundColor: classData.color }]} />
-          </View>
+          <PageMotion delay={200} style={{ flex: 1 }}>
+            <GlassCard>
+              <View style={{ padding: 24, alignItems: "center" }}>
+                <Text style={[styles.statValue, { color: classData.color }]}>{counts.students}</Text>
+                <Text style={styles.statLabel}>Students</Text>
+                <View style={[styles.statBar, { backgroundColor: classData.color }]} />
+              </View>
+            </GlassCard>
+          </PageMotion>
 
-          <View style={styles.statBox}>
-            <Text style={[styles.statValue, { color: classData.color }]}>{counts.activities}</Text>
-            <Text style={styles.statLabel}>Activities</Text>
-            <View style={[styles.statBar, { backgroundColor: classData.color }]} />
-          </View>
+          <PageMotion delay={250} style={{ flex: 1 }}>
+            <GlassCard>
+              <View style={{ padding: 24, alignItems: "center" }}>
+                <Text style={[styles.statValue, { color: classData.color }]}>{counts.activities}</Text>
+                <Text style={styles.statLabel}>Activities</Text>
+                <View style={[styles.statBar, { backgroundColor: classData.color }]} />
+              </View>
+            </GlassCard>
+          </PageMotion>
         </View>
       </ScrollView>
     </View>
@@ -181,7 +206,7 @@ export default function ClassInformationScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f7fb" },
+  container: { flex: 1, backgroundColor: "transparent" },
   header: {
     paddingHorizontal: 20,
     paddingBottom: 25,
@@ -197,7 +222,7 @@ const styles = StyleSheet.create({
   editBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-end' },
   headerTitle: { color: "#fff", fontWeight: "700", fontSize: 18, flex: 1, textAlign: 'center' },
 
-  content: { padding: 20, paddingBottom: 40 },
+  content: { padding: 20, paddingBottom: 150 },
 
   card: { backgroundColor: '#fff', borderRadius: 24, padding: 24, elevation: 2, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 15, shadowOffset: { width: 0, height: 4 } },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },

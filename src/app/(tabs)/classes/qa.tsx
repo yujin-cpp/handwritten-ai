@@ -8,6 +8,8 @@ import {
     uploadBytes,
 } from "firebase/storage";
 import React, { useEffect, useState } from "react";
+import { GlassCard } from "../../../components/GlassCard";
+import { PageMotion } from "../../../components/PageMotion";
 import {
     ActivityIndicator,
     ScrollView,
@@ -20,9 +22,9 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { auth, db, storage } from "../../../firebase/firebaseConfig";
+import { db, storage } from "../../../firebase/firebaseConfig";
+import { useAuthSession } from "../../../hooks/useAuthSession";
 import { showAlert } from "../../../utils/alert";
-import { AI_SERVER_URL } from "../../../constants/Config";
 
 const P = (v: string | string[] | undefined, fb = "") =>
   Array.isArray(v) ? v[0] : (v ?? fb);
@@ -62,6 +64,7 @@ export default function QAList() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const { uid } = useAuthSession();
 
   const classId = P(params.classId);
   const activityId = P(params.activityId);
@@ -81,7 +84,6 @@ export default function QAList() {
   );
 
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
     if (!uid || !classId || !activityId) return;
 
     const activityRef = ref(
@@ -133,10 +135,9 @@ export default function QAList() {
     });
 
     return () => unsubscribe();
-  }, [classId, activityId]);
+  }, [activityId, classId, uid]);
 
   const saveExamSettings = async () => {
-    const uid = auth.currentUser?.uid;
     if (!uid || !classId || !activityId) {
       showAlert("Error", "Missing class/activity information.");
       return;
@@ -232,7 +233,6 @@ export default function QAList() {
       if (!asset) return;
 
       setUploading(true);
-      const uid = auth.currentUser?.uid;
       if (!uid) throw new Error("User not logged in");
 
       const answerKeyFor = {
@@ -250,26 +250,16 @@ export default function QAList() {
         },
       };
 
-      const formData = new FormData();
-      formData.append("file", {
-        uri: asset.uri,
-        name: asset.name,
-        type: asset.mimeType || "application/pdf",
-      } as any);
-      formData.append("path", `qa_uploads/${uid}/${classId}/${activityId}/${asset.name}`);
-      formData.append("contentType", asset.mimeType || "application/pdf");
-
-      const response = await fetch(`${AI_SERVER_URL}/upload-file`, {
-        method: "POST",
-        body: formData,
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+      const fileRef = storageRef(
+        storage,
+        `qa_uploads/${uid}/${classId}/${activityId}/${asset.name}`,
+      );
+      await uploadBytes(fileRef, blob, {
+        contentType: asset.mimeType || "application/pdf",
       });
-
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Failed to upload file to AI Server");
-      }
-      
-      const downloadUrl = data.url;
+      const downloadUrl = await getDownloadURL(fileRef);
 
       const dbRef = ref(
         db,
@@ -318,7 +308,7 @@ export default function QAList() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: 150 }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.infoSection}>
@@ -330,204 +320,214 @@ export default function QAList() {
           </Text>
         </View>
 
-        <View style={styles.settingsCard}>
-          <Text style={styles.settingsTitle}>Exam Blueprint</Text>
-          <Text style={styles.settingsDesc}>
-            Set the total score and active objective sections before grading.
-            Uploaded keys are treated as the official correct answers for
-            enabled sections.
-          </Text>
+        <PageMotion delay={50}>
+          <GlassCard style={{ marginBottom: 20 }}>
+            <View style={{ padding: 18 }}>
+              <Text style={styles.settingsTitle}>Exam Blueprint</Text>
+              <Text style={styles.settingsDesc}>
+                Set the total score and active objective sections before grading.
+                Uploaded keys are treated as the official correct answers for
+                enabled sections.
+              </Text>
 
-          <Text style={styles.inputLabel}>Total Score (required)</Text>
-          <TextInput
-            value={totalScore}
-            onChangeText={setTotalScore}
-            keyboardType="number-pad"
-            placeholder="e.g. 75"
-            placeholderTextColor="#bbb"
-            style={styles.input}
-          />
+              <Text style={styles.inputLabel}>Total Score (required)</Text>
+              <TextInput
+                value={totalScore}
+                onChangeText={setTotalScore}
+                keyboardType="number-pad"
+                placeholder="e.g. 75"
+                placeholderTextColor="#bbb"
+                style={styles.input}
+              />
 
-          <Text style={styles.inputLabel}>
-            Professor Instructions for AI (optional)
-          </Text>
-          <TextInput
-            value={professorInstructions}
-            onChangeText={setProfessorInstructions}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-            placeholder="Add constraints or grading priorities for this exam..."
-            placeholderTextColor="#bbb"
-            style={[styles.input, styles.multilineInput]}
-          />
+              <Text style={styles.inputLabel}>
+                Professor Instructions for AI (optional)
+              </Text>
+              <TextInput
+                value={professorInstructions}
+                onChangeText={setProfessorInstructions}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+                placeholder="Add constraints or grading priorities for this exam..."
+                placeholderTextColor="#bbb"
+                style={[styles.input, styles.multilineInput]}
+              />
 
-          <Text style={styles.inputLabel}>Objective Sections</Text>
+              <Text style={styles.inputLabel}>Objective Sections</Text>
 
-          <View style={styles.typeRow}>
-            <View style={styles.typeLabelWrap}>
-              <Text style={styles.typeTitle}>Multiple Choice</Text>
-              <Text style={styles.typeSub}>Auto-grade this section</Text>
-            </View>
-            <Switch
-              value={objectiveTypes.multipleChoice.enabled}
-              onValueChange={(enabled) =>
-                setObjectiveTypes((prev) => ({
-                  ...prev,
-                  multipleChoice: { ...prev.multipleChoice, enabled },
-                }))
-              }
-              trackColor={{ false: "#ddd", true: headerColor + "66" }}
-              thumbColor={
-                objectiveTypes.multipleChoice.enabled ? headerColor : "#fff"
-              }
-            />
-          </View>
-          <TextInput
-            value={objectiveTypes.multipleChoice.items}
-            onChangeText={(items) =>
-              setObjectiveTypes((prev) => ({
-                ...prev,
-                multipleChoice: { ...prev.multipleChoice, items },
-              }))
-            }
-            editable={objectiveTypes.multipleChoice.enabled}
-            keyboardType="number-pad"
-            placeholder="Number of items"
-            placeholderTextColor="#bbb"
-            style={[
-              styles.itemsInput,
-              !objectiveTypes.multipleChoice.enabled && styles.inputDisabled,
-            ]}
-          />
-
-          <View style={styles.typeRow}>
-            <View style={styles.typeLabelWrap}>
-              <Text style={styles.typeTitle}>True/False</Text>
-              <Text style={styles.typeSub}>Auto-grade this section</Text>
-            </View>
-            <Switch
-              value={objectiveTypes.trueFalse.enabled}
-              onValueChange={(enabled) =>
-                setObjectiveTypes((prev) => ({
-                  ...prev,
-                  trueFalse: { ...prev.trueFalse, enabled },
-                }))
-              }
-              trackColor={{ false: "#ddd", true: headerColor + "66" }}
-              thumbColor={
-                objectiveTypes.trueFalse.enabled ? headerColor : "#fff"
-              }
-            />
-          </View>
-          <TextInput
-            value={objectiveTypes.trueFalse.items}
-            onChangeText={(items) =>
-              setObjectiveTypes((prev) => ({
-                ...prev,
-                trueFalse: { ...prev.trueFalse, items },
-              }))
-            }
-            editable={objectiveTypes.trueFalse.enabled}
-            keyboardType="number-pad"
-            placeholder="Number of items"
-            placeholderTextColor="#bbb"
-            style={[
-              styles.itemsInput,
-              !objectiveTypes.trueFalse.enabled && styles.inputDisabled,
-            ]}
-          />
-
-          <View style={styles.typeRow}>
-            <View style={styles.typeLabelWrap}>
-              <Text style={styles.typeTitle}>Identification</Text>
-              <Text style={styles.typeSub}>Auto-grade this section</Text>
-            </View>
-            <Switch
-              value={objectiveTypes.identification.enabled}
-              onValueChange={(enabled) =>
-                setObjectiveTypes((prev) => ({
-                  ...prev,
-                  identification: { ...prev.identification, enabled },
-                }))
-              }
-              trackColor={{ false: "#ddd", true: headerColor + "66" }}
-              thumbColor={
-                objectiveTypes.identification.enabled ? headerColor : "#fff"
-              }
-            />
-          </View>
-          <TextInput
-            value={objectiveTypes.identification.items}
-            onChangeText={(items) =>
-              setObjectiveTypes((prev) => ({
-                ...prev,
-                identification: { ...prev.identification, items },
-              }))
-            }
-            editable={objectiveTypes.identification.enabled}
-            keyboardType="number-pad"
-            placeholder="Number of items"
-            placeholderTextColor="#bbb"
-            style={[
-              styles.itemsInput,
-              !objectiveTypes.identification.enabled && styles.inputDisabled,
-            ]}
-          />
-
-          <TouchableOpacity
-            style={[
-              styles.saveSettingsBtn,
-              { backgroundColor: headerColor },
-              savingSettings && { opacity: 0.75 },
-            ]}
-            onPress={saveExamSettings}
-            disabled={savingSettings}
-          >
-            {savingSettings ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Feather
-                  name="save"
-                  size={16}
-                  color="#fff"
-                  style={{ marginRight: 8 }}
+              <View style={styles.typeRow}>
+                <View style={styles.typeLabelWrap}>
+                  <Text style={styles.typeTitle}>Multiple Choice</Text>
+                  <Text style={styles.typeSub}>Auto-grade this section</Text>
+                </View>
+                <Switch
+                  value={objectiveTypes.multipleChoice.enabled}
+                  onValueChange={(enabled) =>
+                    setObjectiveTypes((prev) => ({
+                      ...prev,
+                      multipleChoice: { ...prev.multipleChoice, enabled },
+                    }))
+                  }
+                  trackColor={{ false: "#ddd", true: headerColor + "66" }}
+                  thumbColor={
+                    objectiveTypes.multipleChoice.enabled ? headerColor : "#fff"
+                  }
                 />
-                <Text style={styles.saveSettingsText}>Save Exam Settings</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
+              </View>
+              <TextInput
+                value={objectiveTypes.multipleChoice.items}
+                onChangeText={(items) =>
+                  setObjectiveTypes((prev) => ({
+                    ...prev,
+                    multipleChoice: { ...prev.multipleChoice, items },
+                  }))
+                }
+                editable={objectiveTypes.multipleChoice.enabled}
+                keyboardType="number-pad"
+                placeholder="Number of items"
+                placeholderTextColor="#bbb"
+                style={[
+                  styles.itemsInput,
+                  !objectiveTypes.multipleChoice.enabled && styles.inputDisabled,
+                ]}
+              />
 
-        <TouchableOpacity
-          style={[styles.uploadCard, uploading && styles.uploadingCard]}
-          activeOpacity={0.8}
-          onPress={handleUpload}
-          disabled={uploading}
-        >
-          <View
-            style={[
-              styles.uploadIconBox,
-              { backgroundColor: headerColor + "15" },
-            ]}
+              <View style={styles.typeRow}>
+                <View style={styles.typeLabelWrap}>
+                  <Text style={styles.typeTitle}>True/False</Text>
+                  <Text style={styles.typeSub}>Auto-grade this section</Text>
+                </View>
+                <Switch
+                  value={objectiveTypes.trueFalse.enabled}
+                  onValueChange={(enabled) =>
+                    setObjectiveTypes((prev) => ({
+                      ...prev,
+                      trueFalse: { ...prev.trueFalse, enabled },
+                    }))
+                  }
+                  trackColor={{ false: "#ddd", true: headerColor + "66" }}
+                  thumbColor={
+                    objectiveTypes.trueFalse.enabled ? headerColor : "#fff"
+                  }
+                />
+              </View>
+              <TextInput
+                value={objectiveTypes.trueFalse.items}
+                onChangeText={(items) =>
+                  setObjectiveTypes((prev) => ({
+                    ...prev,
+                    trueFalse: { ...prev.trueFalse, items },
+                  }))
+                }
+                editable={objectiveTypes.trueFalse.enabled}
+                keyboardType="number-pad"
+                placeholder="Number of items"
+                placeholderTextColor="#bbb"
+                style={[
+                  styles.itemsInput,
+                  !objectiveTypes.trueFalse.enabled && styles.inputDisabled,
+                ]}
+              />
+
+              <View style={styles.typeRow}>
+                <View style={styles.typeLabelWrap}>
+                  <Text style={styles.typeTitle}>Identification</Text>
+                  <Text style={styles.typeSub}>Auto-grade this section</Text>
+                </View>
+                <Switch
+                  value={objectiveTypes.identification.enabled}
+                  onValueChange={(enabled) =>
+                    setObjectiveTypes((prev) => ({
+                      ...prev,
+                      identification: { ...prev.identification, enabled },
+                    }))
+                  }
+                  trackColor={{ false: "#ddd", true: headerColor + "66" }}
+                  thumbColor={
+                    objectiveTypes.identification.enabled ? headerColor : "#fff"
+                  }
+                />
+              </View>
+              <TextInput
+                value={objectiveTypes.identification.items}
+                onChangeText={(items) =>
+                  setObjectiveTypes((prev) => ({
+                    ...prev,
+                    identification: { ...prev.identification, items },
+                  }))
+                }
+                editable={objectiveTypes.identification.enabled}
+                keyboardType="number-pad"
+                placeholder="Number of items"
+                placeholderTextColor="#bbb"
+                style={[
+                  styles.itemsInput,
+                  !objectiveTypes.identification.enabled && styles.inputDisabled,
+                ]}
+              />
+
+              <TouchableOpacity
+                style={[
+                  styles.saveSettingsBtn,
+                  { backgroundColor: headerColor },
+                  savingSettings && { opacity: 0.75 },
+                ]}
+                onPress={saveExamSettings}
+                disabled={savingSettings}
+              >
+                {savingSettings ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Feather
+                      name="save"
+                      size={16}
+                      color="#fff"
+                      style={{ marginRight: 8 }}
+                    />
+                    <Text style={styles.saveSettingsText}>Save Exam Settings</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </GlassCard>
+        </PageMotion>
+
+        <PageMotion delay={100}>
+          <TouchableOpacity
+            style={[uploading && styles.uploadingCard]}
+            activeOpacity={0.8}
+            onPress={handleUpload}
+            disabled={uploading}
           >
-            {uploading ? (
-              <ActivityIndicator color={headerColor} />
-            ) : (
-              <Feather name="upload-cloud" size={28} color={headerColor} />
-            )}
-          </View>
-          <View style={styles.uploadInfo}>
-            <Text style={styles.uploadTitle}>
-              {uploading ? "Uploading File..." : "Tap to Upload Key"}
-            </Text>
-            <Text style={styles.uploadSub}>
-              Supports PDF, DOCX, and JPG/PNG
-            </Text>
-          </View>
-          {!uploading && <Feather name="plus" size={20} color="#ccc" />}
-        </TouchableOpacity>
+            <GlassCard style={{ marginBottom: 35 }}>
+              <View style={{ padding: 24, flexDirection: 'row', alignItems: 'center' }}>
+                <View
+                  style={[
+                    styles.uploadIconBox,
+                    { backgroundColor: headerColor + "15" },
+                  ]}
+                >
+                  {uploading ? (
+                    <ActivityIndicator color={headerColor} />
+                  ) : (
+                    <Feather name="upload-cloud" size={28} color={headerColor} />
+                  )}
+                </View>
+                <View style={styles.uploadInfo}>
+                  <Text style={styles.uploadTitle}>
+                    {uploading ? "Uploading File..." : "Tap to Upload Key"}
+                  </Text>
+                  <Text style={styles.uploadSub}>
+                    Supports PDF, DOCX, and JPG/PNG
+                  </Text>
+                </View>
+                {!uploading && <Feather name="plus" size={20} color="#ccc" />}
+              </View>
+            </GlassCard>
+          </TouchableOpacity>
+        </PageMotion>
 
         <View style={styles.listSection}>
           <View style={styles.listHeaderRow}>
@@ -606,10 +606,10 @@ export default function QAList() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f7fb" },
+  container: { flex: 1, backgroundColor: "transparent" },
   header: {
     paddingHorizontal: 20,
-    paddingBottom: 25,
+    paddingBottom: 45,
     flexDirection: "row",
     alignItems: "center",
     elevation: 4,
@@ -651,7 +651,7 @@ const styles = StyleSheet.create({
   sectionDesc: { fontSize: 15, color: "#666", lineHeight: 22 },
 
   settingsCard: {
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
     borderRadius: 22,
     padding: 18,
     marginBottom: 20,
@@ -729,7 +729,7 @@ const styles = StyleSheet.create({
   saveSettingsText: { color: "#fff", fontWeight: "800", fontSize: 14 },
 
   uploadCard: {
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
     borderRadius: 24,
     padding: 24,
     flexDirection: "row",
@@ -779,7 +779,7 @@ const styles = StyleSheet.create({
 
   fileList: { gap: 12 },
   fileItem: {
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
     borderRadius: 20,
     padding: 16,
     flexDirection: "row",
@@ -794,7 +794,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: "#f4f7fb",
+    backgroundColor: "transparent",
     justifyContent: "center",
     alignItems: "center",
   },

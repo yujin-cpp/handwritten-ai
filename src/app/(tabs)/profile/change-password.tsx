@@ -1,9 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
+import { GlassCard } from "../../../components/GlassCard";
+import { PageMotion } from "../../../components/PageMotion";
 import {
   ActivityIndicator,
   Alert,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -85,7 +88,11 @@ export default function ChangePassword() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 20 }]}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 20 }]}
+      showsVerticalScrollIndicator={false}
+    >
 
       {/* Back */}
       <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -94,81 +101,88 @@ export default function ChangePassword() {
 
       <Text style={styles.title}>Change Password</Text>
 
-      {/* Current Password */}
-      <View style={styles.inputRow}>
-        <TextInput
-          style={styles.input}
-          placeholder="Current Password"
-          placeholderTextColor="#999"
-          secureTextEntry={!showCurrent}
-          value={currentPassword}
-          onChangeText={setCurrentPassword}
-        />
-        <TouchableOpacity onPress={() => setShowCurrent(!showCurrent)}>
-          <Ionicons
-            name={showCurrent ? "eye-outline" : "eye-off-outline"}
-            size={20}
-            color="#777"
-          />
-        </TouchableOpacity>
-      </View>
+      <PageMotion delay={50}>
+      <GlassCard>
+        <View style={{ padding: 20 }}>
+          {/* Current Password */}
+          <View style={styles.inputRow}>
+            <TextInput
+              style={styles.input}
+              placeholder="Current Password"
+              placeholderTextColor="#999"
+              secureTextEntry={!showCurrent}
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+            />
+            <TouchableOpacity onPress={() => setShowCurrent(!showCurrent)}>
+              <Ionicons
+                name={showCurrent ? "eye-outline" : "eye-off-outline"}
+                size={20}
+                color="#777"
+              />
+            </TouchableOpacity>
+          </View>
 
-      {/* New Password */}
-      <View style={styles.inputRow}>
-        <TextInput
-          style={styles.input}
-          placeholder="New Password"
-          placeholderTextColor="#999"
-          secureTextEntry={!showNew}
-          value={newPassword}
-          onChangeText={setNewPassword}
-        />
-        <TouchableOpacity onPress={() => setShowNew(!showNew)}>
-          <Ionicons
-            name={showNew ? "eye-outline" : "eye-off-outline"}
-            size={20}
-            color="#777"
-          />
-        </TouchableOpacity>
-      </View>
+          {/* New Password */}
+          <View style={styles.inputRow}>
+            <TextInput
+              style={styles.input}
+              placeholder="New Password"
+              placeholderTextColor="#999"
+              secureTextEntry={!showNew}
+              value={newPassword}
+              onChangeText={setNewPassword}
+            />
+            <TouchableOpacity onPress={() => setShowNew(!showNew)}>
+              <Ionicons
+                name={showNew ? "eye-outline" : "eye-off-outline"}
+                size={20}
+                color="#777"
+              />
+            </TouchableOpacity>
+          </View>
 
-      {/* Confirm Password */}
-      <View style={styles.inputRow}>
-        <TextInput
-          style={styles.input}
-          placeholder="Confirm Password"
-          placeholderTextColor="#999"
-          secureTextEntry={!showConfirm}
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-        />
-        <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)}>
-          <Ionicons
-            name={showConfirm ? "eye-outline" : "eye-off-outline"}
-            size={20}
-            color="#777"
-          />
-        </TouchableOpacity>
-      </View>
+          {/* Confirm Password */}
+          <View style={styles.inputRow}>
+            <TextInput
+              style={styles.input}
+              placeholder="Confirm Password"
+              placeholderTextColor="#999"
+              secureTextEntry={!showConfirm}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+            />
+            <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)}>
+              <Ionicons
+                name={showConfirm ? "eye-outline" : "eye-off-outline"}
+                size={20}
+                color="#777"
+              />
+            </TouchableOpacity>
+          </View>
 
-      {/* Save Button */}
-      <TouchableOpacity
-        style={[styles.saveBtn, loading && { opacity: 0.7 }]}
-        onPress={handleChangePassword}
-        disabled={loading}
-      >
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.saveText}>Save</Text>
-        )}
-      </TouchableOpacity>
-    </View>
+          {/* Save Button */}
+          <TouchableOpacity
+            style={[styles.saveBtn, loading && { opacity: 0.7 }]}
+            onPress={handleChangePassword}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.saveText}>Save</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </GlassCard>
+      </PageMotion>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f7fb", padding: 20 },
+  container: { flex: 1, backgroundColor: "transparent", padding: 20 },
+  scrollContent: { paddingBottom: 150 },
   backBtn: { alignSelf: 'flex-start' },
   title: {
     fontSize: 22,

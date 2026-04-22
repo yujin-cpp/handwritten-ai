@@ -16,7 +16,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PageMotion } from "../../../components/PageMotion";
-import { auth, db } from "../../../firebase/firebaseConfig";
+import { GlassCard } from "../../../components/GlassCard";
+import { db } from "../../../firebase/firebaseConfig";
+import { useAuthSession } from "../../../hooks/useAuthSession";
 import { showAlert } from "../../../utils/alert";
 
 const P = (v: string | string[] | undefined, fb = "") =>
@@ -49,6 +51,7 @@ export default function QuizScore() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const { uid } = useAuthSession();
 
   const classId = P(params.classId);
   const activityId = P(params.activityId);
@@ -82,7 +85,6 @@ export default function QuizScore() {
   const [missingOpen, setMissingOpen] = useState(false);
 
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
     if (!uid || !classId || !activityId) return;
 
     const studentsRef = ref(
@@ -129,7 +131,7 @@ export default function QuizScore() {
     });
 
     return () => unsubscribe();
-  }, [classId, activityId]);
+  }, [activityId, classId, uid]);
 
   const missingStudents = useMemo(
     () =>
@@ -213,7 +215,6 @@ export default function QuizScore() {
 
   async function saveEdit() {
     if (!editTarget) return;
-    const uid = auth.currentUser?.uid;
     if (!uid) return;
 
     setSaving(true);
@@ -282,34 +283,39 @@ export default function QuizScore() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: 150 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Statistics Widgets */}
         <PageMotion delay={40} style={styles.statsGrid}>
-          <View style={styles.statWidget}>
-            <View style={[styles.statIconBox, { backgroundColor: "#f0fdf4" }]}>
-              <Feather name="award" size={20} color="#00b679" />
+          <GlassCard style={{ flex: 1 }}>
+            <View style={{ padding: 20 }}>
+              <View style={[styles.statIconBox, { backgroundColor: "#f0fdf4" }]}>
+                <Feather name="award" size={20} color="#00b679" />
+              </View>
+              <Text style={styles.statVal}>{highest}</Text>
+              <Text style={styles.statLab}>Highest Score</Text>
             </View>
-            <Text style={styles.statVal}>{highest}</Text>
-            <Text style={styles.statLab}>Highest Score</Text>
-          </View>
+          </GlassCard>
 
-          <View style={styles.statWidget}>
-            <View style={[styles.statIconBox, { backgroundColor: "#fff7ed" }]}>
-              <Feather name="clock" size={20} color="#f97316" />
+          <GlassCard style={{ flex: 1 }}>
+            <View style={{ padding: 20 }}>
+              <View style={[styles.statIconBox, { backgroundColor: "#fff7ed" }]}>
+                <Feather name="clock" size={20} color="#f97316" />
+              </View>
+              <Text style={styles.statVal}>{missingCount}</Text>
+              <Text style={styles.statLab}>Pending Grades</Text>
             </View>
-            <Text style={styles.statVal}>{missingCount}</Text>
-            <Text style={styles.statLab}>Pending Grades</Text>
-          </View>
+          </GlassCard>
         </PageMotion>
 
         <PageMotion delay={95}>
-          <TouchableOpacity
-            style={[styles.progressCard, { borderColor: headerColor + "30" }]}
-            onPress={() => setMissingOpen(true)}
-            disabled={missingStudents.length === 0}
-          >
+          <GlassCard style={{ marginBottom: 25 }}>
+            <TouchableOpacity
+              style={{ padding: 20 }}
+              onPress={() => setMissingOpen(true)}
+              disabled={missingStudents.length === 0}
+            >
             <View style={styles.progressHeader}>
               <Text style={styles.progressTitle}>Grading Progress</Text>
               <Text style={styles.progressVal}>
@@ -344,10 +350,13 @@ export default function QuizScore() {
               </View>
             )}
           </TouchableOpacity>
+          </GlassCard>
         </PageMotion>
 
         {/* Toolbar */}
-        <PageMotion delay={130} style={styles.toolbar}>
+        <PageMotion delay={130}>
+          <GlassCard style={{ marginBottom: 20 }}>
+            <View style={{ padding: 15, flexDirection: 'row', gap: 12 }}>
           <View style={styles.searchContainer}>
             <Feather name="search" size={16} color="#999" />
             <TextInput
@@ -366,10 +375,13 @@ export default function QuizScore() {
             <Feather name="sliders" size={16} color="#444" />
             <Text style={styles.filterText}>{sortLabel}</Text>
           </TouchableOpacity>
+            </View>
+          </GlassCard>
         </PageMotion>
 
         {/* Student List Table */}
-        <PageMotion delay={180} style={styles.listSection}>
+        <PageMotion delay={180}>
+          <GlassCard>
           <View style={styles.listHeader}>
             <Text style={[styles.headCell, { flex: 2 }]}>STUDENT NAME</Text>
             <Text style={[styles.headCell, { flex: 1, textAlign: "center" }]}>
@@ -477,6 +489,7 @@ export default function QuizScore() {
               </View>
             ))
           )}
+          </GlassCard>
         </PageMotion>
       </ScrollView>
 
@@ -811,10 +824,10 @@ export default function QuizScore() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f7fb" },
+  container: { flex: 1, backgroundColor: "transparent" },
   header: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 45,
     flexDirection: "row",
     alignItems: "center",
   },
@@ -843,11 +856,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  content: { padding: 20 },
+  content: { padding: 20, paddingBottom: 150 },
   statsGrid: { flexDirection: "row", gap: 15, marginBottom: 20 },
   statWidget: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
     borderRadius: 20,
     padding: 20,
     elevation: 2,
@@ -869,7 +882,7 @@ const styles = StyleSheet.create({
   statLab: { fontSize: 12, color: "#999", marginTop: 2, fontWeight: "600" },
 
   progressCard: {
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
     borderRadius: 20,
     padding: 20,
     borderWidth: 1,
@@ -914,7 +927,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
     borderRadius: 14,
     paddingHorizontal: 15,
     height: 48,
@@ -926,7 +939,7 @@ const styles = StyleSheet.create({
   filterBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
     paddingHorizontal: 15,
     borderRadius: 14,
     height: 48,
@@ -935,7 +948,7 @@ const styles = StyleSheet.create({
   filterText: { marginLeft: 8, fontSize: 13, fontWeight: "700", color: "#444" },
 
   listSection: {
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
     borderRadius: 20,
     overflow: "hidden",
     elevation: 2,
@@ -979,7 +992,7 @@ const styles = StyleSheet.create({
     padding: 25,
   },
   modalCard: {
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
     borderRadius: 24,
     padding: 24,
     shadowColor: "#000",

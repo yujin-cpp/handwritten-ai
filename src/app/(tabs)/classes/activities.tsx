@@ -1,6 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
+import { GlassCard } from "../../../components/GlassCard";
+import { PageMotion } from "../../../components/PageMotion";
 import {
   ActivityIndicator,
   Modal,
@@ -13,7 +15,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { auth } from "../../../firebase/firebaseConfig";
+import { useAuthSession } from "../../../hooks/useAuthSession";
 import {
   addActivity,
   deleteActivity,
@@ -30,6 +32,7 @@ export default function ActivitiesScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const { uid } = useAuthSession();
 
   const classId = P(params.classId);
   const className = P(params.name, "Class");
@@ -52,7 +55,6 @@ export default function ActivitiesScreen() {
   const displayItems = useMemo(() => items, [items]);
 
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
     if (!uid || !classId) return;
 
     const unsubscribe = listenToActivities(uid, classId, (data) => {
@@ -61,7 +63,7 @@ export default function ActivitiesScreen() {
     });
 
     return () => unsubscribe();
-  }, [classId]);
+  }, [classId, uid]);
 
   function toggleEdit() {
     if (editMode) setSelected(new Set());
@@ -84,7 +86,6 @@ export default function ActivitiesScreen() {
     const title = newTitle.trim();
     if (!title) return;
 
-    const uid = auth.currentUser?.uid;
     if (!uid || !classId) return;
 
     try {
@@ -100,7 +101,6 @@ export default function ActivitiesScreen() {
   }
 
   async function doDelete() {
-    const uid = auth.currentUser?.uid;
     if (!uid || !classId) return;
 
     try {
@@ -135,7 +135,7 @@ export default function ActivitiesScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 120 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 150 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.titleRow}>
           <View>
             <Text style={styles.title}>Activities</Text>
@@ -170,38 +170,42 @@ export default function ActivitiesScreen() {
                 </TouchableOpacity>
               </View>
             ) : (
-              displayItems.map((a) => (
-                <TouchableOpacity
-                  key={a.id}
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    if (editMode) toggleSelect(a.id);
-                    else router.push({
-                      pathname: "/(tabs)/classes/activity-details",
-                      params: { classId, activityId: a.id, name: className, section, color: headerColor, title: a.title },
-                    });
-                  }}
-                  style={[styles.activityCard, selected.has(a.id) && styles.selectedCard]}
-                >
-                  <View style={styles.cardContent}>
-                    {editMode ? (
-                      <View style={[styles.checkCircle, selected.has(a.id) && { backgroundColor: '#ff3b30', borderColor: '#ff3b30' }]}>
-                        {selected.has(a.id) && <Feather name="check" size={12} color="#fff" />}
+              displayItems.map((a, idx) => (
+                <PageMotion key={a.id} delay={50 + idx * 40}>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      if (editMode) toggleSelect(a.id);
+                      else router.push({
+                        pathname: "/(tabs)/classes/activity-details",
+                        params: { classId, activityId: a.id, name: className, section, color: headerColor, title: a.title },
+                      });
+                    }}
+                  >
+                    <GlassCard borderRadius={20} style={selected.has(a.id) ? { borderColor: '#ffccd0' } : {}}>
+                      <View style={{ padding: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <View style={styles.cardContent}>
+                          {editMode ? (
+                            <View style={[styles.checkCircle, selected.has(a.id) && { backgroundColor: '#ff3b30', borderColor: '#ff3b30' }]}>
+                              {selected.has(a.id) && <Feather name="check" size={12} color="#fff" />}
+                            </View>
+                          ) : (
+                            <View style={[styles.iconBox, { backgroundColor: headerColor + '10' }]}>
+                              <Feather name="file-text" size={18} color={headerColor} />
+                            </View>
+                          )}
+                          <View style={styles.activityInfo}>
+                            <Text style={[styles.activityText, selected.has(a.id) && { color: '#ff3b30' }]} numberOfLines={1}>
+                              {a.title}
+                            </Text>
+                            {!editMode && <Text style={styles.tapToView}>Tap to view details</Text>}
+                          </View>
+                        </View>
+                        {!editMode && <Feather name="chevron-right" size={18} color="#ccc" />}
                       </View>
-                    ) : (
-                      <View style={[styles.iconBox, { backgroundColor: headerColor + '10' }]}>
-                        <Feather name="file-text" size={18} color={headerColor} />
-                      </View>
-                    )}
-                    <View style={styles.activityInfo}>
-                      <Text style={[styles.activityText, selected.has(a.id) && { color: '#ff3b30' }]} numberOfLines={1}>
-                        {a.title}
-                      </Text>
-                      {!editMode && <Text style={styles.tapToView}>Tap to view details</Text>}
-                    </View>
-                  </View>
-                  {!editMode && <Feather name="chevron-right" size={18} color="#ccc" />}
-                </TouchableOpacity>
+                    </GlassCard>
+                  </TouchableOpacity>
+                </PageMotion>
               ))
             )}
           </View>
@@ -294,7 +298,7 @@ export default function ActivitiesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f7fb" },
+  container: { flex: 1, backgroundColor: "transparent" },
   header: { paddingHorizontal: 20, paddingBottom: 20, flexDirection: "row", alignItems: "center", elevation: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
   headerInfo: { flex: 1, paddingHorizontal: 10 },
@@ -334,19 +338,19 @@ const styles = StyleSheet.create({
   tapToView: { fontSize: 12, color: '#aaa', marginTop: 2 },
 
   emptyBox: { alignItems: "center", marginTop: 60 },
-  emptyIconBox: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  emptyIconBox: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'transparent', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   emptyText: { fontSize: 16, color: "#999", fontWeight: "500" },
   emptyAddBtn: { marginTop: 15 },
   emptyAddText: { fontWeight: "700", fontSize: 15 },
 
-  deleteBarWrapper: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 20, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#f0f0f0", elevation: 20 },
+  deleteBarWrapper: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 20, backgroundColor: "rgba(255, 255, 255, 0.85)", borderTopWidth: 0, elevation: 20 },
   deleteBar: { backgroundColor: "#ff3b30", paddingVertical: 18, borderRadius: 16, alignItems: "center", flexDirection: 'row', justifyContent: 'center', elevation: 4 },
   deleteText: { color: "#fff", fontWeight: "700", fontSize: 16 },
   cancelEditBtn: { marginTop: 15, alignItems: 'center' },
   cancelEditText: { color: '#666', fontWeight: '600', fontSize: 14 },
 
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "center", padding: 25 },
-  modalCard: { backgroundColor: "#fff", borderRadius: 24, padding: 24, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
+  modalCard: { backgroundColor: "rgba(255, 255, 255, 0.85)", borderRadius: 24, padding: 24, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 },
   modalTitle: { fontSize: 20, fontWeight: "800", color: "#111" },
   inputBox: { marginBottom: 25 },

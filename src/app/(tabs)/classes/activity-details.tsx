@@ -1,6 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
+import { GlassCard } from "../../../components/GlassCard";
+import { PageMotion } from "../../../components/PageMotion";
 import {
   ActivityIndicator,
   Modal,
@@ -81,74 +83,93 @@ export default function ActivityDetails() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.titleCard}>
-          <Text style={styles.titleLabel}>Selected Activity</Text>
-          <Text style={styles.activityTitle}>{title}</Text>
-          <View style={[styles.titleBar, { backgroundColor: headerColor }]} />
-        </View>
+        <PageMotion delay={50}>
+          <GlassCard>
+            <View style={{ padding: 24 }}>
+              <Text style={styles.titleLabel}>Selected Activity</Text>
+              <Text style={styles.activityTitle}>{title}</Text>
+              <View style={[styles.titleBar, { backgroundColor: headerColor }]} />
+            </View>
+          </GlassCard>
+        </PageMotion>
 
         <Text style={styles.sectionHeading}>Grading Configurations</Text>
 
         <View style={styles.cardContainer}>
-          <TouchableOpacity
-            style={styles.card}
-            activeOpacity={0.7}
-            onPress={() =>
-              router.push({
-                pathname: "/(tabs)/classes/qa",
-                params: { classId, activityId, name: className, section, color: headerColor, title },
-              })
-            }
-          >
-            <View style={[styles.iconBox, { backgroundColor: '#f0f4ff' }]}>
-              <Feather name="message-square" size={22} color="#4c6fff" />
-            </View>
-            <View style={styles.cardContent}>
-              <Text style={styles.cardTitle}>Objective (Q&A)</Text>
-              <Text style={styles.cardSubtitle}>Set answer keys for auto-grading</Text>
-            </View>
-            <Feather name="chevron-right" size={20} color="#ccc" />
-          </TouchableOpacity>
+          <PageMotion delay={100}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() =>
+                router.push({
+                  pathname: "/(tabs)/classes/qa",
+                  params: { classId, activityId, name: className, section, color: headerColor, title },
+                })
+              }
+            >
+              <GlassCard borderRadius={20}>
+                <View style={{ padding: 18, flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={[styles.iconBox, { backgroundColor: '#f0f4ff' }]}>
+                    <Feather name="message-square" size={22} color="#4c6fff" />
+                  </View>
+                  <View style={styles.cardContent}>
+                    <Text style={styles.cardTitle}>Objective (Q&A)</Text>
+                    <Text style={styles.cardSubtitle}>Set answer keys for auto-grading</Text>
+                  </View>
+                  <Feather name="chevron-right" size={20} color="#ccc" />
+                </View>
+              </GlassCard>
+            </TouchableOpacity>
+          </PageMotion>
 
-          <TouchableOpacity
-            style={styles.card}
-            activeOpacity={0.7}
-            onPress={() =>
-              router.push({
-                pathname: "/(tabs)/classes/essay",
-                params: { classId, activityId, name: className, section, color: headerColor, title },
-              })
-            }
-          >
-            <View style={[styles.iconBox, { backgroundColor: '#fff7ed' }]}>
-              <Feather name="file-text" size={22} color="#f97316" />
-            </View>
-            <View style={styles.cardContent}>
-              <Text style={styles.cardTitle}>Subjective (Essay)</Text>
-              <Text style={styles.cardSubtitle}>Configure rubrics for long answers</Text>
-            </View>
-            <Feather name="chevron-right" size={20} color="#ccc" />
-          </TouchableOpacity>
+          <PageMotion delay={150}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() =>
+                router.push({
+                  pathname: "/(tabs)/classes/essay",
+                  params: { classId, activityId, name: className, section, color: headerColor, title },
+                })
+              }
+            >
+              <GlassCard borderRadius={20}>
+                <View style={{ padding: 18, flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={[styles.iconBox, { backgroundColor: '#fff7ed' }]}>
+                    <Feather name="file-text" size={22} color="#f97316" />
+                  </View>
+                  <View style={styles.cardContent}>
+                    <Text style={styles.cardTitle}>Subjective (Essay)</Text>
+                    <Text style={styles.cardSubtitle}>Configure rubrics for long answers</Text>
+                  </View>
+                  <Feather name="chevron-right" size={20} color="#ccc" />
+                </View>
+              </GlassCard>
+            </TouchableOpacity>
+          </PageMotion>
 
-          <TouchableOpacity
-            style={styles.card}
-            activeOpacity={0.7}
-            onPress={() =>
-              router.push({
-                pathname: "/(tabs)/classes/quiz-score",
-                params: { classId, activityId, name: className, section, color: headerColor, title },
-              })
-            }
-          >
-            <View style={[styles.iconBox, { backgroundColor: '#f0fdf4' }]}>
-              <Feather name="users" size={22} color="#00b679" />
-            </View>
-            <View style={styles.cardContent}>
-              <Text style={styles.cardTitle}>Student Scores</Text>
-              <Text style={styles.cardSubtitle}>View results and individual cards</Text>
-            </View>
-            <Feather name="chevron-right" size={20} color="#ccc" />
-          </TouchableOpacity>
+          <PageMotion delay={200}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() =>
+                router.push({
+                  pathname: "/(tabs)/classes/quiz-score",
+                  params: { classId, activityId, name: className, section, color: headerColor, title },
+                })
+              }
+            >
+              <GlassCard borderRadius={20}>
+                <View style={{ padding: 18, flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={[styles.iconBox, { backgroundColor: '#f0fdf4' }]}>
+                    <Feather name="users" size={22} color="#00b679" />
+                  </View>
+                  <View style={styles.cardContent}>
+                    <Text style={styles.cardTitle}>Student Scores</Text>
+                    <Text style={styles.cardSubtitle}>View results and individual cards</Text>
+                  </View>
+                  <Feather name="chevron-right" size={20} color="#ccc" />
+                </View>
+              </GlassCard>
+            </TouchableOpacity>
+          </PageMotion>
         </View>
       </ScrollView>
 
@@ -196,16 +217,16 @@ export default function ActivityDetails() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f7fb" },
-  header: { paddingHorizontal: 20, paddingBottom: 25, flexDirection: "row", alignItems: "center", elevation: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
+  container: { flex: 1, backgroundColor: "transparent" },
+  header: { paddingHorizontal: 20, paddingBottom: 45, flexDirection: "row", alignItems: "center", elevation: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
   headerInfo: { flex: 1, paddingHorizontal: 10 },
   headerSmall: { color: "#fff", fontSize: 12, opacity: 0.8, fontWeight: '600', textTransform: 'uppercase' },
   headerBig: { color: "#fff", fontSize: 18, fontWeight: "800" },
   editBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
 
-  content: { padding: 20 },
-  titleCard: { backgroundColor: '#fff', borderRadius: 24, padding: 24, marginBottom: 30, elevation: 1, shadowColor: "#000", shadowOpacity: 0.03, shadowRadius: 15 },
+  content: { padding: 20, paddingBottom: 150 },
+  titleCard: { backgroundColor: "rgba(255, 255, 255, 0.85)", borderRadius: 24, padding: 24, marginBottom: 30, elevation: 1, shadowColor: "#000", shadowOpacity: 0.03, shadowRadius: 15 },
   titleLabel: { fontSize: 13, color: '#999', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
   activityTitle: { fontSize: 24, fontWeight: "800", color: "#111", marginBottom: 15 },
   titleBar: { width: 40, height: 4, borderRadius: 2 },
@@ -213,7 +234,7 @@ const styles = StyleSheet.create({
   sectionHeading: { fontSize: 17, fontWeight: "800", color: "#111", marginBottom: 20, marginLeft: 5 },
   cardContainer: { gap: 12 },
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
     borderRadius: 20,
     padding: 18,
     flexDirection: "row",
@@ -231,7 +252,7 @@ const styles = StyleSheet.create({
   cardSubtitle: { fontSize: 13, color: "#999", marginTop: 2 },
 
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "center", padding: 25 },
-  modalCard: { backgroundColor: "#fff", borderRadius: 24, padding: 24, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
+  modalCard: { backgroundColor: "rgba(255, 255, 255, 0.85)", borderRadius: 24, padding: 24, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 },
   modalHeaderTitle: { fontSize: 20, fontWeight: "800", color: "#111" },
   inputContainer: { marginBottom: 25 },

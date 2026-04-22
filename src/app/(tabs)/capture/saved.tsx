@@ -1,22 +1,55 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { GlassCard } from "../../../components/GlassCard";
+import { PageMotion } from "../../../components/PageMotion";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function SavedScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const getParam = (value: string | string[] | undefined, fallback = "") =>
+    Array.isArray(value) ? value[0] : (value ?? fallback);
+
+  const classId = getParam(params.classId);
+  const activityId = getParam(params.activityId);
+  const className = getParam(params.name, "Class");
+  const section = getParam(params.section, "Section");
+  const color = getParam(params.color, "#00b679");
+  const title = getParam(params.title, "Activity");
 
   const handleGradeAnother = () => {
     router.dismissAll();
-    router.replace("/(tabs)/capture");
+    router.replace({
+      pathname: "/(tabs)/capture",
+      params: {
+        classId,
+        activityId,
+        name: className,
+        section,
+        color,
+        title,
+      },
+    });
   };
 
   const handleGoToScores = () => {
+    if (!classId || !activityId) return;
     router.dismissAll();
-    router.replace("/(tabs)/classes/quiz-score");
+    router.replace({
+      pathname: "/(tabs)/classes/quiz-score",
+      params: {
+        classId,
+        activityId,
+        name: className,
+        section,
+        color,
+        title,
+      },
+    });
   };
 
   return (
@@ -30,54 +63,63 @@ export default function SavedScreen() {
         <Text style={styles.headerTitle}>AI Scorer</Text>
       </LinearGradient>
 
-      <View style={styles.body}>
-        <View style={styles.checkCircle}>
-          <Feather name="check" size={50} color="#fff" />
-        </View>
+      <ScrollView
+        contentContainerStyle={styles.body}
+        showsVerticalScrollIndicator={false}
+      >
+        <PageMotion delay={50} style={{ alignItems: 'center', width: '100%' }}>
+          <View style={styles.checkCircle}>
+            <Feather name="check" size={50} color="#fff" />
+          </View>
 
-        <Text style={styles.mainText}>Grade Saved!</Text>
-        <Text style={styles.subText}>
-          The score has been recorded successfully.{"\n"}The AI is now
-          processing the breakdown.
-        </Text>
-      </View>
+          <Text style={styles.mainText}>Grade Saved!</Text>
+          <Text style={styles.subText}>
+            The score has been recorded successfully.{"\n"}The AI is now
+            processing the breakdown.
+          </Text>
+        </PageMotion>
+      </ScrollView>
 
       <View
-        style={[styles.bottomWrapper, { paddingBottom: insets.bottom + 30 }]}
+        style={[styles.bottomWrapper, { paddingBottom: insets.bottom + 104 }]}
       >
-        <TouchableOpacity
-          style={styles.gradeAnotherBtn}
-          onPress={handleGradeAnother}
-        >
-          <Feather
-            name="maximize"
-            size={20}
-            color="#fff"
-            style={{ marginRight: 10 }}
-          />
-          <Text style={styles.gradeAnotherText}>Grade Another Student</Text>
-        </TouchableOpacity>
+        <PageMotion delay={100}>
+          <TouchableOpacity
+            style={styles.gradeAnotherBtn}
+            onPress={handleGradeAnother}
+          >
+            <Feather
+              name="maximize"
+              size={20}
+              color="#fff"
+              style={{ marginRight: 10 }}
+            />
+            <Text style={styles.gradeAnotherText}>Grade Another Student</Text>
+          </TouchableOpacity>
+        </PageMotion>
 
-        <TouchableOpacity style={styles.backBtn} onPress={handleGoToScores}>
-          <Text style={styles.backText}>View Class Scores</Text>
-          <Feather
-            name="chevron-right"
-            size={18}
-            color="#00b679"
-            style={{ marginLeft: 5 }}
-          />
-        </TouchableOpacity>
+        <PageMotion delay={150}>
+          <TouchableOpacity style={styles.backBtn} onPress={handleGoToScores}>
+            <Text style={styles.backText}>View Class Scores</Text>
+            <Feather
+              name="chevron-right"
+              size={18}
+              color="#00b679"
+              style={{ marginLeft: 5 }}
+            />
+          </TouchableOpacity>
+        </PageMotion>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f7fb" },
+  container: { flex: 1, backgroundColor: "transparent" },
   header: {
     paddingHorizontal: 18,
-    paddingTop: 45,
-    paddingBottom: 25,
+    paddingTop: 18,
+    paddingBottom: 45,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -89,7 +131,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 30,
+    paddingVertical: 40,
     marginBottom: 60,
+    minHeight: 360,
   },
 
   checkCircle: {
@@ -146,7 +190,7 @@ const styles = StyleSheet.create({
   },
 
   backBtn: {
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
     paddingVertical: 18,
     borderRadius: 18,
     alignItems: "center",
@@ -154,6 +198,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1.5,
     borderColor: "#00b679",
+    opacity: 1,
   },
   backText: {
     color: "#00b679",

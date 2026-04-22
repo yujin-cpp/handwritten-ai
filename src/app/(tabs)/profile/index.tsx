@@ -1,5 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import { GlassCard } from "../../../components/GlassCard";
+import { PageMotion } from "../../../components/PageMotion";
 import { useFocusEffect, useRouter } from "expo-router";
 import { sendEmailVerification, signOut, updateProfile } from "firebase/auth";
 import { get, ref } from "firebase/database";
@@ -24,6 +26,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth, db, functions, storage } from "../../../firebase/firebaseConfig";
+import { useAuthSession } from "../../../hooks/useAuthSession";
 import { showAlert, showConfirm } from "../../../utils/alert";
 
 // Default placeholder if no photo exists
@@ -32,6 +35,7 @@ const DEFAULT_AVATAR = "https://i.imgur.com/4YQZ6uM.png";
 export default function ProfileSettings() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user: sessionUser, initializing } = useAuthSession();
 
   // User Data State
   const [user, setUser] = useState<any>(null);
@@ -52,7 +56,7 @@ export default function ProfileSettings() {
   useFocusEffect(
     useCallback(() => {
       const fetchData = async () => {
-        const currentUser = auth.currentUser;
+        const currentUser = auth.currentUser ?? sessionUser;
         if (currentUser) {
           await currentUser.reload();
 
@@ -86,7 +90,7 @@ export default function ProfileSettings() {
       };
 
       fetchData();
-    }, []),
+    }, [sessionUser]),
   );
 
   const handlePickImage = async () => {
@@ -242,7 +246,7 @@ export default function ProfileSettings() {
     }
   };
 
-  if (loading) {
+  if (loading || initializing) {
     return (
       <View style={[styles.container, styles.center]}>
         <ActivityIndicator size="large" color="#00b679" />
@@ -253,7 +257,7 @@ export default function ProfileSettings() {
   return (
     <ScrollView 
       style={styles.container} 
-      contentContainerStyle={{ paddingTop: insets.top + 20, paddingBottom: 110 }}
+      contentContainerStyle={{ paddingTop: insets.top + 20, paddingBottom: 150 }}
       showsVerticalScrollIndicator={false}
     >
       <Text style={styles.title}>Profile & Settings</Text>
@@ -274,103 +278,120 @@ export default function ProfileSettings() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Profile Information</Text>
-        <View style={styles.row}>
-          <View>
-            <Text style={styles.label}>Name:</Text>
-            <Text style={styles.value}>{user?.name}</Text>
+      <PageMotion delay={50}>
+        <GlassCard>
+          <View style={{ padding: 20 }}>
+            <Text style={styles.cardTitle}>Profile Information</Text>
+            <View style={styles.row}>
+              <View>
+                <Text style={styles.label}>Name:</Text>
+                <Text style={styles.value}>{user?.name}</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => router.push("/(tabs)/profile/edit-name")}
+              >
+                <Feather name="edit-3" size={18} color="#00b679" />
+              </TouchableOpacity>
+            </View>
+            <View style={{ marginTop: 12 }}>
+              <Text style={styles.label}>Email:</Text>
+              <Text style={styles.value}>{user?.email}</Text>
+            </View>
           </View>
-          <TouchableOpacity
-            onPress={() => router.push("/(tabs)/profile/edit-name")}
-          >
-            <Feather name="edit-3" size={18} color="#00b679" />
-          </TouchableOpacity>
-        </View>
-        <View style={{ marginTop: 12 }}>
-          <Text style={styles.label}>Email:</Text>
-          <Text style={styles.value}>{user?.email}</Text>
-        </View>
-      </View>
+        </GlassCard>
+      </PageMotion>
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Security</Text>
-        <TouchableOpacity
-          style={styles.securityRow}
-          onPress={() => router.push("/(tabs)/profile/change-password")}
-        >
-          <Text style={styles.menuText}>Change Password</Text>
-          <Feather name="chevron-right" size={18} color="#999" />
-        </TouchableOpacity>
+      <PageMotion delay={100}>
+        <GlassCard style={{ marginTop: 15 }}>
+          <View style={{ padding: 20 }}>
+            <Text style={styles.cardTitle}>Security</Text>
+            <TouchableOpacity
+              style={styles.securityRow}
+              onPress={() => router.push("/(tabs)/profile/change-password")}
+            >
+              <Text style={styles.menuText}>Change Password</Text>
+              <Feather name="chevron-right" size={18} color="#999" />
+            </TouchableOpacity>
 
-        {/* Primary Email */}
-        <View style={styles.securityEmail}>
-          <Text style={styles.value}>{user?.email}</Text>
-          {user?.emailVerified ? (
-            <Text style={styles.verified}>✓ Verified</Text>
-          ) : (
-            <TouchableOpacity onPress={handleVerifyEmail} disabled={verifying}>
-              <Text style={styles.unverified}>
-                {verifying ? "Sending..." : "⚠ Unverified (Tap to verify)"}
+            {/* Primary Email */}
+            <View style={styles.securityEmail}>
+              <Text style={styles.value}>{user?.email}</Text>
+              {user?.emailVerified ? (
+                <Text style={styles.verified}>✓ Verified</Text>
+              ) : (
+                <TouchableOpacity onPress={handleVerifyEmail} disabled={verifying}>
+                  <Text style={styles.unverified}>
+                    {verifying ? "Sending..." : "⚠ Unverified (Tap to verify)"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Personal Email */}
+            {user?.personalEmail && (
+              <View
+                style={[
+                  styles.securityEmail,
+                  {
+                    marginTop: 12,
+                    borderTopWidth: 1,
+                    borderTopColor: "rgba(0,0,0,0.05)",
+                    paddingTop: 12,
+                  },
+                ]}
+              >
+                <Text style={styles.label}>Personal Email:</Text>
+                <Text style={styles.value}>{user.personalEmail}</Text>
+
+                {user.personalEmailVerified ? (
+                  <Text style={styles.verified}>✓ Verified</Text>
+                ) : (
+                  <TouchableOpacity
+                    onPress={handleVerifyPersonalEmail}
+                    disabled={verifying}
+                  >
+                    <Text style={styles.unverified}>
+                      {verifying ? "Sending..." : "⚠ Unverified (Tap to verify)"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={styles.addEmailBtn}
+              onPress={() => router.push("/(tabs)/profile/add-email")}
+            >
+              <Text style={styles.addEmailText}>
+                {user?.personalEmail
+                  ? "Update personal email"
+                  : "+ Add personal email"}
               </Text>
             </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Personal Email */}
-        {user?.personalEmail && (
-          <View
-            style={[
-              styles.securityEmail,
-              {
-                marginTop: 12,
-                borderTopWidth: 1,
-                borderTopColor: "#eee",
-                paddingTop: 12,
-              },
-            ]}
-          >
-            <Text style={styles.label}>Personal Email:</Text>
-            <Text style={styles.value}>{user.personalEmail}</Text>
-
-            {user.personalEmailVerified ? (
-              <Text style={styles.verified}>✓ Verified</Text>
-            ) : (
-              <TouchableOpacity
-                onPress={handleVerifyPersonalEmail}
-                disabled={verifying}
-              >
-                <Text style={styles.unverified}>
-                  {verifying ? "Sending..." : "⚠ Unverified (Tap to verify)"}
-                </Text>
-              </TouchableOpacity>
-            )}
           </View>
-        )}
+        </GlassCard>
+      </PageMotion>
 
+      <PageMotion delay={150}>
         <TouchableOpacity
-          style={styles.addEmailBtn}
-          onPress={() => router.push("/(tabs)/profile/add-email")}
+          onPress={handleLogoutRequest}
+          disabled={loggingOut}
+          activeOpacity={0.8}
         >
-          <Text style={styles.addEmailText}>
-            {user?.personalEmail
-              ? "Update personal email"
-              : "+ Add personal email"}
-          </Text>
+          <GlassCard color="#ff3b30" style={{ marginTop: 25 }}>
+            <View style={styles.logoutContent}>
+              {loggingOut ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Feather name="log-out" size={20} color="#fff" style={{ marginRight: 10 }} />
+                  <Text style={styles.logoutText}>Logout Account</Text>
+                </>
+              )}
+            </View>
+          </GlassCard>
         </TouchableOpacity>
-      </View>
-
-      <TouchableOpacity
-        style={styles.logoutBtn}
-        onPress={handleLogoutRequest}
-        disabled={loggingOut}
-      >
-        {loggingOut ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.logoutText}>Logout</Text>
-        )}
-      </TouchableOpacity>
+      </PageMotion>
 
       {/* --- OTP INPUT MODAL (Kept for custom input, but using Feather) --- */}
       <Modal
@@ -424,7 +445,7 @@ export default function ProfileSettings() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f7fb", padding: 20 },
+  container: { flex: 1, backgroundColor: "transparent", padding: 20 },
   center: { justifyContent: "center", alignItems: "center" },
   title: {
     fontSize: 22,
@@ -516,16 +537,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   addEmailText: { color: "#00b679", fontWeight: "600" },
-  logoutBtn: {
-    backgroundColor: "#fff",
-    marginTop: 20,
-    paddingVertical: 14,
-    borderRadius: 12,
+  logoutContent: {
+    paddingVertical: 16,
+    flexDirection: 'row',
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#ff3b30",
+    justifyContent: 'center',
   },
-  logoutText: { color: "#ff3b30", fontSize: 16, fontWeight: "600" },
+  logoutText: { color: "#fff", fontSize: 16, fontWeight: "700" },
   centeredView: {
     flex: 1,
     justifyContent: "center",

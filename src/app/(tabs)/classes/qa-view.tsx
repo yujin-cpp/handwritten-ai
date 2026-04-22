@@ -3,6 +3,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ref, remove } from "firebase/database";
 import { deleteObject, ref as storageRef } from "firebase/storage";
 import React, { useState } from "react";
+import { GlassCard } from "../../../components/GlassCard";
+import { PageMotion } from "../../../components/PageMotion";
 import {
     ActivityIndicator,
     Image,
@@ -120,62 +122,66 @@ export default function QAView() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: 150 }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.previewCard}>
-          <View style={styles.cardInfo}>
-            <Text style={styles.activityName}>{title}</Text>
-            <Text style={styles.fileName}>{fileName}</Text>
-          </View>
+        <PageMotion delay={50}>
+          <GlassCard>
+            <View style={{ padding: 20 }}>
+              <View style={styles.cardInfo}>
+                <Text style={styles.activityName}>{title}</Text>
+                <Text style={styles.fileNameText}>{fileName}</Text>
+              </View>
 
-          <View style={styles.viewerContainer}>
-            {isImage && fileUrl ? (
-              <View style={styles.imageViewer}>
-                {imgLoading && (
-                  <ActivityIndicator
-                    style={styles.loader}
-                    color={headerColor}
-                  />
+              <View style={styles.viewerContainer}>
+                {isImage && fileUrl ? (
+                  <View style={styles.imageViewer}>
+                    {imgLoading && (
+                      <ActivityIndicator
+                        style={styles.loader}
+                        color={headerColor}
+                      />
+                    )}
+                    <Image
+                      source={{ uri: fileUrl }}
+                      style={styles.previewImg}
+                      resizeMode="contain"
+                      onLoadEnd={() => setImgLoading(false)}
+                    />
+                  </View>
+                ) : (
+                  <View style={styles.filePlaceholder}>
+                    <View
+                      style={[
+                        styles.iconCircle,
+                        { backgroundColor: headerColor + "10" },
+                      ]}
+                    >
+                      <Feather
+                        name={isPdf ? "file-text" : "file"}
+                        size={64}
+                        color={headerColor}
+                      />
+                    </View>
+                    <Text style={styles.placeholderText}>
+                      {isPdf ? "PDF Document" : "Word Document"}
+                    </Text>
+                  </View>
                 )}
-                <Image
-                  source={{ uri: fileUrl }}
-                  style={styles.previewImg}
-                  resizeMode="contain"
-                  onLoadEnd={() => setImgLoading(false)}
-                />
               </View>
-            ) : (
-              <View style={styles.filePlaceholder}>
-                <View
-                  style={[
-                    styles.iconCircle,
-                    { backgroundColor: headerColor + "10" },
-                  ]}
-                >
-                  <Feather
-                    name={isPdf ? "file-text" : "file"}
-                    size={64}
-                    color={headerColor}
-                  />
-                </View>
-                <Text style={styles.placeholderText}>
-                  {isPdf ? "PDF Document" : "Word Document"}
-                </Text>
-              </View>
-            )}
-          </View>
 
-          <TouchableOpacity
-            style={[styles.actionBtn, { borderColor: headerColor }]}
-            onPress={handleOpenLink}
-          >
-            <Feather name="external-link" size={18} color={headerColor} />
-            <Text style={[styles.actionBtnText, { color: headerColor }]}>
-              Open Original File
-            </Text>
-          </TouchableOpacity>
-        </View>
+              <TouchableOpacity
+                style={[styles.actionBtn, { borderColor: headerColor }]}
+                onPress={handleOpenLink}
+              >
+                <Feather name="external-link" size={18} color={headerColor} />
+                <Text style={[styles.actionBtnText, { color: headerColor }]}>
+                  Open Original File
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </GlassCard>
+        </PageMotion>
 
         <View style={styles.hintBox}>
           <Feather name="info" size={16} color="#999" />
@@ -235,10 +241,10 @@ export default function QAView() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f7fb" },
+  container: { flex: 1, backgroundColor: "transparent" },
   header: {
     paddingHorizontal: 20,
-    paddingBottom: 25,
+    paddingBottom: 45,
     flexDirection: "row",
     alignItems: "center",
     elevation: 4,
@@ -271,15 +277,6 @@ const styles = StyleSheet.create({
   },
 
   content: { padding: 20 },
-  previewCard: {
-    backgroundColor: "#fff",
-    borderRadius: 28,
-    padding: 20,
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOpacity: 0.03,
-    shadowRadius: 15,
-  },
   cardInfo: { marginBottom: 20, alignItems: "center" },
   activityName: {
     fontSize: 12,
@@ -288,7 +285,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     marginBottom: 5,
   },
-  fileName: {
+  fileNameText: {
     fontSize: 18,
     fontWeight: "700",
     color: "#111",
@@ -297,7 +294,7 @@ const styles = StyleSheet.create({
 
   viewerContainer: {
     height: 350,
-    backgroundColor: "#f9f9f9",
+    backgroundColor: "rgba(0,0,0,0.03)",
     borderRadius: 20,
     overflow: "hidden",
     marginBottom: 20,
@@ -350,7 +347,7 @@ const styles = StyleSheet.create({
     padding: 25,
   },
   modalCard: {
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
     borderRadius: 28,
     padding: 30,
     alignItems: "center",

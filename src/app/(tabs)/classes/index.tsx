@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
+import { GlassCard } from "../../../components/GlassCard";
 import { ref, remove } from "firebase/database";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -14,7 +15,8 @@ import {
 } from "react-native";
 import { PageMotion } from "../../../components/PageMotion";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { auth, db } from "../../../firebase/firebaseConfig";
+import { db } from "../../../firebase/firebaseConfig";
+import { useAuthSession } from "../../../hooks/useAuthSession";
 import { listenToClasses } from "../../../services/class.service";
 import { showAlert, showConfirm } from "../../../utils/alert";
 
@@ -31,6 +33,7 @@ const COLORS = ["#BB73E0", "#EE89B0", "#AEBAF8", "#F4A261", "#2A9D8F"];
 
 export default function ClassesScreen() {
   const router = useRouter();
+  const { uid } = useAuthSession();
   const [items, setItems] = useState<ClassItem[]>([]);
   const [editMode, setEditMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -39,8 +42,10 @@ export default function ClassesScreen() {
 
   // REAL-TIME DATA FETCHING
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
+    if (!uid) {
+      setItems([]);
+      return;
+    }
 
     const unsubscribe = listenToClasses(uid, (data) => {
       if (data) {
@@ -59,7 +64,7 @@ export default function ClassesScreen() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [uid]);
 
   const anySelected = selected.size > 0;
   const selectedNames = useMemo(
@@ -90,7 +95,6 @@ export default function ClassesScreen() {
   };
 
   async function handleDeleteConfirmed() {
-    const uid = auth.currentUser?.uid;
     if (!uid) return;
 
     try {
@@ -142,7 +146,7 @@ export default function ClassesScreen() {
 
         {/* OVERLAPPING STATS CARD */}
         <PageMotion delay={100}>
-          <View style={styles.analyticsCard}>
+          <GlassCard style={{ marginTop: -25, marginHorizontal: 5 }}>
             <View style={styles.analyticsRow}>
               <View style={styles.analyticsIconBox}>
                 <Feather name="book" size={20} color="#0EA47A" />
@@ -151,7 +155,7 @@ export default function ClassesScreen() {
                 <Text style={styles.analyticsTitle}>{items.length} Total Classes</Text>
               </View>
             </View>
-          </View>
+          </GlassCard>
         </PageMotion>
       </View>
 
@@ -166,53 +170,61 @@ export default function ClassesScreen() {
         )}
 
         <View style={styles.classGrid}>
-          {items.map(item => (
-            <Pressable
-              key={item.id}
-              style={[
-                styles.classCard, 
-                { backgroundColor: item.color },
-                editMode && selected.has(item.id) && { opacity: 0.8, borderWidth: 2, borderColor: '#fff' }
-              ]}
-              onPress={() =>
-                editMode
-                  ? toggleSelect(item.id)
-                  : router.push({
-                    pathname: "/(tabs)/classes/classinformation",
-                    params: {
-                      classId: item.id,
-                      name: item.name,
-                      section: item.section,
-                      color: item.color,
-                      academicYear: item.academicYear
-                    },
-                  })
-              }
-            >
-              <Text style={styles.className} numberOfLines={1}>{item.name}</Text>
-              <Text style={styles.classSection} numberOfLines={1}>{item.section}</Text>
-              
-              <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center' }}>
-                <Feather name="users" size={14} color="rgba(255,255,255,0.9)" style={{ marginRight: 6 }} />
-                <Text style={{ color: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: "500" }}>{item.studentCount} Students</Text>
-              </View>
+          {items.map((item, idx) => (
+            <PageMotion key={item.id} delay={150 + (idx * 50)} style={{ width: '47%', marginBottom: 12 }}>
+              <Pressable
+                style={editMode && selected.has(item.id) ? { opacity: 0.8, transform: [{scale: 0.95}] } : {}}
+                onPress={() =>
+                  editMode
+                    ? toggleSelect(item.id)
+                    : router.push({
+                      pathname: "/(tabs)/classes/classinformation",
+                      params: {
+                        classId: item.id,
+                        name: item.name,
+                        section: item.section,
+                        color: item.color,
+                        academicYear: item.academicYear
+                      },
+                    })
+                }
+              >
+                <GlassCard color={item.color} borderRadius={16}>
+                  <View style={{ padding: 15 }}>
+                    <Text style={styles.className} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.classSection} numberOfLines={1}>{item.section}</Text>
+                    
+                    <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center' }}>
+                      <Feather name="users" size={14} color="rgba(255,255,255,0.9)" style={{ marginRight: 6 }} />
+                      <Text style={{ color: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: "500" }}>{item.studentCount} Students</Text>
+                    </View>
 
-              {editMode && (
-                <View style={[styles.selectCircle, selected.has(item.id) && styles.selectCircleActive]}>
-                  {selected.has(item.id) && <Feather name="check" size={12} color="#0EA47A" />}
-                </View>
-              )}
-            </Pressable>
+                    {editMode && (
+                      <View style={[styles.selectCircle, selected.has(item.id) && styles.selectCircleActive]}>
+                        {selected.has(item.id) && <Feather name="check" size={12} color="#0EA47A" />}
+                      </View>
+                    )}
+                  </View>
+                </GlassCard>
+              </Pressable>
+            </PageMotion>
           ))}
 
           {!editMode && (
-            <TouchableOpacity
-              style={[styles.classCard, styles.addClassGridCard]}
-              onPress={() => router.push("/(tabs)/classes/addclass")}
-            >
-              <Feather name="plus" size={32} color="#0EA47A" style={{ marginBottom: 6 }} />
-              <Text style={styles.addGridText}>Add Class</Text>
-            </TouchableOpacity>
+            <PageMotion delay={150 + (items.length * 50)} style={{ width: '47%', marginBottom: 12 }}>
+              <TouchableOpacity
+                onPress={() => router.push("/(tabs)/classes/addclass")}
+              >
+                <GlassCard borderRadius={16}>
+                  <View style={{ padding: 15, justifyContent: 'center', alignItems: 'center', minHeight: 100 }}>
+                    <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(14, 164, 122, 0.12)', justifyContent: 'center', alignItems: 'center', marginBottom: 8 }}>
+                      <Feather name="plus" size={24} color="#0EA47A" />
+                    </View>
+                    <Text style={styles.addGridText}>Add Class</Text>
+                  </View>
+                </GlassCard>
+              </TouchableOpacity>
+            </PageMotion>
           )}
         </View>
 
@@ -265,7 +277,7 @@ export default function ClassesScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#f4f7fb" },
+  page: { flex: 1, backgroundColor: "transparent" },
 
   heroCard: {
     borderRadius: 24,
@@ -310,6 +322,7 @@ const styles = StyleSheet.create({
   analyticsRow: {
     flexDirection: "row",
     alignItems: "center",
+    padding: 20,
   },
   analyticsIconBox: {
     width: 40,
@@ -413,4 +426,15 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   deleteBarText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center" },
+  modalCard: { backgroundColor: "#fff", borderRadius: 24, padding: 28, width: "85%", shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 20, elevation: 10 },
+  modalTitle: { fontSize: 20, fontWeight: "800", color: "#111", marginBottom: 12 },
+  modalSub: { fontSize: 15, color: "#666", lineHeight: 22, marginBottom: 25 },
+  modalActions: { flexDirection: "row", gap: 12 },
+  modalBtn: { flex: 1, paddingVertical: 16, borderRadius: 14, alignItems: "center" },
+  modalCancel: { backgroundColor: "#f0f0f0" },
+  modalCancelText: { color: "#666", fontWeight: "700" },
+  modalDelete: { backgroundColor: "#D32F2F" },
+  modalDeleteText: { color: "#fff", fontWeight: "700" },
 });

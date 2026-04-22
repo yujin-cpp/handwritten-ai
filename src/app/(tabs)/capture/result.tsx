@@ -3,6 +3,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ref, update } from "firebase/database";
 import React, { useState } from "react";
+import { GlassCard } from "../../../components/GlassCard";
+import { PageMotion } from "../../../components/PageMotion";
 import {
     ActivityIndicator,
     ScrollView,
@@ -27,8 +29,6 @@ export default function ResultScreen() {
   const score = getParam(params.score, "0");
   const total = getParam(params.total, "0");
   const { essayScoreLog, feedback } = getGradingResult();
-  console.log(" essayScoreLog:", essayScoreLog);
-  console.log("feedback:", feedback);
 
   const { classId, activityId, studentId } = params;
 
@@ -42,6 +42,7 @@ export default function ResultScreen() {
       .replace(/\[/g, "(") // replace [
       .replace(/\]/g, ")"); // replace ]
   };
+
   const handleSave = async () => {
     const uid = auth.currentUser?.uid;
     if (!uid || !classId || !activityId || !studentId) {
@@ -97,99 +98,113 @@ export default function ResultScreen() {
       </LinearGradient>
 
       <ScrollView
-        contentContainerStyle={styles.centerContent}
+        contentContainerStyle={[styles.centerContent, { paddingBottom: 150 }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.scoreCard}>
-          <View style={styles.checkCircle}>
-            <Feather name="check" size={40} color="#fff" />
-          </View>
-          <Text style={styles.title}>Scoring Complete</Text>
+        <PageMotion delay={50}>
+          <GlassCard style={styles.scoreCard}>
+            <View style={{ padding: 30, alignItems: 'center' }}>
+              <View style={styles.checkCircle}>
+                <Feather name="check" size={40} color="#fff" />
+              </View>
+              <Text style={styles.title}>Scoring Complete</Text>
 
-          <View style={styles.scoreRow}>
-            <Text style={styles.scoreText}>{score}</Text>
-            <View style={styles.scoreSeparator} />
-            <Text style={styles.totalText}>{total}</Text>
-          </View>
-          <Text style={styles.pointsLabel}>Points Earned</Text>
-        </View>
+              <View style={styles.scoreRow}>
+                <Text style={styles.scoreText}>{score}</Text>
+                <View style={styles.scoreSeparator} />
+                <Text style={styles.totalText}>{total}</Text>
+              </View>
+              <Text style={styles.pointsLabel}>Points Earned</Text>
+            </View>
+          </GlassCard>
+        </PageMotion>
 
-        <View style={styles.feedbackSection}>
-          <View style={styles.sectionHeader}>
-            <Feather name="message-square" size={18} color="#00b679" />
-            <Text style={styles.sectionTitle}>AI Feedback</Text>
-          </View>
-          <View style={styles.feedbackCard}>
-            <Text style={styles.feedbackText}>{feedback}</Text>
-          </View>
-        </View>
-
-        {essayScoreLog ? (
+        <PageMotion delay={100}>
           <View style={styles.feedbackSection}>
             <View style={styles.sectionHeader}>
-              <Feather name="list" size={18} color="#00b679" />
-              <Text style={styles.sectionTitle}>Essay Score Log</Text>
+              <Feather name="message-square" size={18} color="#00b679" />
+              <Text style={styles.sectionTitle}>AI Feedback</Text>
             </View>
-            <View style={styles.feedbackCard}>
-              {essayScoreLog.split("\n").map((line: string, index: number) => {
-                const isCriterion = line.includes("→");
-                const isTotal = line.startsWith("TOTAL");
-                const isHeader =
-                  line.startsWith("ESSAY SCORE LOG") ||
-                  line.startsWith("Rubric Criteria");
-                const isQuestion = line.startsWith("Question:");
-                const isReason = line.startsWith("Reason:");
-                return (
-                  <Text
-                    key={index}
-                    style={[
-                      styles.feedbackText,
-                      isCriterion && {
-                        fontWeight: "700",
-                        fontStyle: "normal",
-                        color: "#111",
-                      },
-                      isTotal && {
-                        fontWeight: "800",
-                        color: "#00b679",
-                        fontStyle: "normal",
-                        marginTop: 8,
-                      },
-                      isHeader && {
-                        fontWeight: "700",
-                        color: "#333",
-                        fontStyle: "normal",
-                      },
-                      isQuestion && {
-                        fontWeight: "600",
-                        color: "#555",
-                        fontStyle: "normal",
-                      },
-                      isReason && {
-                        fontStyle: "italic",
-                        color: "#777",
-                        fontSize: 13,
-                      },
-                    ]}
-                  >
-                    {line}
-                  </Text>
-                );
-              })}
-            </View>
+            <GlassCard>
+              <View style={{ padding: 22 }}>
+                <Text style={styles.feedbackText}>{feedback}</Text>
+              </View>
+            </GlassCard>
           </View>
+        </PageMotion>
+
+        {essayScoreLog ? (
+          <PageMotion delay={150}>
+            <View style={styles.feedbackSection}>
+              <View style={styles.sectionHeader}>
+                <Feather name="list" size={18} color="#00b679" />
+                <Text style={styles.sectionTitle}>Essay Score Log</Text>
+              </View>
+              <GlassCard>
+                <View style={{ padding: 22 }}>
+                  {essayScoreLog.split("\n").map((line: string, index: number) => {
+                    const isCriterion = line.includes("→");
+                    const isTotal = line.startsWith("TOTAL");
+                    const isHeader =
+                      line.startsWith("ESSAY SCORE LOG") ||
+                      line.startsWith("Rubric Criteria");
+                    const isQuestion = line.startsWith("Question:");
+                    const isReason = line.startsWith("Reason:");
+                    return (
+                      <Text
+                        key={index}
+                        style={[
+                          styles.feedbackText,
+                          isCriterion && {
+                            fontWeight: "700",
+                            fontStyle: "normal",
+                            color: "#111",
+                          },
+                          isTotal && {
+                            fontWeight: "800",
+                            color: "#00b679",
+                            fontStyle: "normal",
+                            marginTop: 8,
+                          },
+                          isHeader && {
+                            fontWeight: "700",
+                            color: "#333",
+                            fontStyle: "normal",
+                          },
+                          isQuestion && {
+                            fontWeight: "600",
+                            color: "#555",
+                            fontStyle: "normal",
+                          },
+                          isReason && {
+                            fontStyle: "italic",
+                            color: "#777",
+                            fontSize: 13,
+                          },
+                        ]}
+                      >
+                        {line}
+                      </Text>
+                    );
+                  })}
+                </View>
+              </GlassCard>
+            </View>
+          </PageMotion>
         ) : null}
 
-        <View style={styles.infoSection}>
-          <View style={styles.infoRow}>
-            <Feather name="user" size={14} color="#888" />
-            <Text style={styles.infoLabel}>Student ID:</Text>
-            <Text style={styles.infoValue}>{studentId}</Text>
+        <PageMotion delay={200}>
+          <View style={styles.infoSection}>
+            <View style={styles.infoRow}>
+              <Feather name="user" size={14} color="#888" />
+              <Text style={styles.infoLabel}>Student ID:</Text>
+              <Text style={styles.infoValue}>{studentId}</Text>
+            </View>
           </View>
-        </View>
+        </PageMotion>
       </ScrollView>
 
-      <View style={[styles.bottomArea, { paddingBottom: insets.bottom + 20 }]}>
+      <View style={[styles.bottomArea, { paddingBottom: insets.bottom + 104, backgroundColor: 'transparent', borderTopWidth: 0, elevation: 0 }]}>
         <TouchableOpacity
           style={[styles.saveBtn, saving && { opacity: 0.8 }]}
           onPress={handleSave}
@@ -213,7 +228,19 @@ export default function ResultScreen() {
         {!saving && (
           <TouchableOpacity
             style={styles.retakeBtn}
-            onPress={() => router.replace("/(tabs)/capture")}
+            onPress={() =>
+              router.replace({
+                pathname: "/(tabs)/capture",
+                params: {
+                  classId: params.classId,
+                  activityId: params.activityId,
+                  name: params.name,
+                  section: params.section,
+                  color: params.color,
+                  title: params.title,
+                },
+              })
+            }
           >
             <Text style={styles.retakeLabel}>Discard & Try Again</Text>
           </TouchableOpacity>
@@ -224,36 +251,23 @@ export default function ResultScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f7fb" },
+  container: { flex: 1, backgroundColor: "transparent" },
   header: {
     paddingHorizontal: 18,
-    paddingTop: 45,
-    paddingBottom: 25,
+    paddingTop: 18,
+    paddingBottom: 45,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
   },
   headerTitle: { color: "#fff", fontSize: 20, fontWeight: "700" },
 
   centerContent: {
     paddingHorizontal: 20,
     paddingTop: 30,
-    paddingBottom: 200,
   },
 
   scoreCard: {
-    backgroundColor: "#fff",
-    borderRadius: 24,
-    padding: 30,
-    alignItems: "center",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 15,
     marginBottom: 25,
   },
   checkCircle: {
@@ -320,13 +334,6 @@ const styles = StyleSheet.create({
     color: "#333",
     marginLeft: 8,
   },
-  feedbackCard: {
-    backgroundColor: "#fff",
-    padding: 22,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#f0f0f0",
-  },
   feedbackText: {
     fontSize: 15,
     color: "#444",
@@ -361,15 +368,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: "#fff",
     paddingHorizontal: 24,
     paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
-    elevation: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
   },
   saveBtn: {
     backgroundColor: "#00b679",

@@ -1,6 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect } from "react";
+import { GlassCard } from "../../../components/GlassCard";
+import { PageMotion } from "../../../components/PageMotion";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -22,25 +24,27 @@ export default function AddEmailSuccess() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 20 }]}>
-      <Text style={styles.title}>Add personal email</Text>
+      <PageMotion delay={50} style={{ alignItems: 'center' }}>
+        <Text style={styles.title}>Email Added!</Text>
 
-      <View style={styles.circle}>
-        <Ionicons name="checkmark" size={60} color="#0a8f6d" />
-      </View>
+        <View style={styles.circle}>
+          <Ionicons name="checkmark" size={60} color="#0a8f6d" />
+        </View>
 
-      <Text style={styles.message}>
-        A verification link has been sent to{"\n"}
-        <Text style={{ fontWeight: "700" }}>
-          {email}!
+        <Text style={styles.message}>
+          A verification link has been sent to{"\n"}
+          <Text style={{ fontWeight: "700", color: '#1b8a50' }}>
+            {email}!
+          </Text>
         </Text>
-      </Text>
 
-      <TouchableOpacity
-        style={styles.doneBtn}
-        onPress={() => router.replace("/(tabs)/profile")}
-      >
-        <Text style={styles.doneText}>Done</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.doneBtn}
+          onPress={() => router.replace("/(tabs)/profile")}
+        >
+          <Text style={styles.doneText}>Return to Profile</Text>
+        </TouchableOpacity>
+      </PageMotion>
     </View>
   );
 }
@@ -49,38 +53,44 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    backgroundColor: "#fff",
+    backgroundColor: "transparent",
     justifyContent: "center",
     alignItems: "center",
   },
   title: {
     color: "#1b8a50",
-    fontSize: 22,
-    fontWeight: "700",
-    marginTop: -50,
-    marginBottom: 20,
+    fontSize: 26,
+    fontWeight: "800",
+    marginBottom: 30,
+    textAlign: 'center',
   },
   circle: {
     width: 130,
     height: 130,
     borderRadius: 65,
-    backgroundColor: "#c7f8e4",
+    backgroundColor: "rgba(199, 248, 228, 0.4)",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 30,
+    borderWidth: 2,
+    borderColor: '#c7f8e4',
   },
   message: {
     textAlign: "center",
-    fontSize: 15,
+    fontSize: 16,
     marginBottom: 40,
     color: "#444",
-    lineHeight: 22,
+    lineHeight: 24,
   },
   doneBtn: {
     backgroundColor: "#06b06f",
-    paddingVertical: 12,
-    width: "50%",
-    borderRadius: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 40,
+    borderRadius: 16,
+    elevation: 3,
+    shadowColor: '#06b06f',
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
   },
   doneText: {
     textAlign: "center",

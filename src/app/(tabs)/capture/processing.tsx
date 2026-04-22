@@ -9,6 +9,8 @@ import {
     uploadBytes,
 } from "firebase/storage";
 import React, { useCallback, useEffect, useState } from "react";
+import { GlassCard } from "../../../components/GlassCard";
+import { PageMotion } from "../../../components/PageMotion";
 import {
     ActivityIndicator,
     Platform,
@@ -418,6 +420,10 @@ export default function ProcessingScreen() {
             classId,
             activityId,
             studentId,
+            name: params.name,
+            section: params.section,
+            color: params.color,
+            title: params.title,
           },
         });
       }
@@ -474,67 +480,79 @@ export default function ProcessingScreen() {
       </LinearGradient>
 
       <View style={styles.body}>
-        <View style={styles.loaderContainer}>
-          <ActivityIndicator
-            size="large"
-            color="#00b679"
-            style={{ transform: [{ scale: 1.5 }] }}
-          />
-          <View style={styles.iconOverlay}>
-            <Feather name="cpu" size={24} color="#00b679" />
+        <PageMotion delay={50} style={{ alignItems: 'center' }}>
+          <View style={styles.loaderContainer}>
+            <ActivityIndicator
+              size="large"
+              color="#00b679"
+              style={{ transform: [{ scale: 1.5 }] }}
+            />
+            <View style={[styles.iconOverlay, { backgroundColor: 'transparent', elevation: 0 }]}>
+              <GlassCard borderRadius={20}>
+                <View style={{ padding: 10 }}>
+                  <Feather name="cpu" size={24} color="#00b679" />
+                </View>
+              </GlassCard>
+            </View>
           </View>
-        </View>
 
-        <Text style={styles.title}>Processing Exam</Text>
-        <Text style={styles.subtitle}>{status}</Text>
+          <Text style={styles.title}>Processing Exam</Text>
+          <Text style={styles.subtitle}>{status}</Text>
 
-        {backgroundCountdown !== null ? (
-          <View style={styles.validationBox}>
-            <Feather name="check-circle" size={16} color="#00b679" />
-            <Text style={styles.validationText}>
-              Validation passed. Background processing starts in{" "}
-              {backgroundCountdown}s.
-            </Text>
-          </View>
-        ) : null}
+          {backgroundCountdown !== null ? (
+            <View style={styles.validationBox}>
+              <Feather name="check-circle" size={16} color="#00b679" />
+              <Text style={styles.validationText}>
+                Validation passed. Background processing starts in{" "}
+                {backgroundCountdown}s.
+              </Text>
+            </View>
+          ) : null}
 
-        <TouchableOpacity
-          style={styles.backgroundBtn}
-          onPress={handleContinueNow}
-          activeOpacity={0.85}
-        >
-          <Feather name="minimize-2" size={16} color="#00b679" />
-          <Text style={styles.backgroundBtnText}>Continue In Background</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.backgroundBtn}
+            onPress={handleContinueNow}
+            activeOpacity={0.85}
+          >
+            <Feather name="minimize-2" size={16} color="#00b679" />
+            <Text style={styles.backgroundBtnText}>Continue In Background</Text>
+          </TouchableOpacity>
 
-        <View style={styles.infoBox}>
-          <Feather
-            name="clock"
-            size={16}
-            color="#666"
-            style={{ marginRight: 8 }}
-          />
-          <Text style={styles.hint}>This usually takes 5-10 seconds.</Text>
-        </View>
+          <GlassCard>
+            <View style={{ paddingHorizontal: 20, paddingVertical: 12, flexDirection: 'row', alignItems: 'center' }}>
+              <Feather
+                name="clock"
+                size={16}
+                color="#666"
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.hint}>This usually takes 5-10 seconds.</Text>
+            </View>
+          </GlassCard>
+        </PageMotion>
 
-        <View style={[styles.tipBox, { bottom: insets.bottom + 96 }]}>
-          <Text style={styles.tipTitle}>Did you know?</Text>
-          <Text style={styles.tipText}>
-            Our AI model works best with clear, high-contrast photos of
-            handwritten text.
-          </Text>
-        </View>
+        <PageMotion delay={150} style={[styles.tipBox, { bottom: insets.bottom + 96, backgroundColor: 'transparent', borderWidth: 0, elevation: 0 }]}>
+          <GlassCard>
+            <View style={{ padding: 20 }}>
+              <Text style={styles.tipTitle}>Did you know?</Text>
+              <Text style={styles.tipText}>
+                Our AI model works best with clear, high-contrast photos of
+                handwritten text.
+              </Text>
+            </View>
+          </GlassCard>
+        </PageMotion>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f7fb" },
+  container: { flex: 1, backgroundColor: "transparent" },
   header: {
     paddingHorizontal: 18,
     paddingTop: 45,
-    paddingBottom: 25,
+    paddingBottom: 45,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -560,7 +578,7 @@ const styles = StyleSheet.create({
   },
   iconOverlay: {
     position: "absolute",
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
     padding: 10,
     borderRadius: 20,
     elevation: 2,
@@ -617,7 +635,7 @@ const styles = StyleSheet.create({
   infoBox: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 12,
@@ -634,7 +652,7 @@ const styles = StyleSheet.create({
     bottom: 50,
     left: 30,
     right: 30,
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
     padding: 20,
     borderRadius: 16,
     borderWidth: 1,

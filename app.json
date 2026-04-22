@@ -1,24 +1,35 @@
 {
   "expo": {
-    "owner": "skm4to",
+    "owner": "handwrittenai",
     "name": "handwrittenAI",
     "slug": "handwrittenAI",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./src/assets/images/logo-aiscorer.png",
+    "backgroundColor": "#0EA47A",
+    "splash": {
+      "image": "./src/assets/images/logo-aiscorer.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0EA47A"
+    },
     "scheme": "handwrittenai",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.handwrittenai.handwrittenAI",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#FFFFFF",
+        "backgroundColor": "#0EA47A",
         "foregroundImage": "./src/assets/images/logo-aiscorer.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.handwrittenai.handwrittenAI"
     },
     "web": {
       "output": "single",
@@ -32,13 +43,24 @@
           "image": "./src/assets/images/logo-aiscorer.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#0EA47A",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#0EA47A"
           }
         }
       ]
     ],
+    "extra": {
+      "googleAuth": {
+        "expoClientId": "1093390926434-ivcngaqpp8d139mp915cdit1ip5v7ggs.apps.googleusercontent.com",
+        "androidClientId": "1093390926434-49tbmc9iaksm03jaltp34odcoo1sq6kh.apps.googleusercontent.com",
+        "webClientId": "1093390926434-ur1pmp59h84rjdmdan930ogjj25742fa.apps.googleusercontent.com"
+      },
+      "router": {},
+      "eas": {
+        "projectId": "a3684295-85f0-4b29-8eef-ce073c371b83"
+      }
+    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true

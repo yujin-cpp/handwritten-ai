@@ -2,6 +2,8 @@ import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { onValue, push, ref, remove, set } from "firebase/database";
 import React, { useEffect, useState } from "react";
+import { GlassCard } from "../../../components/GlassCard";
+import { PageMotion } from "../../../components/PageMotion";
 import {
   ActivityIndicator,
   ScrollView,
@@ -12,7 +14,8 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { auth, db } from "../../../firebase/firebaseConfig";
+import { db } from "../../../firebase/firebaseConfig";
+import { useAuthSession } from "../../../hooks/useAuthSession";
 
 const P = (v: string | string[] | undefined, fb = "") =>
   Array.isArray(v) ? v[0] : (v ?? fb);
@@ -28,6 +31,7 @@ export default function EssayScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const { uid } = useAuthSession();
 
   const classId = P(params.classId);
   const activityId = P(params.activityId);
@@ -44,7 +48,6 @@ export default function EssayScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
     if (!uid || !classId || !activityId) return;
 
     const instructionsRef = ref(db, `professors/${uid}/classes/${classId}/activities/${activityId}/essayInstructions`);
@@ -66,10 +69,9 @@ export default function EssayScreen() {
     });
 
     return () => unsubscribe();
-  }, [classId, activityId]);
+  }, [activityId, classId, uid]);
 
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
     if (!uid || !classId || !activityId) return;
 
     const syncChanges = async () => {
@@ -100,7 +102,7 @@ export default function EssayScreen() {
     };
 
     syncChanges();
-  }, [newTitle, deletedId, classId, activityId, newLessonRef, newRubrics, router]);
+  }, [activityId, classId, deletedId, newLessonRef, newRubrics, newTitle, router, uid]);
 
   return (
     <View style={styles.container}>
@@ -143,44 +145,48 @@ export default function EssayScreen() {
             </View>
           ) : (
             <View style={styles.instructionList}>
-              {instructions.map((inst) => (
-                <TouchableOpacity
-                  key={inst.id}
-                  activeOpacity={0.7}
-                  style={styles.instCard}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/(tabs)/classes/essay-view",
-                      params: {
-                        id: inst.id,
-                        name: className,
-                        section,
-                        color: headerColor,
-                        title: inst.title,
-                        lessonRef: inst.lessonRef,
-                        rubrics: inst.rubrics,
-                        classId,
-                        activityId,
-                      },
-                    })
-                  }
-                >
-                  <View style={[styles.iconBox, { backgroundColor: headerColor + '10' }]}>
-                    <Feather name="book-open" size={20} color={headerColor} />
-                  </View>
-                  <View style={styles.instInfo}>
-                    <Text style={styles.instTitle} numberOfLines={1}>{inst.title}</Text>
-                    <Text style={styles.instSub} numberOfLines={1}>Ref: {inst.lessonRef}</Text>
-                  </View>
-                  <Feather name="chevron-right" size={18} color="#ccc" />
-                </TouchableOpacity>
+              {instructions.map((inst, idx) => (
+                <PageMotion key={inst.id} delay={50 + idx * 40}>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/(tabs)/classes/essay-view",
+                        params: {
+                          id: inst.id,
+                          name: className,
+                          section,
+                          color: headerColor,
+                          title: inst.title,
+                          lessonRef: inst.lessonRef,
+                          rubrics: inst.rubrics,
+                          classId,
+                          activityId,
+                        },
+                      })
+                    }
+                  >
+                    <GlassCard borderRadius={20}>
+                      <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={[styles.iconBox, { backgroundColor: headerColor + '10' }]}>
+                          <Feather name="book-open" size={20} color={headerColor} />
+                        </View>
+                        <View style={styles.instInfo}>
+                          <Text style={styles.instTitle} numberOfLines={1}>{inst.title}</Text>
+                          <Text style={styles.instSub} numberOfLines={1}>Ref: {inst.lessonRef}</Text>
+                        </View>
+                        <Feather name="chevron-right" size={18} color="#ccc" />
+                      </View>
+                    </GlassCard>
+                  </TouchableOpacity>
+                </PageMotion>
               ))}
             </View>
           )}
         </View>
 
         <TouchableOpacity
-          style={styles.addBtn}
+          activeOpacity={0.8}
           onPress={() =>
             router.push({
               pathname: "/(tabs)/classes/essay-edit",
@@ -194,10 +200,14 @@ export default function EssayScreen() {
             })
           }
         >
-          <View style={[styles.addIconBox, { backgroundColor: headerColor }]}>
-            <Feather name="plus" size={24} color="#fff" />
-          </View>
-          <Text style={styles.addBtnText}>Add New Instruction</Text>
+          <GlassCard borderRadius={24}>
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <View style={[styles.addIconBox, { backgroundColor: headerColor }]}>
+                <Feather name="plus" size={24} color="#fff" />
+              </View>
+              <Text style={styles.addBtnText}>Add New Instruction</Text>
+            </View>
+          </GlassCard>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -205,14 +215,14 @@ export default function EssayScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f7fb" },
-  header: { paddingHorizontal: 20, paddingBottom: 25, flexDirection: "row", alignItems: "center", elevation: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
+  container: { flex: 1, backgroundColor: "transparent" },
+  header: { paddingHorizontal: 20, paddingBottom: 45, flexDirection: "row", alignItems: "center", elevation: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
   headerInfo: { flex: 1, paddingHorizontal: 10 },
   headerSmall: { color: "#fff", fontSize: 11, opacity: 0.8, fontWeight: '700', textTransform: 'uppercase' },
   headerBig: { color: "#fff", fontSize: 18, fontWeight: "800" },
 
-  content: { padding: 20 },
+  content: { padding: 20, paddingBottom: 150 },
   infoSection: { marginBottom: 30, paddingHorizontal: 5 },
   sectionLabel: { fontSize: 13, fontWeight: '700', color: '#bbb', textTransform: 'uppercase', marginBottom: 8 },
   sectionTitle: { fontSize: 24, fontWeight: '800', color: '#111', marginBottom: 12 },
@@ -225,12 +235,12 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 12, fontWeight: '800' },
 
   emptyState: { alignItems: 'center', paddingVertical: 40 },
-  emptyIconBox: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, marginBottom: 15 },
+  emptyIconBox: { width: 80, height: 80, borderRadius: 40, backgroundColor: "transparent", justifyContent: 'center', alignItems: 'center', marginBottom: 15 },
   emptyText: { fontSize: 15, color: '#bbb', fontWeight: '500' },
 
   instructionList: { gap: 12 },
   instCard: {
-    backgroundColor: '#fff',
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
     borderRadius: 20,
     padding: 16,
     flexDirection: 'row',
@@ -250,7 +260,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
     padding: 20,
-    backgroundColor: '#fff',
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
     borderRadius: 24,
     borderWidth: 1,
     borderColor: '#f0f0f0',

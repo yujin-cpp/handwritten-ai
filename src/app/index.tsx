@@ -1,56 +1,75 @@
-// app/(auth)/splash.tsx
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { BlurView } from 'expo-blur';
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { GlassCard } from "../components/GlassCard";
 import { FloatMotion, PageMotion } from "../components/PageMotion";
 
 export default function SplashScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   return (
-    <LinearGradient colors={["#0EA47A", "#017EBA"]} style={styles.container}>
+    <LinearGradient colors={["#0B8C70", "#0E7E99", "#14546F"]} style={styles.container}>
       <StatusBar style="light" />
       <View style={styles.backdropOrbOne} />
       <View style={styles.backdropOrbTwo} />
+      <View style={styles.backdropOrbThree} />
 
-      <PageMotion delay={30} style={[styles.glassContainer, styles.logoWrapContainer]}>
-        <BlurView intensity={90} tint="light" style={styles.logoWrapBlur}>
-          <View style={styles.logoWrapContent}>
-            <FloatMotion>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: insets.top + 28, paddingBottom: insets.bottom + 30 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <PageMotion delay={50} style={styles.heroBlock}>
+          <View style={styles.heroInner}>
+            <FloatMotion amplitude={7} duration={2600}>
               <Image
                 source={require("../assets/images/logo-aiscorer.png")}
                 style={styles.logo}
                 resizeMode="contain"
               />
             </FloatMotion>
-            <Text style={styles.title}>AI Scorer</Text>
-            <Text style={styles.tagline}>Fast. Accurate. Automated.</Text>
-            <Text style={styles.subline}>
-              Modern grading, built for busy classrooms.
-            </Text>
+
+            <View style={styles.copyBlock}>
+              <Text style={styles.title}>Handwritten AI Scorer</Text>
+              <Text style={styles.tagline}>Fast. Accurate. Automated.</Text>
+              <Text style={styles.subline}>
+                Modern grading, built for busy classrooms.
+              </Text>
+            </View>
           </View>
-        </BlurView>
-      </PageMotion>
+        </PageMotion>
 
-      <PageMotion delay={180} style={styles.buttonContainer}>
-        <TouchableOpacity
-          accessibilityRole="button"
-          style={[styles.button, styles.login]}
-          onPress={() => router.push("/(auth)/login")}
-        >
-          <Text style={[styles.buttonText, styles.loginText]}>Login</Text>
-        </TouchableOpacity>
+        <PageMotion delay={180} style={styles.buttonContainer}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            style={styles.buttonTouch}
+            onPress={() => router.push("/(auth)/login")}
+          >
+            <GlassCard borderRadius={18} intensity={86}>
+              <View style={styles.button}>
+                <Text style={[styles.buttonText, styles.loginText]}>Login</Text>
+              </View>
+            </GlassCard>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          accessibilityRole="button"
-          style={[styles.button, styles.signup]}
-          onPress={() => router.push("/(auth)/signup")}
-        >
-          <Text style={[styles.buttonText, styles.signupText]}>Sign Up</Text>
-        </TouchableOpacity>
-      </PageMotion>
+          <TouchableOpacity
+            accessibilityRole="button"
+            style={styles.buttonTouch}
+            onPress={() => router.push("/(auth)/signup")}
+          >
+            <GlassCard borderRadius={18} intensity={86}>
+              <View style={styles.button}>
+                <Text style={[styles.buttonText, styles.signupText]}>Sign Up</Text>
+              </View>
+            </GlassCard>
+          </TouchableOpacity>
+        </PageMotion>
+      </ScrollView>
     </LinearGradient>
   );
 }
@@ -58,92 +77,97 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 28,
     overflow: "hidden",
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingHorizontal: 24,
   },
   backdropOrbOne: {
     position: "absolute",
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    top: -50,
-    right: -40,
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    top: -40,
+    right: -70,
   },
   backdropOrbTwo: {
     position: "absolute",
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: "rgba(255,255,255,0.10)",
-    bottom: -80,
-    left: -60,
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    bottom: -60,
+    left: -80,
   },
-  glassContainer: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.15,
-    shadowRadius: 25,
-    elevation: 10,
-    backgroundColor: 'transparent',
+  backdropOrbThree: {
+    position: "absolute",
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    top: "34%",
+    left: -50,
   },
-  logoWrapContainer: {
-    marginBottom: 40,
+  heroBlock: {
     width: "100%",
-    maxWidth: 420,
+    maxWidth: 520,
+    alignSelf: "center",
+    marginBottom: 34,
   },
-  logoWrapBlur: {
-    borderRadius: 32,
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderTopColor: 'rgba(255, 255, 255, 0.9)',
-    borderLeftColor: 'rgba(255, 255, 255, 0.6)',
-    borderRightColor: 'rgba(255, 255, 255, 0.2)',
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  logoWrapContent: {
+  heroInner: {
     alignItems: "center",
-    paddingVertical: 32,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
   },
-  logo: { width: 120, height: 120, marginBottom: 6 },
-  title: { fontSize: 32, fontWeight: "800", color: "#fff", letterSpacing: 0.3 },
-  tagline: { marginTop: 6, color: "rgba(255,255,255,0.95)", fontSize: 15 },
-  subline: {
-    marginTop: 8,
-    color: "rgba(255,255,255,0.82)",
-    fontSize: 13,
+  logo: { width: 140, height: 140, marginBottom: 18 },
+  copyBlock: {
+    alignItems: "center",
+  },
+  title: {
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: "900",
+    color: "#ffffff",
+    letterSpacing: -0.5,
+    marginBottom: 10,
     textAlign: "center",
-    lineHeight: 18,
+    textShadowColor: "rgba(0,0,0,0.18)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 12,
+  },
+  tagline: {
+    color: "rgba(255,255,255,0.96)",
+    fontSize: 17,
+    fontWeight: "600",
+    textShadowColor: "rgba(0,0,0,0.12)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 8,
+  },
+  subline: {
+    marginTop: 10,
+    color: "rgba(255,255,255,0.88)",
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+    maxWidth: 280,
   },
 
-  buttonContainer: { width: "100%", gap: 14, maxWidth: 420 },
+  buttonContainer: { width: "100%", gap: 14, maxWidth: 520, alignSelf: "center" },
+  buttonTouch: {
+    width: "100%",
+  },
   button: {
-    paddingVertical: 16,
-    borderRadius: 14,
+    minHeight: 58,
+    borderRadius: 18,
     alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.06)",
   },
-
-  // Primary (white) button
-  login: {
-    backgroundColor: "#fff",
-    shadowColor: "#0A5",
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 2,
-  },
-  loginText: { color: "#0EA47A" },
-
-  // Outline button
-  signup: {
-    borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.4)",
-    backgroundColor: "rgba(255,255,255,0.15)",
-  },
-  signupText: { color: "#fff" },
-
-  buttonText: { fontWeight: "700", fontSize: 16, letterSpacing: 0.2 },
+  loginText: { color: "#083344", fontSize: 16 },
+  signupText: { color: "#083344", fontSize: 16 },
+  buttonText: { fontWeight: "800", letterSpacing: 0.2 },
 });

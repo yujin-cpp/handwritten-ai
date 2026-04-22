@@ -1,10 +1,13 @@
 import { BlurView } from 'expo-blur';
+import { GlassCard } from '../../components/GlassCard';
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,33 +17,37 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FloatMotion, PageMotion } from "../../components/PageMotion";
 import { auth } from "../../firebase/firebaseConfig";
+import { useAuthSession } from "../../hooks/useAuthSession";
 import { listenToClasses } from "../../services/class.service";
 import { getProfessorProfile } from "../../services/professor.service";
 
 const DEFAULT_AVATAR = "https://i.imgur.com/4YQZ6uM.png";
+const EMPTY_STATS = {
+  totalClasses: 0,
+  totalGraded: 0,
+  lastActivityText: "No recent activity",
+  resumeClassId: "",
+  resumeClassName: "",
+  resumeClassSection: "",
+  resumeClassColor: "",
+  resumeAcademicYear: "",
+};
 
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user, uid, initializing } = useAuthSession();
+  const supportsBlur = Platform.OS === "ios" || Platform.OS === "web";
 
   const [professor, setProfessor] = useState<any>(null);
   const [classes, setClasses] = useState<any>({});
-  const [stats, setStats] = useState({
-    totalClasses: 0,
-    totalGraded: 0,
-    lastActivityText: "No recent activity",
-    resumeClassId: "",
-    resumeClassName: "",
-    resumeClassSection: "",
-    resumeClassColor: "",
-    resumeAcademicYear: ""
-  });
+  const [stats, setStats] = useState(EMPTY_STATS);
 
   // 1. Fetch Professor Profile & Photo
   useFocusEffect(
     useCallback(() => {
       const loadProfile = async () => {
-        const currentUser = auth.currentUser;
+        const currentUser = auth.currentUser ?? user;
         if (currentUser) {
           await currentUser.reload();
           const profData = await getProfessorProfile(currentUser.uid);
@@ -48,16 +55,21 @@ export default function HomeScreen() {
             ...profData,
             photoURL: currentUser.photoURL || DEFAULT_AVATAR,
           });
+        } else {
+          setProfessor(null);
         }
       };
       loadProfile();
-    }, []),
+    }, [user]),
   );
 
   // 2. REAL-TIME LISTENER FOR CLASSES & STATS CALCULATION
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
+    if (!uid) {
+      setClasses({});
+      setStats(EMPTY_STATS);
+      return;
+    }
 
     const unsubscribe = listenToClasses(uid, (data) => {
       setClasses(data || {});
@@ -103,9 +115,15 @@ export default function HomeScreen() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [uid]);
 
-  if (!professor) return null;
+  if (initializing || !professor) {
+    return (
+      <View style={[styles.loadingPage, { paddingTop: insets.top + 20 }]}>
+        <ActivityIndicator size="large" color="#0EA47A" />
+      </View>
+    );
+  }
 
   const handleResume = () => {
     if (stats.resumeClassId) {
@@ -125,14 +143,11 @@ export default function HomeScreen() {
   return (
     <ScrollView 
       style={styles.container} 
-      contentContainerStyle={{ paddingBottom: 120 }}
+      contentContainerStyle={{ paddingBottom: 150 }}
       showsVerticalScrollIndicator={false}
     >
       {/* ABSTRACT BACKGROUND ORBS FOR GLASS REFRACTION */}
-      <View style={[styles.bgOrb, { top: 250, left: -100, backgroundColor: 'rgba(14, 164, 122, 0.12)', width: 350, height: 350 }]} />
-      <View style={[styles.bgOrb, { top: 400, right: -150, backgroundColor: 'rgba(0, 121, 178, 0.08)', width: 400, height: 400 }]} />
-      <View style={[styles.bgOrb, { top: 600, left: 50, backgroundColor: 'rgba(243, 156, 18, 0.06)', width: 300, height: 300 }]} />
-
+                  
       {/* HERO HEADER */}
       <View style={{ paddingHorizontal: 20, paddingTop: insets.top + 20 }}>
         <PageMotion delay={30}>
@@ -161,25 +176,47 @@ export default function HomeScreen() {
 
             {stats.resumeClassId ? (
               <View style={styles.resumeGlassContainer}>
-                <BlurView intensity={70} tint="light" style={styles.resumeBtnBlur}>
-                  <TouchableOpacity style={styles.resumeBtnHeroContent} onPress={handleResume}>
-                    <Feather name="book-open" size={14} color="#ffffff" />
-                    <Text style={styles.resumeBtnHeroTextGlass}>
-                      Resume {stats.resumeClassName} - {stats.resumeClassSection}
-                    </Text>
-                    <Feather name="chevron-right" size={14} color="#ffffff" />
-                  </TouchableOpacity>
-                </BlurView>
+                {supportsBlur ? (
+                  <BlurView intensity={45} tint="light" style={styles.resumeBtnBlur}>
+                    <TouchableOpacity style={styles.resumeBtnHeroContent} onPress={handleResume}>
+                      <Feather name="book-open" size={14} color="#ffffff" />
+                      <Text style={styles.resumeBtnHeroTextGlass}>
+                        Resume {stats.resumeClassName} - {stats.resumeClassSection}
+                      </Text>
+                      <Feather name="chevron-right" size={14} color="#ffffff" />
+                    </TouchableOpacity>
+                  </BlurView>
+                ) : (
+                  <View style={[styles.resumeBtnBlur, styles.resumeBtnFallback]}>
+                    <TouchableOpacity style={styles.resumeBtnHeroContent} onPress={handleResume}>
+                      <Feather name="book-open" size={14} color="#ffffff" />
+                      <Text style={styles.resumeBtnHeroTextGlass}>
+                        Resume {stats.resumeClassName} - {stats.resumeClassSection}
+                      </Text>
+                      <Feather name="chevron-right" size={14} color="#ffffff" />
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             ) : (
               <View style={styles.resumeGlassContainer}>
-                <BlurView intensity={70} tint="light" style={styles.resumeBtnBlur}>
-                  <TouchableOpacity style={styles.resumeBtnHeroContent} onPress={() => router.push("/(tabs)/classes/addclass")}>
-                    <Feather name="plus" size={14} color="#ffffff" />
-                    <Text style={styles.resumeBtnHeroTextGlass}>Create your first class</Text>
-                    <Feather name="chevron-right" size={14} color="#ffffff" />
-                  </TouchableOpacity>
-                </BlurView>
+                {supportsBlur ? (
+                  <BlurView intensity={45} tint="light" style={styles.resumeBtnBlur}>
+                    <TouchableOpacity style={styles.resumeBtnHeroContent} onPress={() => router.push("/(tabs)/classes/addclass")}>
+                      <Feather name="plus" size={14} color="#ffffff" />
+                      <Text style={styles.resumeBtnHeroTextGlass}>Create your first class</Text>
+                      <Feather name="chevron-right" size={14} color="#ffffff" />
+                    </TouchableOpacity>
+                  </BlurView>
+                ) : (
+                  <View style={[styles.resumeBtnBlur, styles.resumeBtnFallback]}>
+                    <TouchableOpacity style={styles.resumeBtnHeroContent} onPress={() => router.push("/(tabs)/classes/addclass")}>
+                      <Feather name="plus" size={14} color="#ffffff" />
+                      <Text style={styles.resumeBtnHeroTextGlass}>Create your first class</Text>
+                      <Feather name="chevron-right" size={14} color="#ffffff" />
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             )}
           </LinearGradient>
@@ -187,35 +224,36 @@ export default function HomeScreen() {
 
         {/* OVERLAPPING ANALYTICS CARD */}
         <PageMotion delay={100}>
-          <View style={styles.analyticsCard}>
-            <View style={styles.analyticsRow}>
-              <View style={styles.analyticsIconBox}>
-                <Feather name="book" size={20} color="#0EA47A" />
+          <GlassCard style={{ marginTop: -25, marginHorizontal: 5 }}>
+            <View style={{ padding: 20 }}>
+              <View style={styles.analyticsRow}>
+                <View style={styles.analyticsIconBox}>
+                  <Feather name="book" size={20} color="#0EA47A" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.analyticsTitle}>{stats.totalClasses} Classes Today</Text>
+                </View>
               </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.analyticsTitle}>{stats.totalClasses} Classes Today</Text>
-              </View>
-              {/* REMOVED RESUME BUTTON */}
-            </View>
 
-            <View style={[styles.analyticsRow, { marginTop: 15 }]}>
-              <View style={[styles.analyticsIconBox, { backgroundColor: "#f0f4f8" }]}>
-                <Feather name="users" size={20} color="#5c6b7a" />
+              <View style={[styles.analyticsRow, { marginTop: 15 }]}>
+                <View style={[styles.analyticsIconBox, { backgroundColor: "#f0f4f8" }]}>
+                  <Feather name="users" size={20} color="#5c6b7a" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.analyticsTitle}>{stats.totalGraded} Students graded</Text>
+                </View>
               </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.analyticsTitle}>{stats.totalGraded} Students graded</Text>
+
+              <View style={styles.divider} />
+
+              <View style={styles.lastActivityRow}>
+                <View style={styles.dotIcon}>
+                  <Feather name="clock" size={12} color="#fff" />
+                </View>
+                <Text style={styles.lastActivityText}>{stats.lastActivityText}</Text>
               </View>
             </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.lastActivityRow}>
-              <View style={styles.dotIcon}>
-                <Feather name="clock" size={12} color="#fff" />
-              </View>
-              <Text style={styles.lastActivityText}>{stats.lastActivityText}</Text>
-            </View>
-          </View>
+          </GlassCard>
         </PageMotion>
       </View>
 
@@ -226,41 +264,44 @@ export default function HomeScreen() {
         <Text style={styles.sectionTitle}>Quick Actions</Text>
         
         <View style={styles.actionsGrid}>
-          <View style={styles.glassContainer}>
-            <BlurView intensity={90} tint="light" style={styles.actionCardBlur}>
-              <TouchableOpacity 
-                style={styles.actionCardContent}
-                onPress={() => router.push("/(tabs)/capture")}
-              >
+          <TouchableOpacity 
+            style={{ flex: 1 }}
+            activeOpacity={0.8}
+            onPress={() => router.push("/(tabs)/capture")}
+          >
+            <GlassCard style={{ aspectRatio: 1 }}>
+              <View style={styles.actionCardContent}>
                 <Feather name="camera" size={28} color="#0EA47A" style={[styles.glassIcon, { shadowColor: '#0EA47A' }]} />
                 <Text style={styles.actionText}>Scan Papers</Text>
-              </TouchableOpacity>
-            </BlurView>
-          </View>
+              </View>
+            </GlassCard>
+          </TouchableOpacity>
 
-          <View style={styles.glassContainer}>
-            <BlurView intensity={90} tint="light" style={styles.actionCardBlur}>
-              <TouchableOpacity 
-                style={styles.actionCardContent}
-                onPress={() => router.push("/(tabs)/classes/addclass")}
-              >
+          <TouchableOpacity 
+            style={{ flex: 1 }}
+            activeOpacity={0.8}
+            onPress={() => router.push("/(tabs)/classes/addclass")}
+          >
+            <GlassCard style={{ aspectRatio: 1 }}>
+              <View style={styles.actionCardContent}>
                 <Feather name="plus" size={28} color="#0079B2" style={[styles.glassIcon, { shadowColor: '#0079B2' }]} />
                 <Text style={styles.actionText}>Add Class</Text>
-              </TouchableOpacity>
-            </BlurView>
-          </View>
+              </View>
+            </GlassCard>
+          </TouchableOpacity>
 
-          <View style={styles.glassContainer}>
-            <BlurView intensity={90} tint="light" style={styles.actionCardBlur}>
-              <TouchableOpacity 
-                style={styles.actionCardContent}
-                onPress={() => router.push("/(tabs)/analytics")}
-              >
+          <TouchableOpacity 
+            style={{ flex: 1 }}
+            activeOpacity={0.8}
+            onPress={() => router.push("/(tabs)/analytics")}
+          >
+            <GlassCard style={{ aspectRatio: 1 }}>
+              <View style={styles.actionCardContent}>
                 <Feather name="bar-chart-2" size={28} color="#f39c12" style={[styles.glassIcon, { shadowColor: '#f39c12' }]} />
                 <Text style={styles.actionText}>View Reports</Text>
-              </TouchableOpacity>
-            </BlurView>
-          </View>
+              </View>
+            </GlassCard>
+          </TouchableOpacity>
         </View>
       </PageMotion>
 
@@ -271,7 +312,12 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f4f7fb",
+    backgroundColor: "transparent",
+  },
+  loadingPage: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   bgOrb: {
     position: 'absolute',
@@ -327,6 +373,9 @@ const styles = StyleSheet.create({
     borderRightColor: 'rgba(255, 255, 255, 0.1)',
     borderBottomColor: 'rgba(255, 255, 255, 0.05)',
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  resumeBtnFallback: {
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
   },
   resumeBtnHeroContent: {
     flexDirection: "row",

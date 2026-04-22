@@ -1,6 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
+import { GlassCard } from "../../../components/GlassCard";
+import { PageMotion } from "../../../components/PageMotion";
 import {
   ActivityIndicator,
   Modal,
@@ -21,7 +23,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as XLSX from 'xlsx';
 
-import { auth } from "../../../firebase/firebaseConfig";
+import { useAuthSession } from "../../../hooks/useAuthSession";
 import {
   addStudent,
   deleteStudent,
@@ -51,6 +53,7 @@ export default function MasterlistScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const { uid } = useAuthSession();
 
   const classId = P(params.classId);
   const className = P(params.name, "Class");
@@ -76,7 +79,6 @@ export default function MasterlistScreen() {
   const [saveLoading, setSaveLoading] = useState(false);
 
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
     if (!uid || !classId) return;
 
     const unsubscribe = listenToStudents(uid, classId, (data) => {
@@ -85,7 +87,7 @@ export default function MasterlistScreen() {
     });
 
     return () => unsubscribe();
-  }, [classId]);
+  }, [classId, uid]);
 
   const visibleRows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -222,7 +224,6 @@ export default function MasterlistScreen() {
       return;
     }
 
-    const uid = auth.currentUser?.uid;
     if (!uid || !classId) return;
 
     try {
@@ -245,7 +246,6 @@ export default function MasterlistScreen() {
       "Remove Student",
       "Are you sure you want to delete this student from the roster?",
       async () => {
-        const uid = auth.currentUser?.uid;
         if (uid && classId) {
           try {
             await deleteStudent(uid, classId, id);
@@ -273,73 +273,85 @@ export default function MasterlistScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.rosterHeader}>
-          <View style={styles.rosterTitleBox}>
-            <Text style={styles.rosterTitle}>Class Roster</Text>
-            <View style={[styles.countBadge, { backgroundColor: headerColor + '15' }]}>
-              <Text style={[styles.countText, { color: headerColor }]}>{rows.length} Students</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity style={[styles.addInlineBtn, { backgroundColor: headerColor }]} onPress={handleOpenAdd}>
-            <Feather name="plus" size={18} color="#fff" />
-            <Text style={styles.addInlineText}>Add Student</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.toolbar}>
-          <View style={styles.searchContainer}>
-            <Feather name="search" size={16} color="#999" />
-            <TextInput
-              placeholder="Filter names..."
-              placeholderTextColor="#bbb"
-              value={query}
-              onChangeText={setQuery}
-              style={styles.searchInp}
-            />
-          </View>
-
-          <TouchableOpacity style={styles.filterBtn} onPress={() => setSortPickerOpen(true)}>
-            <Feather name="sliders" size={16} color="#444" />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.tableSection}>
-          <View style={styles.tableHeader}>
-            <Text style={[styles.headCell, { flex: 2 }]}>FULL NAME</Text>
-            <Text style={[styles.headCell, { flex: 1.5 }]}>STUDENT ID</Text>
-            <Text style={[styles.headCell, { width: 50 }]}></Text>
-          </View>
-
-          {dataLoading ? (
-            <ActivityIndicator size="large" color={headerColor} style={{ marginTop: 50 }} />
-          ) : visibleRows.length === 0 ? (
-            <View style={styles.emptyTable}>
-              <Feather name="users" size={40} color="#eee" />
-              <Text style={styles.emptyTableText}>No students matched your filter.</Text>
-            </View>
-          ) : (
-            visibleRows.map((r, idx) => (
-              <View key={r.id} style={[styles.row, idx === visibleRows.length - 1 && { borderBottomWidth: 0 }]}>
-                <View style={{ flex: 2 }}>
-                  <Text style={styles.rowName} numberOfLines={1}>{r.name}</Text>
-                </View>
-                <View style={{ flex: 1.5 }}>
-                  <Text style={styles.rowId}>{r.studentId}</Text>
-                </View>
-                <View style={styles.rowActions}>
-                  <TouchableOpacity onPress={() => handleOpenEdit(r)} style={styles.actionIcon}>
-                    <Feather name="edit-3" size={16} color="#666" />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => handleDelete(r.id)} style={styles.actionIcon}>
-                    <Feather name="trash-2" size={16} color="#ff3b30" />
-                  </TouchableOpacity>
-                </View>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 150 }]} showsVerticalScrollIndicator={false}>
+        <PageMotion delay={50}>
+          <View style={styles.rosterHeader}>
+            <View style={styles.rosterTitleBox}>
+              <Text style={styles.rosterTitle}>Class Roster</Text>
+              <View style={[styles.countBadge, { backgroundColor: headerColor + '15' }]}>
+                <Text style={[styles.countText, { color: headerColor }]}>{rows.length} Students</Text>
               </View>
-            ))
-          )}
-        </View>
+            </View>
+
+            <TouchableOpacity style={[styles.addInlineBtn, { backgroundColor: headerColor }]} onPress={handleOpenAdd}>
+              <Feather name="plus" size={18} color="#fff" />
+              <Text style={styles.addInlineText}>Add Student</Text>
+            </TouchableOpacity>
+          </View>
+        </PageMotion>
+
+        <PageMotion delay={100}>
+          <View style={styles.toolbar}>
+            <GlassCard style={{ flex: 1 }}>
+              <View style={[styles.searchContainer, { elevation: 0, backgroundColor: 'transparent' }]}>
+                <Feather name="search" size={16} color="#999" />
+                <TextInput
+                  placeholder="Filter names..."
+                  placeholderTextColor="#bbb"
+                  value={query}
+                  onChangeText={setQuery}
+                  style={styles.searchInp}
+                />
+              </View>
+            </GlassCard>
+
+            <GlassCard style={{ width: 50 }}>
+              <TouchableOpacity style={[styles.filterBtn, { elevation: 0, backgroundColor: 'transparent' }]} onPress={() => setSortPickerOpen(true)}>
+                <Feather name="sliders" size={16} color="#444" />
+              </TouchableOpacity>
+            </GlassCard>
+          </View>
+        </PageMotion>
+
+        <PageMotion delay={150}>
+          <GlassCard borderRadius={28}>
+            <View style={[styles.tableSection, { elevation: 0, backgroundColor: 'transparent' }]}>
+              <View style={styles.tableHeader}>
+                <Text style={[styles.headCell, { flex: 2 }]}>FULL NAME</Text>
+                <Text style={[styles.headCell, { flex: 1.5 }]}>STUDENT ID</Text>
+                <Text style={[styles.headCell, { width: 50 }]}></Text>
+              </View>
+
+              {dataLoading ? (
+                <ActivityIndicator size="large" color={headerColor} style={{ marginTop: 50, marginBottom: 50 }} />
+              ) : visibleRows.length === 0 ? (
+                <View style={styles.emptyTable}>
+                  <Feather name="users" size={40} color="#eee" />
+                  <Text style={styles.emptyTableText}>No students matched your filter.</Text>
+                </View>
+              ) : (
+                visibleRows.map((r, idx) => (
+                  <View key={r.id} style={[styles.row, idx === visibleRows.length - 1 && { borderBottomWidth: 0 }]}>
+                    <View style={{ flex: 2 }}>
+                      <Text style={styles.rowName} numberOfLines={1}>{r.name}</Text>
+                    </View>
+                    <View style={{ flex: 1.5 }}>
+                      <Text style={styles.rowId}>{r.studentId}</Text>
+                    </View>
+                    <View style={styles.rowActions}>
+                      <TouchableOpacity onPress={() => handleOpenEdit(r)} style={styles.actionIcon}>
+                        <Feather name="edit-3" size={16} color="#666" />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleDelete(r.id)} style={styles.actionIcon}>
+                        <Feather name="trash-2" size={16} color="#ff3b30" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              )}
+            </View>
+          </GlassCard>
+        </PageMotion>
       </ScrollView>
 
       {/* Sort Modal */}
@@ -469,8 +481,8 @@ export default function MasterlistScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f7fb" },
-  header: { paddingHorizontal: 20, paddingBottom: 25, flexDirection: "row", alignItems: "center", elevation: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
+  container: { flex: 1, backgroundColor: "transparent" },
+  header: { paddingHorizontal: 20, paddingBottom: 45, flexDirection: "row", alignItems: "center", elevation: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10 },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
   headerInfo: { flex: 1, paddingHorizontal: 10 },
   headerSmall: { color: "#fff", fontSize: 11, opacity: 0.8, fontWeight: '700', textTransform: 'uppercase' },
@@ -487,11 +499,11 @@ const styles = StyleSheet.create({
   addInlineText: { color: '#fff', fontWeight: '800', fontSize: 13 },
 
   toolbar: { flexDirection: 'row', gap: 10, marginBottom: 20 },
-  searchContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 16, paddingHorizontal: 15, height: 50, elevation: 1, shadowColor: '#000', shadowOpacity: 0.03 },
+  searchContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: "transparent", borderRadius: 16, paddingHorizontal: 15, height: 50 },
   searchInp: { flex: 1, marginLeft: 10, fontSize: 14, color: '#111' },
-  filterBtn: { width: 50, height: 50, backgroundColor: '#fff', borderRadius: 16, justifyContent: 'center', alignItems: 'center', elevation: 1 },
+  filterBtn: { width: 50, height: 50, backgroundColor: "transparent", borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
 
-  tableSection: { backgroundColor: '#fff', borderRadius: 28, overflow: 'hidden', elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 15 },
+  tableSection: { backgroundColor: "transparent", borderRadius: 28, overflow: 'hidden' },
   tableHeader: { flexDirection: 'row', backgroundColor: '#fafafa', padding: 18, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
   headCell: { fontSize: 10, fontWeight: '800', color: '#bbb', textTransform: 'uppercase', letterSpacing: 1 },
   row: { flexDirection: 'row', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#f8f8f8' },
@@ -503,7 +515,7 @@ const styles = StyleSheet.create({
   emptyTableText: { fontSize: 15, color: '#ccc', marginTop: 15, fontWeight: '500' },
 
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "center", padding: 25 },
-  modalCard: { backgroundColor: "#fff", borderRadius: 28, padding: 24, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
+  modalCard: { backgroundColor: "rgba(255, 255, 255, 0.85)", borderRadius: 28, padding: 24, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
   modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 },
   modalTitle: { fontSize: 20, fontWeight: "800", color: "#111" },
   modalBodySub: { fontSize: 14, color: '#888', marginTop: -15, marginBottom: 20 },
@@ -520,7 +532,7 @@ const styles = StyleSheet.create({
 
   exportOptions: { gap: 12 },
   exportOption: { flexDirection: 'row', alignItems: 'center', padding: 18, backgroundColor: '#f9f9f9', borderRadius: 18, borderWidth: 1, borderColor: '#f0f0f0' },
-  exportIconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#eee' },
+  exportIconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(255, 255, 255, 0.92)", justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#eee' },
   exportOptionText: { flex: 1, marginLeft: 15, fontSize: 15, fontWeight: '700', color: '#444' },
 
   successIconBox: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#f0fdf4', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },

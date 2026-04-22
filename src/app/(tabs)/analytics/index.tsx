@@ -1,5 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { GlassCard } from "../../../components/GlassCard";
+import { PageMotion } from "../../../components/PageMotion";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -15,7 +17,7 @@ import {
 } from "react-native";
 import PieChart from "react-native-pie-chart";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { auth } from "../../../firebase/firebaseConfig";
+import { useAuthSession } from "../../../hooks/useAuthSession";
 import { getActivities, getClasses, listenToStudents } from "../../../services/class.service";
 
 type PickerType = "section" | "activity" | null;
@@ -42,7 +44,7 @@ function DonutChart({ passed, failed }: { passed: number, failed: number }) {
       <PieChart
         widthAndHeight={widthAndHeight}
         series={series}
-        cover={{ radius: 0.7, color: "#ffffff" }}
+        cover={{ radius: 0.7, color: "rgba(255, 255, 255, 0.85)" }}
       />
       <View style={styles.donutCenter}>
         <Text style={styles.donutCenterNumber}>{percent}%</Text>
@@ -55,6 +57,7 @@ function DonutChart({ passed, failed }: { passed: number, failed: number }) {
 export default function AnalyticsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { uid, initializing } = useAuthSession();
 
   const [classList, setClassList] = useState<any[]>([]);
   const [selectedClassId, setSelectedClassId] = useState<string>("");
@@ -74,8 +77,13 @@ export default function AnalyticsScreen() {
   const [pickerY, setPickerY] = useState(0);
 
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
+    if (!uid) {
+      setClassList([]);
+      setSelectedClassId("");
+      setSelectedClassName("Select Class");
+      setLoading(initializing);
+      return;
+    }
 
     const fetchClasses = async () => {
       try {
@@ -93,10 +101,9 @@ export default function AnalyticsScreen() {
       }
     };
     fetchClasses();
-  }, []);
+  }, [initializing, uid]);
 
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
     if (!uid || !selectedClassId) return;
 
     const fetchActivities = async () => {
@@ -111,10 +118,9 @@ export default function AnalyticsScreen() {
       }
     };
     fetchActivities();
-  }, [selectedClassId]);
+  }, [selectedClassId, uid]);
 
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
     if (!uid || !selectedClassId || !selectedActivityId) {
       setStudentScores([]);
       setPassedCount(0);
@@ -129,7 +135,11 @@ export default function AnalyticsScreen() {
       const dist = [0, 0, 0, 0];
 
       const activityMetadata = activityList.find(a => a.id === selectedActivityId);
-      const totalScore = Number(activityMetadata?.total || 100);
+      const totalScore = Number(
+        activityMetadata?.examSettings?.totalScore ||
+        activityMetadata?.total ||
+        100,
+      );
       const passingScore = Number(activityMetadata?.passingScore || Math.ceil(totalScore * 0.5));
 
       students.forEach(s => {
@@ -157,7 +167,7 @@ export default function AnalyticsScreen() {
     });
 
     return () => unsubscribe();
-  }, [selectedClassId, selectedActivityId]);
+  }, [activityList, selectedActivityId, selectedClassId, uid]);
 
   const currentOptions = pickerType === "section" ? classList.map(c => c.className) : pickerType === "activity" ? activityList.map(a => a.title) : [];
   const currentValue = pickerType === "section" ? selectedClassName : selectedActivityName;
@@ -173,7 +183,7 @@ export default function AnalyticsScreen() {
     setPickerType(null);
   };
 
-  if (loading) return (
+  if (initializing || loading) return (
     <View style={styles.loaderPage}>
       <ActivityIndicator size="large" color="#00b679" />
     </View>
@@ -212,114 +222,130 @@ export default function AnalyticsScreen() {
       </LinearGradient>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.summaryGrid}>
-          <View style={styles.summaryCard}>
-            <Text style={styles.statLabel}>Avg. Score</Text>
-            <Text style={styles.statValue}>
-              {studentScores.length ? (studentScores.reduce((a, b) => a + b.score, 0) / studentScores.length).toFixed(1) : "0.0"}
-            </Text>
-          </View>
-          <View style={[styles.summaryCard, { borderLeftWidth: 1, borderColor: '#f0f0f0' }]}>
-            <Text style={styles.statLabel}>Participation</Text>
-            <Text style={styles.statValue}>{studentScores.length}</Text>
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Score Distribution</Text>
-            <Feather name="bar-chart-2" size={16} color="#ddd" />
-          </View>
-
-          <View style={styles.chartContainer}>
-            <View style={styles.yAxis}>
-              {[5, 4, 3, 2, 1, 0].map(v => {
-                const max = Math.max(...distribution, 0);
-                const step = max <= 5 ? 1 : Math.ceil(max / 5);
-                return <Text key={v} style={styles.axisLabel}>{v * step}</Text>;
-              })}
-            </View>
-            <View style={styles.barArea}>
-              <View style={styles.gridLines}>
-                {[1, 2, 3, 4].map(i => <View key={i} style={styles.gridLine} />)}
+        <PageMotion delay={50}>
+          <GlassCard borderRadius={24} style={{ marginBottom: 20 }}>
+            <View style={{ flexDirection: 'row', padding: 20 }}>
+              <View style={styles.summaryCard}>
+                <Text style={styles.statLabel}>Avg. Score</Text>
+                <Text style={styles.statValue}>
+                  {studentScores.length ? (studentScores.reduce((a, b) => a + b.score, 0) / studentScores.length).toFixed(1) : "0.0"}
+                </Text>
               </View>
-              <View style={styles.bars}>
-                {distribution.map((count, idx) => {
-                  const max = Math.ceil(Math.max(...distribution, 0) / 5) * 5 || 1;
-                  const h = (count / max) * 120;
-                  return (
-                    <View key={idx} style={styles.barColumn}>
-                      <View style={[styles.bar, { height: h || 4, backgroundColor: h ? '#00b679' : '#f0f0f0' }]} />
+              <View style={[styles.summaryCard, { borderLeftWidth: 1, borderColor: '#f0f0f0' }]}>
+                <Text style={styles.statLabel}>Participation</Text>
+                <Text style={styles.statValue}>{studentScores.length}</Text>
+              </View>
+            </View>
+          </GlassCard>
+        </PageMotion>
+
+        <PageMotion delay={100}>
+          <GlassCard>
+            <View style={{ padding: 20 }}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle}>Score Distribution</Text>
+                <Feather name="bar-chart-2" size={16} color="#ddd" />
+              </View>
+
+              <View style={styles.chartContainer}>
+                <View style={styles.yAxis}>
+                  {[5, 4, 3, 2, 1, 0].map(v => {
+                    const max = Math.max(...distribution, 0);
+                    const step = max <= 5 ? 1 : Math.ceil(max / 5);
+                    return <Text key={v} style={styles.axisLabel}>{v * step}</Text>;
+                  })}
+                </View>
+                <View style={styles.barArea}>
+                  <View style={styles.gridLines}>
+                    {[1, 2, 3, 4].map(i => <View key={i} style={styles.gridLine} />)}
+                  </View>
+                  <View style={styles.bars}>
+                    {distribution.map((count, idx) => {
+                      const max = Math.ceil(Math.max(...distribution, 0) / 5) * 5 || 1;
+                      const h = (count / max) * 120;
+                      return (
+                        <View key={idx} style={styles.barColumn}>
+                          <View style={[styles.bar, { height: h || 4, backgroundColor: h ? '#00b679' : '#f0f0f0' }]} />
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              </View>
+              <View style={styles.xAxisLabels}>
+                <Text style={styles.axisLabel}>Q1</Text>
+                <Text style={styles.axisLabel}>Q2</Text>
+                <Text style={styles.axisLabel}>Q3</Text>
+                <Text style={styles.axisLabel}>Q4</Text>
+              </View>
+            </View>
+          </GlassCard>
+        </PageMotion>
+
+        <PageMotion delay={150}>
+          <GlassCard style={{ marginTop: 20 }}>
+            <View style={{ padding: 20 }}>
+              <Text style={styles.cardTitle}>Success Rate</Text>
+              <View style={styles.perfRow}>
+                <DonutChart passed={passedCount} failed={failedCount} />
+                <View style={styles.legend}>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.dot, { backgroundColor: '#00b679' }]} />
+                    <View>
+                      <Text style={styles.legPrimary}>Passed</Text>
+                      <Text style={styles.legSecondary}>{passedCount} students</Text>
                     </View>
-                  );
+                  </View>
+                  <View style={[styles.legendItem, { marginTop: 15 }]}>
+                    <View style={[styles.dot, { backgroundColor: '#ff3b30' }]} />
+                    <View>
+                      <Text style={styles.legPrimary}>Failed</Text>
+                      <Text style={styles.legSecondary}>{failedCount} students</Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </GlassCard>
+        </PageMotion>
+
+        <PageMotion delay={200}>
+          <GlassCard style={{ marginTop: 20 }}>
+            <View style={{ padding: 20, paddingBottom: 10 }}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle}>Top Performers</Text>
+                <Feather name="award" size={18} color="#FFD700" />
+              </View>
+              <View style={styles.list}>
+                {studentScores.slice(0, 5).map((s, idx) => (
+                  <View key={idx} style={[styles.listItem, idx === 4 && { borderBottomWidth: 0 }]}>
+                    <View style={styles.rankBox}>
+                      <Text style={styles.rankText}>{idx + 1}</Text>
+                    </View>
+                    <Text style={styles.studentName} numberOfLines={1}>{s.name}</Text>
+                    <Text style={styles.studentScore}>{s.score}</Text>
+                  </View>
+                ))}
+                {studentScores.length === 0 && (
+                  <View style={styles.emptyResults}>
+                    <Feather name="slash" size={32} color="#eee" />
+                    <Text style={styles.emptyText}>No graded data available.</Text>
+                  </View>
+                )}
+              </View>
+              <TouchableOpacity
+                style={styles.moreBtn}
+                onPress={() => selectedClassId && router.push({
+                  pathname: "/(tabs)/classes/activities",
+                  params: { classId: selectedClassId, name: selectedClassName, color: "#00b679" }
                 })}
-              </View>
+              >
+                <Text style={styles.moreBtnText}>Go to Class Records</Text>
+                <Feather name="arrow-right" size={14} color="#00b679" />
+              </TouchableOpacity>
             </View>
-          </View>
-          <View style={styles.xAxisLabels}>
-            <Text style={styles.axisLabel}>Q1</Text>
-            <Text style={styles.axisLabel}>Q2</Text>
-            <Text style={styles.axisLabel}>Q3</Text>
-            <Text style={styles.axisLabel}>Q4</Text>
-          </View>
-        </View>
-
-        <View style={[styles.card, { marginTop: 20 }]}>
-          <Text style={styles.cardTitle}>Success Rate</Text>
-          <View style={styles.perfRow}>
-            <DonutChart passed={passedCount} failed={failedCount} />
-            <View style={styles.legend}>
-              <View style={styles.legendItem}>
-                <View style={[styles.dot, { backgroundColor: '#00b679' }]} />
-                <View>
-                  <Text style={styles.legPrimary}>Passed</Text>
-                  <Text style={styles.legSecondary}>{passedCount} students</Text>
-                </View>
-              </View>
-              <View style={[styles.legendItem, { marginTop: 15 }]}>
-                <View style={[styles.dot, { backgroundColor: '#ff3b30' }]} />
-                <View>
-                  <Text style={styles.legPrimary}>Failed</Text>
-                  <Text style={styles.legSecondary}>{failedCount} students</Text>
-                </View>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        <View style={[styles.card, { marginTop: 20, paddingBottom: 10 }]}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Top Performers</Text>
-            <Feather name="award" size={18} color="#FFD700" />
-          </View>
-          <View style={styles.list}>
-            {studentScores.slice(0, 5).map((s, idx) => (
-              <View key={idx} style={[styles.listItem, idx === 4 && { borderBottomWidth: 0 }]}>
-                <View style={styles.rankBox}>
-                  <Text style={styles.rankText}>{idx + 1}</Text>
-                </View>
-                <Text style={styles.studentName} numberOfLines={1}>{s.name}</Text>
-                <Text style={styles.studentScore}>{s.score}</Text>
-              </View>
-            ))}
-            {studentScores.length === 0 && (
-              <View style={styles.emptyResults}>
-                <Feather name="slash" size={32} color="#eee" />
-                <Text style={styles.emptyText}>No graded data available.</Text>
-              </View>
-            )}
-          </View>
-          <TouchableOpacity
-            style={styles.moreBtn}
-            onPress={() => selectedClassId && router.push({
-              pathname: "/(tabs)/classes/activities",
-              params: { classId: selectedClassId, name: selectedClassName, color: "#00b679" }
-            })}
-          >
-            <Text style={styles.moreBtnText}>Go to Class Records</Text>
-            <Feather name="arrow-right" size={14} color="#00b679" />
-          </TouchableOpacity>
-        </View>
+          </GlassCard>
+        </PageMotion>
       </ScrollView>
 
       {/* Choice Modal */}
@@ -351,7 +377,7 @@ export default function AnalyticsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f7fb" },
+  container: { flex: 1, backgroundColor: "transparent" },
   loaderPage: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: { paddingHorizontal: 20, paddingBottom: 25 },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
@@ -361,7 +387,7 @@ const styles = StyleSheet.create({
   pill: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 14 },
   pillText: { color: '#fff', fontSize: 13, fontWeight: '700', flex: 1 },
 
-  content: { padding: 20, paddingBottom: 110 },
+  content: { padding: 20, paddingBottom: 150 },
   summaryGrid: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 24, padding: 20, elevation: 1, shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 15, marginBottom: 20 },
   summaryCard: { flex: 1, alignItems: 'center' },
   statLabel: { fontSize: 11, fontWeight: '800', color: '#bbb', textTransform: 'uppercase', marginBottom: 5 },

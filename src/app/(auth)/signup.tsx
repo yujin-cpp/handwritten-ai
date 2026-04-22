@@ -1,5 +1,6 @@
 // app/(auth)/signup.tsx
 import { Ionicons } from "@expo/vector-icons";
+import * as AuthSession from "expo-auth-session";
 import * as Google from "expo-auth-session/providers/google";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -17,6 +18,13 @@ import {
     ScrollView
 } from "react-native";
 import { auth } from "../../firebase/firebaseConfig";
+import {
+  EXPO_GO_GOOGLE_AUTH_MESSAGE,
+  GOOGLE_AUTH_CONFIG,
+  MOBILE_GOOGLE_AUTH_SETUP_MESSAGE,
+  hasNativeGoogleAuthConfig,
+  isExpoGo,
+} from "../../constants/googleAuth";
 import { createProfessor } from "../../services/professor.service";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -27,15 +35,18 @@ export default function SignUp() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const isGoogleDisabled = Platform.OS !== "web" && (!request || isExpoGo);
 
   // 🔹 MODAL STATE
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMessage, setModalMessage] = useState('');
 
-  const [, response, promptAsync] = Google.useAuthRequest({
-    expoClientId: "697036998946-ia341ph7pidihf3r519ltr443u2k1a5l.apps.googleusercontent.com",
-    androidClientId: "697036998946-jvtj1jbf839cfu3lij5bu161oididnke.apps.googleusercontent.com",
-    webClientId: "697036998946-ia341ph7pidihf3r519ltr443u2k1a5l.apps.googleusercontent.com",
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    expoClientId: GOOGLE_AUTH_CONFIG.expoClientId || undefined,
+    androidClientId: GOOGLE_AUTH_CONFIG.androidClientId || undefined,
+    webClientId: GOOGLE_AUTH_CONFIG.webClientId || undefined,
+    responseType: AuthSession.ResponseType.IdToken,
+    shouldAutoExchangeCode: false,
     scopes: ["profile", "email"],
   });
 
@@ -94,6 +105,21 @@ export default function SignUp() {
         showErrorPopup(getFirebaseErrorMessage(err.code));
       }
     } else {
+      if (!hasNativeGoogleAuthConfig) {
+        showErrorPopup(MOBILE_GOOGLE_AUTH_SETUP_MESSAGE);
+        return;
+      }
+
+      if (isExpoGo) {
+        showErrorPopup(EXPO_GO_GOOGLE_AUTH_MESSAGE);
+        return;
+      }
+
+      if (!request) {
+        showErrorPopup("Google sign-in is still preparing. Try again in a moment.");
+        return;
+      }
+
       promptAsync();
     }
   };
@@ -134,9 +160,18 @@ export default function SignUp() {
       </TouchableOpacity>
 
       <Text style={styles.or}>Or Signup with</Text>
-      <TouchableOpacity style={styles.googleButton} onPress={onGoogleButtonPress}>
-        <Ionicons name="logo-google" size={22} color="#000" />
+      <TouchableOpacity
+        style={[styles.googleButton, isGoogleDisabled && styles.googleButtonDisabled]}
+        onPress={onGoogleButtonPress}
+        disabled={isGoogleDisabled}
+      >
+        <Ionicons name="logo-google" size={22} color={isGoogleDisabled ? "#6b7280" : "#000"} />
       </TouchableOpacity>
+      {isExpoGo ? (
+        <Text style={styles.googleHint}>
+          Google sign-in needs a development build or installed Android app.
+        </Text>
+      ) : null}
 
       <Text style={styles.footer}>
         Already have an account?{' '}
@@ -178,6 +213,15 @@ const styles = StyleSheet.create({
   buttonText: { color: "#0EA47A", fontWeight: "bold" },
   or: { color: "#fff", textAlign: "center", marginBottom: 15 },
   googleButton: { backgroundColor: "#fff", padding: 10, borderRadius: 8, alignItems: "center", marginBottom: 30 },
+  googleButtonDisabled: { backgroundColor: "rgba(255,255,255,0.62)" },
+  googleHint: {
+    color: "rgba(255,255,255,0.78)",
+    textAlign: "center",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: -16,
+    marginBottom: 24,
+  },
   footer: { color: "#fff", textAlign: "center" },
   link: { fontWeight: "bold", textDecorationLine: "underline" },
 

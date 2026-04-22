@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as AuthSession from "expo-auth-session";
 import * as Google from "expo-auth-session/providers/google";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -23,6 +24,13 @@ import {
 
 import { auth } from "../../firebase/firebaseConfig";
 import {
+    EXPO_GO_GOOGLE_AUTH_MESSAGE,
+    GOOGLE_AUTH_CONFIG,
+    MOBILE_GOOGLE_AUTH_SETUP_MESSAGE,
+    hasNativeGoogleAuthConfig,
+    isExpoGo,
+} from "../../constants/googleAuth";
+import {
     createProfessor,
     getProfessorProfile,
 } from "../../services/professor.service";
@@ -36,15 +44,15 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const isGoogleDisabled = loading || (Platform.OS !== "web" && (!request || isExpoGo));
 
   // 🔹 GOOGLE AUTH CONFIG (For Android/iOS)
-  const [, response, promptAsync] = Google.useAuthRequest({
-    expoClientId:
-      "697036998946-ia341ph7pidihf3r519ltr443u2k1a5l.apps.googleusercontent.com",
-    androidClientId:
-      "697036998946-jvtj1jbf839cfu3lij5bu161oididnke.apps.googleusercontent.com",
-    webClientId:
-      "697036998946-ia341ph7pidihf3r519ltr443u2k1a5l.apps.googleusercontent.com",
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    expoClientId: GOOGLE_AUTH_CONFIG.expoClientId || undefined,
+    androidClientId: GOOGLE_AUTH_CONFIG.androidClientId || undefined,
+    webClientId: GOOGLE_AUTH_CONFIG.webClientId || undefined,
+    responseType: AuthSession.ResponseType.IdToken,
+    shouldAutoExchangeCode: false,
     scopes: ["profile", "email"],
   });
 
@@ -112,7 +120,21 @@ export default function Login() {
         setLoading(false);
       }
     } else {
-      // ✅ MOBILE: Use Expo Auth Session
+      if (!hasNativeGoogleAuthConfig) {
+        Alert.alert("Google Sign-In Setup Required", MOBILE_GOOGLE_AUTH_SETUP_MESSAGE);
+        return;
+      }
+
+      if (isExpoGo) {
+        Alert.alert("Google Sign-In Unavailable", EXPO_GO_GOOGLE_AUTH_MESSAGE);
+        return;
+      }
+
+      if (!request) {
+        Alert.alert("Please Wait", "Google sign-in is still preparing. Try again in a moment.");
+        return;
+      }
+
       promptAsync();
     }
   };
@@ -182,12 +204,17 @@ export default function Login() {
 
         {/* 🔹 GOOGLE BUTTON */}
         <TouchableOpacity
-          style={styles.googleButton}
+          style={[styles.googleButton, isGoogleDisabled && styles.googleButtonDisabled]}
           onPress={onGoogleButtonPress} // Call our new function
-          disabled={loading}
+          disabled={isGoogleDisabled}
         >
-          <Ionicons name="logo-google" size={22} color="#000" />
+          <Ionicons name="logo-google" size={22} color={isGoogleDisabled ? "#6b7280" : "#000"} />
         </TouchableOpacity>
+        {isExpoGo ? (
+          <Text style={styles.googleHint}>
+            Google sign-in needs a development build or installed Android app.
+          </Text>
+        ) : null}
 
         <Text style={styles.footer}>
           Don’t have an account?{" "}
@@ -237,6 +264,17 @@ const styles = StyleSheet.create({
     padding: 10,
     alignItems: "center",
     marginBottom: 30,
+  },
+  googleButtonDisabled: {
+    backgroundColor: "rgba(255,255,255,0.62)",
+  },
+  googleHint: {
+    color: "rgba(255,255,255,0.78)",
+    textAlign: "center",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: -16,
+    marginBottom: 24,
   },
   footer: { color: "#fff", textAlign: "center" },
   link: { fontWeight: "bold", textDecorationLine: "underline" },

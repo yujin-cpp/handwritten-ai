@@ -2,6 +2,8 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
+import { GlassCard } from "../../../components/GlassCard";
+import { PageMotion } from "../../../components/PageMotion";
 import {
   ActivityIndicator,
   Modal,
@@ -20,22 +22,22 @@ import { showAlert } from "../../../utils/alert";
 
 const YEARS = ["A.Y. 2025 - 2026", "A.Y. 2026 - 2027", "A.Y. 2027 - 2028"];
 const SWATCHES = [
-  "#BB73E0",
-  "#EE89B0",
-  "#AFC1FF",
-  "#07C86F",
-  "#F4F7C3",
-  "#E9C7F0",
-  "#CFF2FF",
-  "#DFF0C7",
-  "#FDE3E8",
-  "#C39FE7",
-  "#D9A9D5",
-  "#F6D8B2",
-  "#D7F2D9",
-  "#BBE8FF",
-  "#F7E5FF",
-  "#FFD4E0",
+  "#9B4DCA",
+  "#D63384",
+  "#7B8CDE",
+  "#059669",
+  "#B8A820",
+  "#A855F7",
+  "#0EA5E9",
+  "#65A30D",
+  "#E11D48",
+  "#7C3AED",
+  "#C026D3",
+  "#EA580C",
+  "#16A34A",
+  "#0284C7",
+  "#8B5CF6",
+  "#DB2777",
 ];
 
 export default function AddClass() {
@@ -106,7 +108,9 @@ export default function AddClass() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.card}>
+        <PageMotion delay={50}>
+        <GlassCard>
+          <View style={{ padding: 20 }}>
           <Text style={styles.sectionTitle}>Basic Information</Text>
 
           <View style={styles.inputGroup}>
@@ -179,9 +183,13 @@ export default function AddClass() {
               </View>
             )}
           </View>
-        </View>
+          </View>
+        </GlassCard>
+        </PageMotion>
 
-        <View style={[styles.card, { marginTop: 20 }]}>
+        <PageMotion delay={100}>
+        <GlassCard style={{ marginTop: 20 }}>
+          <View style={{ padding: 20 }}>
           <Text style={styles.sectionTitle}>Appearance</Text>
           <Text style={styles.label}>Class Theme Color</Text>
 
@@ -202,7 +210,9 @@ export default function AddClass() {
               <Feather name="plus" size={20} color="#666" />
             </TouchableOpacity>
           </View>
-        </View>
+          </View>
+        </GlassCard>
+        </PageMotion>
 
         <TouchableOpacity
           style={[styles.createBtn, loading && { opacity: 0.7 }]}
@@ -227,7 +237,7 @@ export default function AddClass() {
 
       {/* Theme Picker Modal */}
       <Modal visible={themeModal} animationType="slide">
-        <View style={{ flex: 1, backgroundColor: "#f4f7fb" }}>
+        <View style={{ flex: 1, backgroundColor: "transparent" }}>
           <LinearGradient
             colors={["#0EA47A", "#017EBA"]}
             style={[styles.header, { paddingTop: insets.top + 20 }]}
@@ -273,10 +283,10 @@ export default function AddClass() {
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: "#f4f7fb" },
+  page: { flex: 1, backgroundColor: "transparent" },
   header: {
     paddingHorizontal: 18,
-    paddingBottom: 20,
+    paddingBottom: 45,
     flexDirection: "row",
     alignItems: "center",
   },
@@ -288,9 +298,9 @@ const styles = StyleSheet.create({
   },
   headerTitle: { color: "#fff", fontWeight: "700", fontSize: 20, flex: 1 },
 
-  content: { padding: 20, paddingBottom: 40 },
+  content: { padding: 20, paddingBottom: 150 },
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
     borderRadius: 20,
     padding: 20,
     elevation: 2,
@@ -337,7 +347,7 @@ const styles = StyleSheet.create({
   },
   yearDropdown: {
     marginTop: 8,
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#f0f0f0",
@@ -421,7 +431,7 @@ const styles = StyleSheet.create({
 
   modalFooter: {
     padding: 20,
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
     borderTopWidth: 1,
     borderTopColor: "#eee",
   },

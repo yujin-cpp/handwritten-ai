@@ -8,6 +8,8 @@ import {
     uploadBytes,
 } from "firebase/storage";
 import React, { useState } from "react";
+import { GlassCard } from "../../../components/GlassCard";
+import { PageMotion } from "../../../components/PageMotion";
 import {
     ActivityIndicator,
     ScrollView,
@@ -176,127 +178,137 @@ export default function EssayEdit() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: 150 }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.card}>
-          <Text style={styles.label}>Instructions & Context</Text>
-          <View style={styles.textInputBox}>
-            <TextInput
-              multiline
-              value={instructions}
-              onChangeText={setInstructions}
-              style={styles.textarea}
-              placeholder={SAMPLE_TEXT}
-              placeholderTextColor="#bbb"
-            />
-          </View>
-          <Text style={styles.helpText}>
-            Explain specific criteria or focus points for the AI grader.
-          </Text>
-        </View>
-
-        <View style={[styles.card, { marginTop: 20 }]}>
-          <Text style={styles.label}>Support Materials</Text>
-
-          <View style={styles.attachmentGroup}>
-            <Text style={styles.subLabel}>Lesson Reference</Text>
-            <TouchableOpacity
-              style={[
-                styles.attachBtn,
-                lessonAsset && {
-                  borderColor: headerColor,
-                  backgroundColor: headerColor + "05",
-                },
-              ]}
-              onPress={pickLessonFile}
-            >
-              <Feather
-                name="paperclip"
-                size={18}
-                color={lessonAsset ? headerColor : "#999"}
-              />
-              <Text
-                style={[
-                  styles.attachText,
-                  lessonAsset && { color: headerColor, fontWeight: "700" },
-                ]}
-                numberOfLines={1}
-              >
-                {lessonAsset ? lessonAsset.name : "Attach PDF or Doc"}
+        <PageMotion delay={50}>
+          <GlassCard>
+            <View style={{ padding: 20 }}>
+              <Text style={styles.label}>Instructions & Context</Text>
+              <View style={styles.textInputBox}>
+                <TextInput
+                  multiline
+                  value={instructions}
+                  onChangeText={setInstructions}
+                  style={styles.textarea}
+                  placeholder={SAMPLE_TEXT}
+                  placeholderTextColor="#bbb"
+                />
+              </View>
+              <Text style={styles.helpText}>
+                Explain specific criteria or focus points for the AI grader.
               </Text>
-              {lessonAsset && (
-                <Feather name="check" size={16} color={headerColor} />
-              )}
-            </TouchableOpacity>
-          </View>
+            </View>
+          </GlassCard>
+        </PageMotion>
 
-          <View style={[styles.attachmentGroup, { marginTop: 15 }]}>
-            <Text style={styles.subLabel}>Scoring Rubrics</Text>
-            <TouchableOpacity
-              style={[
-                styles.attachBtn,
-                rubricsAsset && {
-                  borderColor: headerColor,
-                  backgroundColor: headerColor + "05",
-                },
-              ]}
-              onPress={pickRubricsFile}
-            >
-              <Feather
-                name="paperclip"
-                size={18}
-                color={rubricsAsset ? headerColor : "#999"}
-              />
-              <Text
-                style={[
-                  styles.attachText,
-                  rubricsAsset && { color: headerColor, fontWeight: "700" },
-                ]}
-                numberOfLines={1}
-              >
-                {rubricsAsset ? rubricsAsset.name : "Attach Detailed Rubric"}
-              </Text>
-              {rubricsAsset && (
-                <Feather name="check" size={16} color={headerColor} />
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
+        <PageMotion delay={100}>
+          <GlassCard style={{ marginTop: 20 }}>
+            <View style={{ padding: 20 }}>
+              <Text style={styles.label}>Support Materials</Text>
 
-        <TouchableOpacity
-          style={[
-            styles.saveBtnAction,
-            { backgroundColor: headerColor },
-            loading && { opacity: 0.7 },
-          ]}
-          onPress={onSave}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <>
-              <Text style={styles.saveBtnText}>Save Configuration</Text>
-              <Feather
-                name="arrow-right"
-                size={18}
-                color="#fff"
-                style={{ marginLeft: 8 }}
-              />
-            </>
-          )}
-        </TouchableOpacity>
+              <View style={styles.attachmentGroup}>
+                <Text style={styles.subLabel}>Lesson Reference</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.attachBtn,
+                    lessonAsset && {
+                      borderColor: headerColor,
+                      backgroundColor: headerColor + "05",
+                    },
+                  ]}
+                  onPress={pickLessonFile}
+                >
+                  <Feather
+                    name="paperclip"
+                    size={18}
+                    color={lessonAsset ? headerColor : "#999"}
+                  />
+                  <Text
+                    style={[
+                      styles.attachText,
+                      lessonAsset && { color: headerColor, fontWeight: "700" },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {lessonAsset ? lessonAsset.name : "Attach PDF or Doc"}
+                  </Text>
+                  {lessonAsset && (
+                    <Feather name="check" size={16} color={headerColor} />
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              <View style={[styles.attachmentGroup, { marginTop: 15 }]}>
+                <Text style={styles.subLabel}>Scoring Rubrics</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.attachBtn,
+                    rubricsAsset && {
+                      borderColor: headerColor,
+                      backgroundColor: headerColor + "05",
+                    },
+                  ]}
+                  onPress={pickRubricsFile}
+                >
+                  <Feather
+                    name="paperclip"
+                    size={18}
+                    color={rubricsAsset ? headerColor : "#999"}
+                  />
+                  <Text
+                    style={[
+                      styles.attachText,
+                      rubricsAsset && { color: headerColor, fontWeight: "700" },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {rubricsAsset ? rubricsAsset.name : "Attach Detailed Rubric"}
+                  </Text>
+                  {rubricsAsset && (
+                    <Feather name="check" size={16} color={headerColor} />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </GlassCard>
+        </PageMotion>
+
+        <PageMotion delay={150}>
+          <TouchableOpacity
+            style={[
+              styles.saveBtnAction,
+              { backgroundColor: headerColor },
+              loading && { opacity: 0.7 },
+            ]}
+            onPress={onSave}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Text style={styles.saveBtnText}>Save Configuration</Text>
+                <Feather
+                  name="arrow-right"
+                  size={18}
+                  color="#fff"
+                  style={{ marginLeft: 8 }}
+                />
+              </>
+            )}
+          </TouchableOpacity>
+        </PageMotion>
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f4f7fb" },
+  container: { flex: 1, backgroundColor: "transparent" },
   header: {
     paddingHorizontal: 20,
-    paddingBottom: 25,
+    paddingBottom: 45,
     flexDirection: "row",
     alignItems: "center",
     elevation: 4,
@@ -320,16 +332,7 @@ const styles = StyleSheet.create({
   },
   headerBig: { color: "#fff", fontSize: 18, fontWeight: "800" },
 
-  content: { padding: 20, paddingBottom: 40 },
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 24,
-    padding: 20,
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOpacity: 0.03,
-    shadowRadius: 15,
-  },
+  content: { padding: 20 },
   label: {
     fontSize: 13,
     fontWeight: "700",
@@ -347,7 +350,7 @@ const styles = StyleSheet.create({
   },
 
   textInputBox: {
-    backgroundColor: "#f9f9f9",
+    backgroundColor: "rgba(0,0,0,0.03)",
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#f0f0f0",
@@ -367,7 +370,7 @@ const styles = StyleSheet.create({
   attachBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f9f9f9",
+    backgroundColor: "rgba(0,0,0,0.03)",
     borderWidth: 1,
     borderColor: "#f0f0f0",
     borderRadius: 14,
