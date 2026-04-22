@@ -4,18 +4,18 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { get, ref, update } from "firebase/database";
 import {
-    getDownloadURL,
-    ref as storageRef,
-    uploadBytes,
+  getDownloadURL,
+  ref as storageRef,
+  uploadBytes,
 } from "firebase/storage";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Platform,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GlassCard } from "../../../components/GlassCard";
@@ -146,6 +146,8 @@ export default function ProcessingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+
+  const [statusText, setStatusText] = useState("");
 
   const [status, setStatus] = useState("Initializing...");
   const [backgroundCountdown, setBackgroundCountdown] = useState<number | null>(
@@ -372,6 +374,7 @@ export default function ProcessingScreen() {
           professorInstructions: examSettings.professorInstructions,
           objectiveTypes: examSettings.objectiveTypes,
         },
+        (status) => setStatusText(status),
       );
 
       if (!result || typeof result.score === "undefined") {
@@ -484,14 +487,19 @@ export default function ProcessingScreen() {
       </LinearGradient>
 
       <View style={styles.body}>
-        <PageMotion delay={50} style={{ alignItems: 'center' }}>
+        <PageMotion delay={50} style={{ alignItems: "center" }}>
           <View style={styles.loaderContainer}>
             <ActivityIndicator
               size="large"
               color="#00b679"
               style={{ transform: [{ scale: 1.5 }] }}
             />
-            <View style={[styles.iconOverlay, { backgroundColor: 'transparent', elevation: 0 }]}>
+            <View
+              style={[
+                styles.iconOverlay,
+                { backgroundColor: "transparent", elevation: 0 },
+              ]}
+            >
               <GlassCard borderRadius={20}>
                 <View style={{ padding: 10 }}>
                   <Feather name="cpu" size={24} color="#00b679" />
@@ -502,6 +510,7 @@ export default function ProcessingScreen() {
 
           <Text style={styles.title}>Processing Exam</Text>
           <Text style={styles.subtitle}>{status}</Text>
+          <Text style={styles.subtitle}>{statusText}</Text>
 
           {backgroundCountdown !== null ? (
             <View style={styles.validationBox}>
@@ -523,7 +532,14 @@ export default function ProcessingScreen() {
           </TouchableOpacity>
 
           <GlassCard>
-            <View style={{ paddingHorizontal: 20, paddingVertical: 12, flexDirection: 'row', alignItems: 'center' }}>
+            <View
+              style={{
+                paddingHorizontal: 20,
+                paddingVertical: 12,
+                flexDirection: "row",
+                alignItems: "center",
+              }}
+            >
               <Feather
                 name="clock"
                 size={16}
@@ -535,7 +551,18 @@ export default function ProcessingScreen() {
           </GlassCard>
         </PageMotion>
 
-        <PageMotion delay={150} style={[styles.tipBox, { bottom: insets.bottom + 96, backgroundColor: 'transparent', borderWidth: 0, elevation: 0 }]}>
+        <PageMotion
+          delay={150}
+          style={[
+            styles.tipBox,
+            {
+              bottom: insets.bottom + 96,
+              backgroundColor: "transparent",
+              borderWidth: 0,
+              elevation: 0,
+            },
+          ]}
+        >
           <GlassCard>
             <View style={{ padding: 20 }}>
               <Text style={styles.tipTitle}>Did you know?</Text>

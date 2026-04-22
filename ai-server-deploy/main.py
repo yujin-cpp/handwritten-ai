@@ -12,8 +12,13 @@ import numpy as np
 import time
 import shutil
 import sys
+import uuid
+import threading
+import concurrent.futures
 import google.api_core.exceptions
+from queue import Queue
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # Reconfigure stdout for utf-8 logs in Cloud Run
@@ -30,9 +35,11 @@ genai.configure(api_key=GEMINI_API_KEY)
 for m in genai.list_models():
     print(m.name)
 
+# ==========================================
 # SELECT MODELS
-transcription_model = genai.GenerativeModel('gemini-2.5-flash')  
-grading_model = genai.GenerativeModel('gemini-2.5-flash-lite')       
+# ==========================================
+transcription_model = genai.GenerativeModel('gemini-2.5-flash')
+grading_model = genai.GenerativeModel('gemini-2.5-flash-lite')
 print(f"🎯 TRANSCRIPTION MODEL:", transcription_model.model_name)
 print(f"🎯 GRADING MODEL:", grading_model.model_name)
 
@@ -53,7 +60,7 @@ for d in [OUTPUT_DIR, CROP_DIR, TRANSCRIPT_DIR]:
         os.makedirs(d)
 
 # ==========================================
-# SAFETY SETTINGS (reusable)
+# SAFETY SETTINGS & GENERATION CONFIG
 # ==========================================
 SAFETY_SETTINGS = {
     HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
@@ -69,7 +76,140 @@ GENERATION_CONFIG = genai.GenerationConfig(
 )
 
 # ==========================================
-# HELPERS
+# PROMPTS (defined once, reused everywhere)
+# ==========================================
+TRANSCRIPTION_PROMPT = """
+You are a document digitization tool.
+Your only task is to read and copy handwritten text from the provided image exactly as written.
+
+RULES:
+- Transcribe every word exactly as written.
+- Preserve all spelling errors, grammar mistakes, and punctuation.
+- Do NOT correct anything.
+- Do NOT grade or evaluate anything.
+- Mark unclear words as [unclear: best_guess]
+- Mark fully unreadable lines as [unclear]
+- Preserve question numbers exactly as written (e.g. 46. 47. 48.)
+- Transcribe ALL numbered questions present in the image.
+
+CONFIDENCE RULES:
+- Start at 100
+- Deduct 20 if handwriting is mostly unclear
+- Deduct 40 if handwriting is very unclear
+- Deduct 15 per [unclear] or [unclear: best_guess] token
+- Minimum: 0
+
+Return ONLY this JSON, no extra text:
+{
+  "transcribed_text": "full transcription preserving all question numbers and answers",
+  "legibility": "CLEAR / MOSTLY_CLEAR / UNCLEAR",
+  "confidence_score": <0-100>
+}
+""".strip()
+
+GRADING_PROMPT = """
+You are a deterministic exam grading engine.
+
+{context_block}
+
+=== STUDENT TRANSCRIPTION ===
+{transcribed_text}
+=============================
+
+Grade the student transcription above using ONLY the rubric and answer key provided.
+Do NOT re-read any image. Grade only from the transcription text above.
+
+GENERAL RULES:
+- Grade only from the provided materials.
+- Never invent rubric criteria, point values, or answer keys.
+- Never exceed the rubric maximum score.
+- If unsure, always choose the LOWER score.
+
+QUESTION TYPE DETECTION:
+- Keywords like "Match", "Column A", "Column B" = MATCHING TYPE
+- Keywords like "Choose", "Circle", "True or False" = MCQ/TF
+- Keywords like "Explain", "Discuss", "Describe" = ESSAY
+- If no clear header, infer from answer format (single letter = MCQ, paired answers = matching).
+
+OBJECTIVE SCORING RULES (MCQ / TRUE-FALSE / MATCHING):
+- Compare each student answer to the answer key exactly.
+- Correct = 1 point. Wrong or blank = 0 points.
+- No partial credit. No weighting.
+- Raw score = total correct answers only.
+
+MATCHING TYPE RULES:
+- Each correctly matched pair = 1 point.
+- Treat each numbered item in the matching section as a separate answer.
+- Compare the student's chosen match to the answer key for that item.
+- If the student writes the wrong letter/word or leaves it blank = 0 points.
+- Do NOT give partial credit for "close" matches.
+- Count ALL matching items present in the answer key.
+
+MATCHING LENIENCY RULES (apply BEFORE marking wrong):
+- Ignore minor spelling errors (e.g. "Principalia" vs "Principalias" = CORRECT).
+- If the student answer is a SUBSTRING of the correct answer = CORRECT.
+- If the correct answer is a SUBSTRING of the student answer = CORRECT.
+- If the student writes multiple answers separated by "/" or "," and ANY ONE matches = CORRECT.
+- Case-insensitive. Accents and punctuation differences are ignored.
+- Only mark WRONG if there is NO reasonable match after applying all leniency rules.
+
+OBJECTIVE SCORE LOG FORMAT:
+Question: [number]
+Student Answer: [answer]
+Correct Answer: [answer]
+Points: [1 or 0]
+---
+
+TOTAL OBJECTIVE SCORE: [sum]
+
+ESSAY SCORING RULES:
+STEP 1 — List rubric requirements (only literally written ones, no inferences).
+STEP 2 — For each: find a DIRECT QUOTE from transcription. Present=found, Absent=not found.
+STEP 3 — raw_score = floor(P/R * rubric_max). Apply rubric minimum unless blank/off-topic.
+STEP 4 — Re-verify quotes. Remove paraphrased/implied. Recount P. Recalculate.
+
+MINIMUM SCORE RULE:
+- If rubric defines a scale (e.g. 2 to 5), lowest value = minimum.
+- Never below minimum unless blank or off-topic.
+- A wrong or poor answer still gets the minimum if student attempted.
+
+ESSAY SCORE LOG FORMAT:
+Question: [number]
+Rubric Requirements: [list]
+Present (P/R):
+- [requirement] → "[exact quote from transcription]"
+Absent:
+- [requirement] → no direct quote found
+Rubric Max Score: [max]
+Final Score: floor((P/R) * max) = [result]
+Reason: [1-2 sentences]
+---
+
+TOTAL ESSAY SCORE: [sum]
+
+FINAL TOTAL SCORE: [objective + essay]
+
+FAIL-SAFE RULES:
+- Missing rubric → score 0.
+- Blank answer → score 0.
+- Never fabricate quotes or requirements.
+- Always use floor().
+
+Return ONLY this JSON, no extra text:
+{{
+  "grading_type": "STRICT_MATCH or RUBRIC_BASED",
+  "objective_score_log": "Plain text. Use \\n for line breaks.",
+  "essay_score_log": "Plain text. Use \\n for line breaks.",
+  "confidence_score": <0-100>,
+  "objective_total": <numeric — TOTAL OBJECTIVE SCORE>,
+  "essay_total": <numeric — TOTAL ESSAY SCORE>,
+  "score": <number>,
+  "feedback": "brief feedback."
+}}
+""".strip()
+
+# ==========================================
+# IMAGE HELPERS
 # ==========================================
 def enhance_image(pil_img, page_num):
     """Denoise and sharpen a PIL image using OpenCV."""
@@ -118,19 +258,18 @@ def read_file_as_images(file_bytes, label="exam"):
         except Exception:
             raise ValueError(f"Invalid file format for {label}. Supported: PDF, JPG, PNG.")
 
-    enhanced = []
-    for i, img in enumerate(raw_images):
-        enhanced.append(enhance_image(img, f"{label}_{i+1}"))
-    return enhanced
+    return [enhance_image(img, f"{label}_{i+1}") for i, img in enumerate(raw_images)]
 
 
+# ==========================================
+# FILE HELPERS
+# ==========================================
 def extract_docx_text(file_bytes):
-    """Extract all text from a DOCX file including tables. Pure Python, no LibreOffice."""
+    """Extract all text from a DOCX file including tables."""
     from docx import Document as DocxDocument
     doc = DocxDocument(io.BytesIO(file_bytes))
 
     paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-
     table_texts = []
     for table in doc.tables:
         for row in table.rows:
@@ -148,7 +287,6 @@ def fetch_and_parse_url(url):
 
     response = req.get(url, timeout=15)
 
-    # Guard: bad HTTP status
     if response.status_code != 200:
         print(f"⚠️ URL returned HTTP {response.status_code}: {url[:80]}")
         return [], ""
@@ -158,13 +296,12 @@ def fetch_and_parse_url(url):
     key_name = unquote(os.path.basename(urlparse(url).path)).lower()
     print(f"📎 Processing URL file: {key_name} | {content_type} | {len(file_bytes)} bytes")
 
-    # Guard: got HTML instead of a file (auth redirect / 403 page)
     if "text/html" in content_type or file_bytes[:5] in (b"<!DOC", b"<html"):
         print(f"⚠️ URL returned HTML — likely an unauthenticated storage path")
         return [], ""
 
     if key_name.endswith('.docx') or key_name.endswith('.doc'):
-        if file_bytes[:4] != b'PK\x03\x04':  # DOCX magic (ZIP)
+        if file_bytes[:4] != b'PK\x03\x04':
             print(f"⚠️ Not a valid DOCX (got: {file_bytes[:8]})")
             return [], ""
         try:
@@ -176,7 +313,7 @@ def fetch_and_parse_url(url):
             return [], ""
 
     if key_name.endswith('.pdf'):
-        if file_bytes[:4] != b'%PDF':  # PDF magic
+        if file_bytes[:4] != b'%PDF':
             print(f"⚠️ Not a valid PDF (got: {file_bytes[:8]})")
             return [], ""
         try:
@@ -191,6 +328,9 @@ def fetch_and_parse_url(url):
     return [], ""
 
 
+# ==========================================
+# AI HELPERS
+# ==========================================
 def call_gemini(ai_inputs, model):
     response = model.generate_content(
         ai_inputs,
@@ -198,14 +338,12 @@ def call_gemini(ai_inputs, model):
         safety_settings=SAFETY_SETTINGS,
     )
 
-    # Check finish reason before accessing .text
     if not response.candidates:
         raise ValueError("AI Safety Block — no candidates returned.")
 
     candidate = response.candidates[0]
     finish_reason = candidate.finish_reason
 
-    # finish_reason 3 = SAFETY, 4 = RECITATION, 1 = STOP (ok)
     if finish_reason == 3:
         blocked = [
             f"{r.category.name}: {r.probability.name}"
@@ -244,9 +382,101 @@ def save_transcript_log(data):
 
 
 # ==========================================
+# TRANSCRIPTION HELPERS (per-page + merge)
+# ==========================================
+def transcribe_single_page(img, page_num):
+    """Transcribe one page image and return result tagged with page number."""
+    buf = io.BytesIO()
+    img.save(buf, format='JPEG', quality=90)
+    data = call_gemini(
+        [TRANSCRIPTION_PROMPT, {"mime_type": "image/jpeg", "data": buf.getvalue()}],
+        transcription_model
+    )
+    data["page"] = page_num
+    print(f"✅ Page {page_num} transcribed: {len(data.get('transcribed_text', ''))} chars")
+    return data
+
+
+def merge_transcriptions(page_results):
+    """Merge per-page transcription results into one combined result."""
+    page_results.sort(key=lambda x: x["page"])
+
+    combined_text = "\n\n".join(
+        f"[PAGE {r['page']}]\n{r['transcribed_text']}"
+        for r in page_results
+    )
+    legibilities = [r["legibility"] for r in page_results]
+    worst = (
+        "UNCLEAR" if "UNCLEAR" in legibilities
+        else "MOSTLY_CLEAR" if "MOSTLY_CLEAR" in legibilities
+        else "CLEAR"
+    )
+    avg_confidence = sum(r["confidence_score"] for r in page_results) // len(page_results)
+
+    return {
+        "transcribed_text": combined_text,
+        "legibility": worst,
+        "confidence_score": avg_confidence,
+        "pages": len(page_results)
+    }
+
+
+def run_transcription(file_data):
+    """
+    Core transcription logic used by both sync and async routes.
+    file_data: list of (filename, file_bytes) tuples.
+    """
+    all_images = []
+    for filename, file_bytes in file_data:
+        all_images.extend(read_file_as_images(file_bytes, label=filename or "exam"))
+
+    print(f"⚙️ Transcribing {len(all_images)} page(s) in parallel...", flush=True)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        futures = [
+            executor.submit(transcribe_single_page, img, i + 1)
+            for i, img in enumerate(all_images)
+        ]
+        page_results = [f.result() for f in concurrent.futures.as_completed(futures)]
+
+    data = merge_transcriptions(page_results)
+    save_transcript_log(data)
+    return data
+
+
+# ==========================================
+# JOB QUEUE (for async endpoints)
+# ==========================================
+job_store = {}  # job_id -> {"status": "queued|processing|done|error", "result": ..., "error": ...}
+job_queue = Queue()
+
+
+def worker():
+    """Background thread that picks jobs off the queue and runs them."""
+    while True:
+        job_id, fn, args, kwargs = job_queue.get()
+        job_store[job_id] = {"status": "processing"}
+        try:
+            result = fn(*args, **kwargs)
+            job_store[job_id] = {"status": "done", "result": result}
+        except Exception as e:
+            print(f"❌ Job {job_id} failed: {e}")
+            job_store[job_id] = {"status": "error", "error": str(e)}
+        finally:
+            job_queue.task_done()
+
+
+NUM_WORKERS = 3
+for _ in range(NUM_WORKERS):
+    t = threading.Thread(target=worker, daemon=True)
+    t.start()
+
+print(f"🚀 Job queue started with {NUM_WORKERS} workers")
+
+
+# ==========================================
 # ROUTES
 # ==========================================
-
 @app.route('/ping', methods=['GET'])
 def ping():
     print("🏓 PING received!")
@@ -255,67 +485,22 @@ def ping():
 
 @app.route('/transcribe', methods=['POST'])
 def transcribe():
+    """Synchronous transcription — processes all pages in parallel, then returns."""
     files = request.files.getlist('file')
-
     if not files:
         return jsonify({"success": False, "error": "No file uploaded"}), 400
 
     try:
-        # 👇 Loop through ALL files instead of just request.files['file']
-        all_images = []
+        file_data = []
         for file in files:
             file_bytes = file.read()
             print(f"📄 File received: {file.filename}, size: {len(file_bytes)} bytes", flush=True)
-            images = read_file_as_images(file_bytes, label=file.filename or "exam")
-            all_images.extend(images)
+            file_data.append((file.filename, file_bytes))
 
-        print(f"⚙️ Transcribing {len(all_images)} image(s) from {len(files)} file(s)...", flush=True)
-
-        ai_inputs = ["""
-                    You are a document digitization tool.
-                    Your only task is to read and copy handwritten text from the provided image(s) exactly as written.
-
-                    RULES:
-                    - Transcribe every word exactly as written.
-                    - Preserve all spelling errors, grammar mistakes, and punctuation.
-                    - Do NOT correct anything.
-                    - Do NOT grade or evaluate anything.
-                    - Mark unclear words as [unclear: best_guess]
-                    - Mark fully unreadable lines as [unclear]
-                    - Preserve question numbers exactly as written (e.g. 46. 47. 48.)
-                    - Transcribe ALL numbered questions present in the image.
-                    - If multiple pages are provided, transcribe ALL pages in order.
-
-                    CONFIDENCE RULES:
-                    - Start at 100
-                    - Deduct 20 if handwriting is mostly unclear
-                    - Deduct 40 if handwriting is very unclear
-                    - Deduct 15 per [unclear] or [unclear: best_guess] token
-                    - Minimum: 0
-
-                    Return ONLY this JSON, no extra text:
-                    {
-                    "transcribed_text": "full transcription preserving all question numbers and answers",
-                    "legibility": "CLEAR / MOSTLY_CLEAR / UNCLEAR",
-                    "confidence_score": <0-100>
-                    }
-                    """]
-
-        # 👇 Add ALL images to the AI input
-        for img in all_images:
-            buf = io.BytesIO()
-            img.save(buf, format='JPEG', quality=90)
-            ai_inputs.append({"mime_type": "image/jpeg", "data": buf.getvalue()})
-
-        data = call_gemini(ai_inputs, transcription_model)
-
-        print(f"✅ Transcription done: {len(data.get('transcribed_text', ''))} chars", flush=True)
-        save_transcript_log(data)
-
+        data = run_transcription(file_data)
         return jsonify({"success": True, "data": data})
 
-    except google.api_core.exceptions.ResourceExhausted as e:
-        print(f"⚠️ Quota Exceeded: {e}", flush=True)
+    except google.api_core.exceptions.ResourceExhausted:
         return jsonify({
             "success": False,
             "error": "quota_exceeded",
@@ -327,13 +512,37 @@ def transcribe():
         print(f"❌ Transcription Error: {e}", flush=True)
         return jsonify({"success": False, "error": "server_error", "message": "Something went wrong."}), 500
 
+
+@app.route('/transcribe/async', methods=['POST'])
+def transcribe_async():
+    """Async transcription — enqueues the job and returns a job_id immediately."""
+    files = request.files.getlist('file')
+    if not files:
+        return jsonify({"success": False, "error": "No file uploaded"}), 400
+
+    # Read bytes NOW before the request context closes
+    file_data = [(f.filename, f.read()) for f in files]
+
+    job_id = str(uuid.uuid4())
+    job_store[job_id] = {"status": "queued"}
+    job_queue.put((job_id, run_transcription, [file_data], {}))
+
+    print(f"📥 Job {job_id} queued ({len(file_data)} file(s))")
+    return jsonify({"success": True, "job_id": job_id}), 202
+
+
+@app.route('/job/<job_id>', methods=['GET'])
+def get_job(job_id):
+    """Poll the status of an async job."""
+    job = job_store.get(job_id)
+    if not job:
+        return jsonify({"success": False, "error": "Job not found"}), 404
+    return jsonify({"success": True, **job})
+
+
 @app.route('/grade', methods=['POST'])
 def grade():
-    """
-    Step 2: Grade a transcribed text using the provided rubric/answer key.
-    Accepts JSON body with transcribed_text, context, and optional answer_key_text.
-    Also accepts optional answer_key_url and reference_url for file-based rubrics.
-    """
+    """Grade a transcribed text using the provided rubric/answer key."""
     try:
         body = request.get_json()
         transcribed_text = body.get('transcribed_text', '').strip()
@@ -341,30 +550,25 @@ def grade():
         answer_key_text = body.get('answer_key_text', '').strip()
         reference_url = body.get('reference_url', '')
         reference_urls = body.get('reference_urls', [])
-
-        
         answer_key_url = body.get('answer_key_url', '')
         answer_key_urls = body.get('answer_key_urls', [])
+
         all_answer_key_urls = list({answer_key_url, *answer_key_urls} - {''})
-
-
         all_reference_urls = list({reference_url, *reference_urls} - {''})
-
-       
-        context_block = ""
-        extra_images = []
 
         if not transcribed_text:
             return jsonify({"success": False, "error": "No transcription provided"}), 400
 
         # BUILD CONTEXT BLOCK
+        context_block = ""
+        extra_images = []
+
         if context:
             context_block += f"=== PROFESSOR CONTEXT ===\n{context}\n=========================\n\n"
 
         if answer_key_text:
             context_block += f"=== ESSAY RUBRIC ===\n{answer_key_text}\n===================\n\n"
 
-        # FETCH ANSWER KEY FILES
         for url in all_answer_key_urls:
             try:
                 imgs, text = fetch_and_parse_url(url)
@@ -376,7 +580,6 @@ def grade():
             except Exception as e:
                 print(f"⚠️ Could not fetch answer key URL {url}: {e}")
 
-        # FETCH REFERENCE FILES
         for url in all_reference_urls:
             try:
                 imgs, text = fetch_and_parse_url(url)
@@ -393,147 +596,14 @@ def grade():
 
         print(f"📋 Final context_block ({len(context_block)} chars):\n{context_block[:600]}")
 
-        prompt = f"""
-        You are a deterministic exam grading engine.
-
-        {context_block}
-
-        === STUDENT TRANSCRIPTION ===
-        {transcribed_text}
-        =============================
-
-        Grade the student transcription above using ONLY the rubric and answer key provided.
-        Do NOT re-read any image. Grade only from the transcription text above.
-
-        GENERAL RULES:
-        - Grade only from the provided materials.
-        - Never invent rubric criteria, point values, or answer keys.
-        - Never exceed the rubric maximum score.
-        - If unsure, always choose the LOWER score.
-
-       OBJECTIVE SCORING RULES (MCQ / TRUE-FALSE / MATCHING):
-        - Compare each student answer to the answer key exactly.
-        - Correct = 1 point. Wrong or blank = 0 points.
-        - No partial credit. No weighting.
-        - Raw score = total correct answers only.
-
-        MATCHING TYPE RULES:
-        - Each correctly matched pair = 1 point.
-        - Treat each numbered item in the matching section as a separate answer.
-        - Compare the student's chosen match to the answer key for that item.
-        - If the student writes the wrong letter/word or leaves it blank = 0 points.
-        - Do NOT give partial credit for "close" matches.
-        - Count ALL matching items present in the answer key.
-
-        MATCHING LENIENCY RULES (apply BEFORE marking wrong):
-        - Ignore minor spelling errors (e.g. "Principalia" vs "Principalias" = CORRECT).
-        - If the student answer is a SUBSTRING of the correct answer = CORRECT.
-        Example: "Imprisonment" matches "Imprisonment of Rizal's Mother" = CORRECT.
-        - If the correct answer is a SUBSTRING of the student answer = CORRECT.
-        Example: "Arrest/Imprisonment" contains "Imprisonment" which is in the answer key = CORRECT.
-        - If the student writes multiple answers separated by "/" or "," and ANY ONE of them matches the answer key = CORRECT.
-        Example: "Arrest/Imprisonment" → "Imprisonment" is in answer key → CORRECT.
-        - Case-insensitive matching always applies.
-        - Accents and punctuation differences are ignored.
-        - Only mark WRONG if there is NO reasonable match after applying all leniency rules.
-
-        QUESTION TYPE DETECTION:
-        - Look at the section headers or question instructions to identify question type.
-        - Keywords like "Match", "Column A", "Column B" = MATCHING TYPE → use matching rules.
-        - Keywords like "Choose", "Circle", "True or False" = MCQ/TF → use objective rules.
-        - Keywords like "Explain", "Discuss", "Describe" = ESSAY → use essay rules.
-        - If no clear header, infer from answer format (single letter = MCQ, paired answers = matching).
-
-        OBJECTIVE SCORE LOG FORMAT (one entry per question, no repeated headers):
-        Question: [number]
-        Student Answer: [answer]
-        Correct Answer: [answer]
-        Points: [1 or 0]
-        ---
-        (repeat for each objective question)
-
-        TOTAL OBJECTIVE SCORE: [sum of points from all objective questions]
-
-        ESSAY SCORING RULES:
-        STEP 1 — LIST RUBRIC REQUIREMENTS:
-        Before grading, extract the explicit rubric requirements as a numbered list.
-        Only include requirements that are literally written in the rubric.
-        Do not add, infer, or interpret any requirement not explicitly stated.
-
-        STEP 2 — CHECK EACH REQUIREMENT:
-        For each requirement, find a DIRECT QUOTE from the student transcription that satisfies it.
-        - PRESENT = you can copy-paste a specific phrase from the transcription that directly satisfies the requirement.
-        - ABSENT = you cannot find a specific phrase. Vague or implied content = ABSENT.
-        - When in doubt = ABSENT.
-
-        STEP 3 — COUNT AND SCORE:
-        - R = total number of rubric requirements
-        - P = number of requirements with a direct quote found
-        - raw_score = floor((P / R) * rubric_max)
-        - minimum_score = lowest score value defined in the rubric (e.g. if rubric scale is 2-5, minimum = 2)
-        - Final Score = max(raw_score, minimum_score) UNLESS answer is blank or off-topic
-        - If blank or completely off-topic: score = 0 (minimum does not apply)
-        - If rubric has explicit point values per criterion, use those instead.
-
-        MINIMUM SCORE RULE:
-        - Read the rubric carefully for any stated minimum score.
-        - If the rubric defines a scale (e.g. 2 to 5, or 1 to 10), the lowest value on that scale is the minimum.
-        - Never assign a score below the rubric minimum unless the answer is blank or off-topic.
-        - A wrong or poor answer still gets the minimum score if the student attempted to answer.
-        - Before scoring make sure to double read the rubric for stated score range or minimum and maximum score.
-
-        STEP 4 — VERIFY:
-        Re-check your direct quotes. Remove any quote that is:
-        - Paraphrased (not exact words from transcription)
-        - Implied but not stated
-        - A general reference without specifics
-        Recount P after removing invalid quotes.
-        Recalculate score.
-
-        JUSTIFICATION FORMAT:
-        For each question write:
-        - Which requirements were PRESENT with the exact quote found
-        - Which requirements were ABSENT and why no quote was found
-
-        ESSAY SCORE LOG FORMAT (one entry per question, no repeated headers):
-        Question: [number]
-        Rubric Requirements: [list each requirement from rubric]
-        Present ([P]/[R]):
-        - [requirement] → "[exact quote from transcription]"
-        Absent:
-        - [requirement] → no direct quote found
-        Rubric Max Score: [max]
-        Final Score: floor(([P]/[R]) * [max]) = [result]
-        Reason: [1-2 sentences]  
-        ---
-        (repeat for each essay question)
-
-        TOTAL ESSAY SCORE: [sum of all essay question scores]
-
-        FINAL TOTAL SCORE: [sum of ALL objective points + ALL essay Final Scores]
-
-        FAIL-SAFE RULES:
-        - If rubric is missing: score = 0, explain why.
-        - If answer is blank: score = 0.
-        - Never fabricate quotes or requirements.
-        - Never round up. Always use floor().
-
-        Return ONLY this JSON, no extra text:
-        {{
-        "grading_type": "STRICT_MATCH or RUBRIC_BASED",
-        "objective_score_log": "Log for ALL objective questions (MCQ, True/False, Matching). Plain text only. Use \\n for line breaks.",
-        "essay_score_log": "Log for ALL essay questions only. Plain text only. Use \\n for line breaks.",
-        "confidence_score": <0-100>,
-        "objective_total": <numeric — TOTAL OBJECTIVE SCORE>,
-        "essay_total": <numeric — TOTAL ESSAY SCORE>,
-        "score": <numeric total — sum of ALL section scores: objective + essay>,
-        "feedback": "brief feedback."
-        }}
-"""
+        # Use the module-level GRADING_PROMPT constant
+        prompt = GRADING_PROMPT.format(
+            context_block=context_block,
+            transcribed_text=transcribed_text
+        )
 
         ai_inputs = [prompt]
 
-        # Append any reference images (PDF rubrics/references)
         if extra_images:
             ai_inputs.append("The following pages are reference/rubric material:")
             for img in extra_images:
@@ -542,8 +612,11 @@ def grade():
                 ai_inputs.append({"mime_type": "image/jpeg", "data": buf.getvalue()})
 
         data = call_gemini(ai_inputs, grading_model)
-
-
+        
+        print(f'objective_score_log: {data.get("objective_score_log", "")[:500]}')
+        print(f'essay_score_log: {data.get("essay_score_log", "")[:500]}')
+        print(f'essay_total: {data.get("essay_total")}')
+        print(f'objective_total: {data.get("objective_total")}')
 
         # Server-side score sanity check
         obj = data.get("objective_total", 0) or 0
@@ -553,12 +626,10 @@ def grade():
             print(f"⚠️ Score mismatch: AI said {data.get('score')} but obj({obj}) + essay({essay}) = {expected}. Correcting.")
             data["score"] = expected
 
-
         print(f"✅ Grading done: score={data.get('score')}")
         return jsonify({"success": True, "data": data})
 
-    except google.api_core.exceptions.ResourceExhausted as e:
-        print(f"⚠️ Quota Exceeded: {e}")
+    except google.api_core.exceptions.ResourceExhausted:
         return jsonify({
             "success": False,
             "error": "quota_exceeded",
@@ -576,12 +647,12 @@ def masterlist():
         return jsonify({"success": False, "error": "No file uploaded"}), 400
 
     try:
+        import tempfile
         file = request.files['file']
         file_bytes = file.read()
         filename = file.filename or "masterlist"
         print(f"📄 Masterlist file: {filename}, {len(file_bytes)} bytes")
 
-        import tempfile
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
             tmp.write(file_bytes)
             tmp_path = tmp.name
@@ -615,8 +686,7 @@ Include every student listed. Student IDs are typically in format like TUPM-XX-X
         else:
             return jsonify({"success": False, "error": "Could not parse masterlist"}), 500
 
-    except google.api_core.exceptions.ResourceExhausted as e:
-        print(f"⚠️ Quota Exceeded: {e}")
+    except google.api_core.exceptions.ResourceExhausted:
         return jsonify({
             "success": False,
             "error": "quota_exceeded",

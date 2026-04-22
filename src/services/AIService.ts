@@ -75,7 +75,6 @@ const resolveFileNameFromUri = (uri: string) => {
 };
 
 const appendImageToFormData = async (formData: FormData, imageUri: string) => {
-  // On web, always convert URI -> Blob -> File so multipart sends a real file part.
   if (Platform.OS === "web") {
     const blobResponse = await fetch(imageUri);
     if (!blobResponse.ok) {
@@ -96,11 +95,94 @@ const appendImageToFormData = async (formData: FormData, imageUri: string) => {
   const type = resolveMimeTypeFromUri(imageUri);
   formData.append("file", { uri: imageUri, name: filename, type } as any);
 };
+
+// ==========================================
+// ASYNC JOB POLLING
+// ==========================================
+
 /**
- * Sends an image to the Python AI server for grading.
- * @param imageUri - The local URI of the image (from ImagePicker).
- * @param mode - 'grade' or 'masterlist'.
- * @param context - The Rubric or Answer Key.
+ * Submits files to /transcribe/async and polls /job/<id> until done.
+ * @param formData - The FormData with all file parts already appended.
+ * @param onStatusUpdate - Optional callback to report progress to the UI.
+ * @param pollIntervalMs - How often to poll (default: 2000ms).
+ * @param timeoutMs - Max wait time before giving up (default: 3 minutes).
+ */
+const transcribeAsync = async (
+  formData: FormData,
+  onStatusUpdate?: (status: string) => void,
+  pollIntervalMs = 2000,
+  timeoutMs = 180_000,
+): Promise<{
+  transcribed_text: string;
+  legibility: string;
+  confidence_score: number;
+  pages: number;
+}> => {
+  // Step 1: Submit job
+  const submitResponse = await fetchWith429Retry(
+    () =>
+      fetch(`${AI_SERVER_URL}/transcribe/async`, {
+        method: "POST",
+        body: formData,
+      }),
+    "transcribe/async",
+  );
+
+  const submitResult = await parseJsonSafe(submitResponse);
+
+  if (!submitResponse.ok || !submitResult?.success) {
+    const message =
+      submitResult?.message ||
+      submitResult?.error ||
+      `Transcribe submit failed (${submitResponse.status})`;
+    throw new Error(message);
+  }
+
+  const { job_id } = submitResult;
+  console.log(`📥 Transcription job queued: ${job_id}`);
+  onStatusUpdate?.("Transcription queued...");
+
+  // Step 2: Poll until done or timeout
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    await sleep(pollIntervalMs);
+
+    const pollResponse = await fetch(`${AI_SERVER_URL}/job/${job_id}`);
+    const pollResult = await parseJsonSafe(pollResponse);
+
+    if (!pollResult?.success) {
+      throw new Error("Failed to poll job status.");
+    }
+
+    const { status, result, error } = pollResult;
+    console.log(`🔄 Job ${job_id} status: ${status}`);
+
+    if (status === "done") {
+      onStatusUpdate?.("Transcription complete!");
+      return result;
+    }
+
+    if (status === "error") {
+      throw new Error(error || "Transcription job failed on server.");
+    }
+
+    // status === "queued" or "processing" — keep polling
+    onStatusUpdate?.(
+      status === "queued" ? "Waiting in queue..." : "Processing pages...",
+    );
+  }
+
+  throw new Error("Transcription timed out. Please try again.");
+};
+
+// ==========================================
+// MAIN EXPORT
+// ==========================================
+
+/**
+ * Sends images to the AI server for transcription + grading.
+ * Transcription uses the async job queue; grading is still synchronous.
  */
 export const processWithAI = async (
   imageUris: string | string[],
@@ -109,6 +191,7 @@ export const processWithAI = async (
   answerKeyUrlsOrUrl?: string[] | string,
   referenceUrlsOrUrl?: string[] | string,
   examSettings?: ExamSettingsPayload,
+  onStatusUpdate?: (status: string) => void,
 ) => {
   try {
     const uris = Array.isArray(imageUris) ? imageUris : [imageUris];
@@ -125,15 +208,13 @@ export const processWithAI = async (
         ? [referenceUrlsOrUrl]
         : [];
 
+    // Build FormData with all files
     const formData = new FormData();
-
     for (const uri of uris) {
       await appendImageToFormData(formData, uri);
     }
-
     formData.append("mode", mode);
     formData.append("rubric", context);
-    // Include answer key/reference URL metadata to preserve context across services.
     if (answerKeyUrls.length > 0) {
       formData.append("answer_key_urls", JSON.stringify(answerKeyUrls));
     }
@@ -141,34 +222,19 @@ export const processWithAI = async (
       formData.append("reference_urls", JSON.stringify(referenceUrls));
     }
 
-    console.log("Step 1: Transcribing...");
-    const transcribeResponse = await fetchWith429Retry(
-      () =>
-        fetch(`${AI_SERVER_URL}/transcribe`, {
-          method: "POST",
-          body: formData,
-        }),
-      "transcribe",
-    );
-    const transcribeResult = await parseJsonSafe(transcribeResponse);
+    // STEP 1: TRANSCRIBE (async with polling)
+    console.log("Step 1: Transcribing (async)...");
+    onStatusUpdate?.("Uploading exam...");
 
-    if (!transcribeResponse.ok) {
-      const message =
-        transcribeResult?.message ||
-        transcribeResult?.error ||
-        `Transcribe request failed (${transcribeResponse.status})`;
-      throw new Error(message);
-    }
-
-    if (!transcribeResult?.success) {
-      throw new Error(transcribeResult?.message || "Transcription failed");
-    }
     const { transcribed_text, legibility, confidence_score } =
-      transcribeResult.data;
+      await transcribeAsync(formData, onStatusUpdate);
+
     console.log("✅ Transcription done:", transcribed_text?.slice(0, 100));
 
-    // STEP 2: GRADE
+    // STEP 2: GRADE (synchronous — fast, text-only)
     console.log("Step 2: Grading...");
+    onStatusUpdate?.("Grading...");
+
     const gradeResponse = await fetchWith429Retry(
       () =>
         fetch(`${AI_SERVER_URL}/grade`, {
@@ -192,22 +258,23 @@ export const processWithAI = async (
 
     if (!gradeResponse.ok) {
       if (gradeResponse.status === 422) {
-        const malformedMessage =
+        throw new Error(
           gradeResult?.message ||
-          "AI returned an invalid grading format. Please retry the scan.";
-        throw new Error(malformedMessage);
+            "AI returned an invalid grading format. Please retry the scan.",
+        );
       }
-
-      const message =
+      throw new Error(
         gradeResult?.message ||
-        gradeResult?.error ||
-        `Grading request failed (${gradeResponse.status})`;
-      throw new Error(message);
+          gradeResult?.error ||
+          `Grading request failed (${gradeResponse.status})`,
+      );
     }
 
     if (!gradeResult?.success) {
       throw new Error(gradeResult?.message || "Grading failed");
     }
+
+    onStatusUpdate?.("Done!");
 
     // Merge transcription into grading result
     return {
@@ -218,9 +285,7 @@ export const processWithAI = async (
     };
   } catch (error) {
     console.log("❌ AI Service Error:", error);
-    if (error instanceof Error) {
-      throw error;
-    }
+    if (error instanceof Error) throw error;
     throw new Error("AI service request failed");
   }
 };
