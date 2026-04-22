@@ -535,6 +535,12 @@ def grade():
                 ai_inputs.append({"mime_type": "image/jpeg", "data": buf.getvalue()})
 
         data = call_gemini(ai_inputs, grading_model)
+        print(f"📊 GRADING RESULT:")
+        print(f"   objective_total  : {data.get('objective_total')}")
+        print(f"   essay_total      : {data.get('essay_total')}")
+        print(f"   score            : {data.get('score')}")
+        print(f"   confidence_score : {data.get('confidence_score')}")
+
 
         # Server-side score sanity check
         obj = data.get("objective_total", 0) or 0

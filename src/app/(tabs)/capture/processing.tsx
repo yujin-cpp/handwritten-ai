@@ -565,7 +565,7 @@ const styles = StyleSheet.create({
   iconOverlay: {
     position: "absolute",
     backgroundColor: "#fff",
-    padding: 10,
+    padding: 6,
     borderRadius: 20,
     elevation: 2,
     shadowColor: "#000",

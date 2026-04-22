@@ -36,7 +36,11 @@ type QAFile = {
   type?: string;
 };
 
-type ExamTypeKey = "multipleChoice" | "trueFalse" | "identification";
+type ExamTypeKey =
+  | "multipleChoice"
+  | "trueFalse"
+  | "identification"
+  | "matching";
 
 type ObjectiveTypeState = Record<
   ExamTypeKey,
@@ -47,6 +51,7 @@ const createDefaultObjectiveTypes = (): ObjectiveTypeState => ({
   multipleChoice: { enabled: true, items: "0" },
   trueFalse: { enabled: false, items: "0" },
   identification: { enabled: false, items: "0" },
+  matching: { enabled: false, items: "0" },
 });
 
 const parsePositiveInt = (value: string) => {
@@ -58,6 +63,7 @@ const examTypeLabelMap: Record<ExamTypeKey, string> = {
   multipleChoice: "Multiple Choice",
   trueFalse: "True/False",
   identification: "Identification",
+  matching: "Matching",
 };
 
 export default function QAList() {
@@ -130,6 +136,10 @@ export default function QAList() {
           enabled: savedTypes.identification?.enabled ?? false,
           items: String(savedTypes.identification?.items ?? 0),
         },
+        matching: {
+          enabled: savedTypes.matching?.enabled ?? false,
+          items: String(savedTypes.matching?.items ?? 0),
+        },
       });
       setLoading(false);
     });
@@ -165,6 +175,10 @@ export default function QAList() {
       identification: {
         enabled: objectiveTypes.identification.enabled,
         items: parsePositiveInt(objectiveTypes.identification.items),
+      },
+      matching: {
+        enabled: objectiveTypes.matching.enabled,
+        items: parsePositiveInt(objectiveTypes.matching.items),
       },
     };
 
@@ -250,6 +264,10 @@ export default function QAList() {
           enabled: objectiveTypes.identification.enabled,
           items: parsePositiveInt(objectiveTypes.identification.items),
         },
+        matching: {
+          enabled: objectiveTypes.matching.enabled,
+          items: parsePositiveInt(objectiveTypes.matching.items),
+        },
       };
 
       const fileResponse = await fetch(asset.uri);
@@ -326,7 +344,6 @@ export default function QAList() {
             Uploaded keys are treated as the official correct answers for
             enabled sections.
           </Text>
-
           <Text style={styles.inputLabel}>Total Score (required)</Text>
           <TextInput
             value={totalScore}
@@ -336,7 +353,6 @@ export default function QAList() {
             placeholderTextColor="#bbb"
             style={styles.input}
           />
-
           <Text style={styles.inputLabel}>
             Professor Instructions for AI (optional)
           </Text>
@@ -350,9 +366,7 @@ export default function QAList() {
             placeholderTextColor="#bbb"
             style={[styles.input, styles.multilineInput]}
           />
-
           <Text style={styles.inputLabel}>Objective Sections</Text>
-
           <View style={styles.typeRow}>
             <View style={styles.typeLabelWrap}>
               <Text style={styles.typeTitle}>Multiple Choice</Text>
@@ -389,7 +403,6 @@ export default function QAList() {
               !objectiveTypes.multipleChoice.enabled && styles.inputDisabled,
             ]}
           />
-
           <View style={styles.typeRow}>
             <View style={styles.typeLabelWrap}>
               <Text style={styles.typeTitle}>True/False</Text>
@@ -426,7 +439,6 @@ export default function QAList() {
               !objectiveTypes.trueFalse.enabled && styles.inputDisabled,
             ]}
           />
-
           <View style={styles.typeRow}>
             <View style={styles.typeLabelWrap}>
               <Text style={styles.typeTitle}>Identification</Text>
@@ -463,7 +475,42 @@ export default function QAList() {
               !objectiveTypes.identification.enabled && styles.inputDisabled,
             ]}
           />
-
+          <View style={styles.typeRow}>
+            <View style={styles.typeLabelWrap}>
+              <Text style={styles.typeTitle}>Matching</Text>
+              <Text style={styles.typeSub}>Auto-grade this section</Text>
+            </View>
+            <Switch
+              value={objectiveTypes.matching.enabled}
+              onValueChange={(enabled) =>
+                setObjectiveTypes((prev) => ({
+                  ...prev,
+                  matching: { ...prev.matching, enabled },
+                }))
+              }
+              trackColor={{ false: "#ddd", true: headerColor + "66" }}
+              thumbColor={
+                objectiveTypes.matching.enabled ? headerColor : "#fff"
+              }
+            />
+          </View>
+          <TextInput
+            value={objectiveTypes.matching.items}
+            onChangeText={(items) =>
+              setObjectiveTypes((prev) => ({
+                ...prev,
+                matching: { ...prev.matching, items },
+              }))
+            }
+            editable={objectiveTypes.matching.enabled}
+            keyboardType="number-pad"
+            placeholder="Number of items"
+            placeholderTextColor="#bbb"
+            style={[
+              styles.itemsInput,
+              !objectiveTypes.matching.enabled && styles.inputDisabled,
+            ]}
+          />
           <TouchableOpacity
             style={[
               styles.saveSettingsBtn,
