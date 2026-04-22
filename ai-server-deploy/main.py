@@ -339,38 +339,54 @@ def grade():
         transcribed_text = body.get('transcribed_text', '').strip()
         context = body.get('context', '').strip()
         answer_key_text = body.get('answer_key_text', '').strip()
-        answer_key_url = body.get('answer_key_url', '')
         reference_url = body.get('reference_url', '')
+        reference_urls = body.get('reference_urls', [])
 
-         # ✅ Initialize ALL variables at the top before any logic
+        
+        answer_key_url = body.get('answer_key_url', '')
+        answer_key_urls = body.get('answer_key_urls', [])
+        all_answer_key_urls = list({answer_key_url, *answer_key_urls} - {''})
+
+
+        all_reference_urls = list({reference_url, *reference_urls} - {''})
+
+       
         context_block = ""
         extra_images = []
 
         if not transcribed_text:
             return jsonify({"success": False, "error": "No transcription provided"}), 400
-        
 
         # BUILD CONTEXT BLOCK
-
         if context:
-            context_block += f"=== ANSWER KEY (MCQ/TF) ===\n{context}\n===========================\n\n"
+            context_block += f"=== PROFESSOR CONTEXT ===\n{context}\n=========================\n\n"
 
         if answer_key_text:
             context_block += f"=== ESSAY RUBRIC ===\n{answer_key_text}\n===================\n\n"
 
-        # FETCH ADDITIONAL RUBRIC/REFERENCE FILES FROM URLS
-        for url, label in [(answer_key_url, "OBJECTIVE ANSWER KEY"), (reference_url, "REFERENCE MATERIAL")]:
-            if not url:
-                continue
+        # FETCH ANSWER KEY FILES
+        for url in all_answer_key_urls:
             try:
                 imgs, text = fetch_and_parse_url(url)
                 if text:
-                    context_block += f"=== {label} ===\n{text}\n{'=' * (len(label) + 8)}\n\n"
-                    print(f"📋 {label}: {len(text)} chars appended to context")
+                    context_block += f"=== OBJECTIVE ANSWER KEY ===\n{text}\n============================\n\n"
+                    print(f"📋 OBJECTIVE ANSWER KEY: {len(text)} chars appended")
                 if imgs:
                     extra_images.extend(imgs)
             except Exception as e:
-                print(f"⚠️ Could not fetch URL {url}: {e}")
+                print(f"⚠️ Could not fetch answer key URL {url}: {e}")
+
+        # FETCH REFERENCE FILES
+        for url in all_reference_urls:
+            try:
+                imgs, text = fetch_and_parse_url(url)
+                if text:
+                    context_block += f"=== REFERENCE MATERIAL ===\n{text}\n==========================\n\n"
+                    print(f"📋 REFERENCE MATERIAL: {len(text)} chars appended")
+                if imgs:
+                    extra_images.extend(imgs)
+            except Exception as e:
+                print(f"⚠️ Could not fetch reference URL {url}: {e}")
 
         if not context_block.strip():
             context_block = "=== NO RUBRIC PROVIDED — Score everything as 0 ==="
@@ -408,6 +424,18 @@ def grade():
         - If the student writes the wrong letter/word or leaves it blank = 0 points.
         - Do NOT give partial credit for "close" matches.
         - Count ALL matching items present in the answer key.
+
+        MATCHING LENIENCY RULES (apply BEFORE marking wrong):
+        - Ignore minor spelling errors (e.g. "Principalia" vs "Principalias" = CORRECT).
+        - If the student answer is a SUBSTRING of the correct answer = CORRECT.
+        Example: "Imprisonment" matches "Imprisonment of Rizal's Mother" = CORRECT.
+        - If the correct answer is a SUBSTRING of the student answer = CORRECT.
+        Example: "Arrest/Imprisonment" contains "Imprisonment" which is in the answer key = CORRECT.
+        - If the student writes multiple answers separated by "/" or "," and ANY ONE of them matches the answer key = CORRECT.
+        Example: "Arrest/Imprisonment" → "Imprisonment" is in answer key → CORRECT.
+        - Case-insensitive matching always applies.
+        - Accents and punctuation differences are ignored.
+        - Only mark WRONG if there is NO reasonable match after applying all leniency rules.
 
         QUESTION TYPE DETECTION:
         - Look at the section headers or question instructions to identify question type.
@@ -484,27 +512,6 @@ def grade():
 
         FINAL TOTAL SCORE: [sum of ALL objective points + ALL essay Final Scores]
 
-       =============================================
-        FINAL SCORE CALCULATION — MANDATORY STEP
-        =============================================
-        Before writing the JSON, you MUST do this explicitly:
-
-        STEP A: Write the total objective score as a number.
-            objective_total = [exact number from TOTAL OBJECTIVE SCORE above]
-
-        STEP B: Write the total essay score as a number.
-            essay_total = [exact number from TOTAL ESSAY SCORE above]
-
-        STEP C: Add them.
-            final_score = objective_total + essay_total = [result]
-
-        STEP D: Verify final_score does not exceed the exam total score limit.
-            If final_score > total allowed score, cap it at the total allowed score.
-
-        The "score" field in the JSON MUST equal final_score from STEP C (or capped value from STEP D).
-        Do NOT guess. Do NOT re-derive. Copy the number exactly from STEP C.
-        =============================================
-
         FAIL-SAFE RULES:
         - If rubric is missing: score = 0, explain why.
         - If answer is blank: score = 0.
@@ -535,11 +542,7 @@ def grade():
                 ai_inputs.append({"mime_type": "image/jpeg", "data": buf.getvalue()})
 
         data = call_gemini(ai_inputs, grading_model)
-        print(f"📊 GRADING RESULT:")
-        print(f"   objective_total  : {data.get('objective_total')}")
-        print(f"   essay_total      : {data.get('essay_total')}")
-        print(f"   score            : {data.get('score')}")
-        print(f"   confidence_score : {data.get('confidence_score')}")
+
 
 
         # Server-side score sanity check
@@ -578,7 +581,6 @@ def masterlist():
         filename = file.filename or "masterlist"
         print(f"📄 Masterlist file: {filename}, {len(file_bytes)} bytes")
 
-        # ✅ Send PDF directly to Gemini without converting to images
         import tempfile
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
             tmp.write(file_bytes)
@@ -624,46 +626,6 @@ Include every student listed. Student IDs are typically in format like TUPM-XX-X
         print(f"❌ Masterlist Error: {e}")
         return jsonify({"success": False, "error": "server_error", "message": str(e)}), 500
 
-@app.route('/upload-file', methods=['POST'])
-def upload_file():
-    """Generic file upload to Firebase Storage via REST API."""
-    try:
-        file = request.files.get('file')
-        path = request.form.get('path')  # full storage path e.g. qa_uploads/uid/classId/activityId/filename
-
-        if not file:
-            return jsonify({"success": False, "error": "No file uploaded"}), 400
-        if not path:
-            return jsonify({"success": False, "error": "No path provided"}), 400
-
-        file_bytes = file.read()
-        content_type = request.form.get('contentType', 'application/octet-stream')
-        print(f"📄 Uploading: {path} | {content_type} | {len(file_bytes)} bytes")
-
-        import requests as req
-        storage_bucket = os.environ.get("FIREBASE_STORAGE_BUCKET")
-        upload_url = f"https://firebasestorage.googleapis.com/v0/b/{storage_bucket}/o?uploadType=media&name={path}"
-
-        upload_response = req.post(
-            upload_url,
-            headers={"Content-Type": content_type},
-            data=file_bytes,
-        )
-
-        if upload_response.status_code not in (200, 201):
-            print(f"⚠️ Upload failed: {upload_response.status_code} {upload_response.text[:200]}")
-            return jsonify({"success": False, "error": upload_response.text[:200]}), 500
-
-        # Return the public download URL
-        encoded_path = path.replace('/', '%2F')
-        download_url = f"https://firebasestorage.googleapis.com/v0/b/{storage_bucket}/o/{encoded_path}?alt=media"
-
-        print(f"✅ Uploaded: {path}")
-        return jsonify({"success": True, "path": path, "url": download_url})
-
-    except Exception as e:
-        print(f"❌ Upload-file error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
