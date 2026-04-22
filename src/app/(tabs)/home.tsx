@@ -1,6 +1,5 @@
-import { BlurView } from 'expo-blur';
-import { GlassCard } from '../../components/GlassCard';
 import { Feather } from "@expo/vector-icons";
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -15,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { GlassCard } from '../../components/GlassCard';
 import { FloatMotion, PageMotion } from "../../components/PageMotion";
 import { auth } from "../../firebase/firebaseConfig";
 import { useAuthSession } from "../../hooks/useAuthSession";
@@ -72,19 +72,17 @@ export default function HomeScreen() {
     }
 
     const unsubscribe = listenToClasses(uid, (data) => {
-      setClasses(data || {});
-      
       if (data) {
         let gradedCount = 0;
         let recentClass: any = null;
         let recentClassId = "";
 
         const classEntries = Object.entries(data);
-        
+
         // Just pick the first class to resume for now, or the last one added
         if (classEntries.length > 0) {
-           recentClassId = classEntries[0][0];
-           recentClass = classEntries[0][1];
+          recentClassId = classEntries[0][0];
+          recentClass = classEntries[0][1];
         }
 
         classEntries.forEach(([classId, cls]: any) => {
@@ -104,12 +102,14 @@ export default function HomeScreen() {
         setStats({
           totalClasses: classEntries.length,
           totalGraded: gradedCount,
-          lastActivityText: recentClass ? `Last accessed: ${recentClass.className}` : "No recent activity",
+          lastActivityText: recentClass
+            ? `Last accessed: ${recentClass.className}`
+            : "No recent activity",
           resumeClassId: recentClassId,
           resumeClassName: recentClass?.className || "",
           resumeClassSection: recentClass?.section || "",
           resumeClassColor: recentClass?.themeColor || "#00b679",
-          resumeAcademicYear: recentClass?.semester || ""
+          resumeAcademicYear: recentClass?.semester || "",
         });
       }
     });
@@ -257,12 +257,10 @@ export default function HomeScreen() {
         </PageMotion>
       </View>
 
-
-
       {/* QUICK ACTIONS ROW */}
       <PageMotion delay={180} style={styles.section}>
         <Text style={styles.sectionTitle}>Quick Actions</Text>
-        
+
         <View style={styles.actionsGrid}>
           <TouchableOpacity 
             style={{ flex: 1 }}
@@ -304,7 +302,6 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
       </PageMotion>
-
     </ScrollView>
   );
 }
@@ -320,7 +317,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   bgOrb: {
-    position: 'absolute',
+    position: "absolute",
     borderRadius: 200,
   },
   heroCard: {
@@ -366,13 +363,13 @@ const styles = StyleSheet.create({
   },
   resumeBtnBlur: {
     borderRadius: 20,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.8)',
-    borderLeftColor: 'rgba(255, 255, 255, 0.5)',
-    borderRightColor: 'rgba(255, 255, 255, 0.1)',
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderTopColor: "rgba(255, 255, 255, 0.8)",
+    borderLeftColor: "rgba(255, 255, 255, 0.5)",
+    borderRightColor: "rgba(255, 255, 255, 0.1)",
+    borderBottomColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
   },
   resumeBtnFallback: {
     backgroundColor: 'rgba(255, 255, 255, 0.22)',
@@ -485,18 +482,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 20,
     elevation: 6,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   actionCardBlur: {
     flex: 1, // Stretches to fill square
     borderRadius: 24,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderWidth: 1.5,
-    borderTopColor: 'rgba(255, 255, 255, 1)',
-    borderLeftColor: 'rgba(255, 255, 255, 0.7)',
-    borderRightColor: 'rgba(255, 255, 255, 0.2)',
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.35)',
+    borderTopColor: "rgba(255, 255, 255, 1)",
+    borderLeftColor: "rgba(255, 255, 255, 0.7)",
+    borderRightColor: "rgba(255, 255, 255, 0.2)",
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+    backgroundColor: "rgba(255, 255, 255, 0.35)",
   },
   actionCardContent: {
     flex: 1, // Centers content perfectly within the square

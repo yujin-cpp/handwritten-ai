@@ -4,23 +4,23 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Modal,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PageMotion } from "../../../components/PageMotion";
 import { GlassCard } from "../../../components/GlassCard";
 import { useAuthSession } from "../../../hooks/useAuthSession";
 import {
-    getActivities,
-    getStudentsInClass,
-    listenToClasses,
+  getActivities,
+  getStudentsInClass,
+  listenToClasses,
 } from "../../../services/class.service";
 import { showAlert } from "../../../utils/alert";
 
@@ -286,13 +286,16 @@ export default function Capture() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.8,
+      allowsMultipleSelection: true,
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
+      const imageUris = result.assets.map((a) => a.uri);
       router.push({
         pathname: "/(tabs)/capture/image-captured",
         params: {
-          imageUri: result.assets[0].uri,
+          imageUri: imageUris[0],
+          imageUris: JSON.stringify(imageUris),
           classId: selectedClassId,
           activityId: selectedActivityId,
           studentId: selectedStudentId,
@@ -358,7 +361,10 @@ export default function Capture() {
         <Text style={styles.headerTitle}>Capture Score</Text>
       </LinearGradient>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         {loading ? (
           <ActivityIndicator
             size="large"

@@ -103,7 +103,7 @@ const appendImageToFormData = async (formData: FormData, imageUri: string) => {
  * @param context - The Rubric or Answer Key.
  */
 export const processWithAI = async (
-  imageUri: string,
+  imageUris: string | string[],
   mode: "grade" | "masterlist",
   context: string,
   answerKeyUrlsOrUrl?: string[] | string,
@@ -111,6 +111,8 @@ export const processWithAI = async (
   examSettings?: ExamSettingsPayload,
 ) => {
   try {
+    const uris = Array.isArray(imageUris) ? imageUris : [imageUris];
+
     const answerKeyUrls = Array.isArray(answerKeyUrlsOrUrl)
       ? answerKeyUrlsOrUrl.filter(Boolean)
       : answerKeyUrlsOrUrl
@@ -125,7 +127,9 @@ export const processWithAI = async (
 
     const formData = new FormData();
 
-    await appendImageToFormData(formData, imageUri);
+    for (const uri of uris) {
+      await appendImageToFormData(formData, uri);
+    }
 
     formData.append("mode", mode);
     formData.append("rubric", context);
