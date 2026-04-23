@@ -710,8 +710,6 @@ def grade():
         data = call_gemini(ai_inputs, grading_model)
         save_grade_log(data)
         
-        print(f'essay_total: {data.get("essay_total")}')
-        print(f'objective_total: {data.get("objective_total")}')
 
         # Server-side score sanity check
         obj = data.get("objective_total", 0) or 0
