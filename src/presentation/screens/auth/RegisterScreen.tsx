@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithCredential } from 'firebase/auth';
@@ -22,6 +22,8 @@ export const RegisterScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const [request, response, promptAsync] = Google.useAuthRequest({
@@ -119,8 +121,18 @@ export const RegisterScreen = () => {
           <View style={styles.formGroup}>
             <TextInput style={styles.input} placeholder="Full Name" placeholderTextColor={colors.grayLight} value={fullName} onChangeText={setFullName} />
             <TextInput style={styles.input} placeholder="Email Address" placeholderTextColor={colors.grayLight} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-            <TextInput style={styles.input} placeholder="Password" placeholderTextColor={colors.grayLight} secureTextEntry value={password} onChangeText={setPassword} autoCapitalize="none" />
-            <TextInput style={styles.input} placeholder="Confirm Password" placeholderTextColor={colors.grayLight} secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} autoCapitalize="none" />
+            <View style={styles.passwordContainer}>
+              <TextInput style={[styles.input, { flex: 1, paddingRight: 50 }]} placeholder="Password" placeholderTextColor={colors.grayLight} secureTextEntry={!showPassword} value={password} onChangeText={setPassword} autoCapitalize="none" />
+              <TouchableOpacity style={styles.eyeIcon} onPress={() => setShowPassword(!showPassword)}>
+                <Feather name={showPassword ? 'eye' : 'eye-off'} size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.passwordContainer}>
+              <TextInput style={[styles.input, { flex: 1, paddingRight: 50 }]} placeholder="Confirm Password" placeholderTextColor={colors.grayLight} secureTextEntry={!showConfirmPassword} value={confirmPassword} onChangeText={setConfirmPassword} autoCapitalize="none" />
+              <TouchableOpacity style={styles.eyeIcon} onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+                <Feather name={showConfirmPassword ? 'eye' : 'eye-off'} size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <TouchableOpacity style={styles.registerBtn} onPress={handleSignUp} disabled={loading}>
@@ -153,6 +165,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 36, fontFamily: typography.fontFamily.bold, color: colors.white, marginBottom: 8 },
   subtitle: { fontSize: 18, fontFamily: typography.fontFamily.medium, color: colors.white + 'CC', marginBottom: 40 },
   formGroup: { gap: 16, marginBottom: 32 },
+  passwordContainer: { flexDirection: 'row', alignItems: 'center' },
+  eyeIcon: { position: 'absolute', right: 16, padding: 4 },
   input: { backgroundColor: colors.white, borderRadius: 16, paddingHorizontal: 20, paddingVertical: 16, fontSize: 16, fontFamily: typography.fontFamily.medium, color: colors.text, ...shadows.soft },
   registerBtn: { backgroundColor: colors.white, paddingVertical: 16, borderRadius: 16, alignItems: 'center', marginBottom: 32, ...shadows.medium },
   registerBtnText: { color: colors.primary, fontSize: 18, fontFamily: typography.fontFamily.bold },

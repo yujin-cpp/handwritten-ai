@@ -19,6 +19,7 @@ import { useAuthSession } from "../../../hooks/useAuthSession";
 import { showAlert } from "../../../utils/alert";
 import { storageRepository } from "../../../data/repositories/FirebaseStorageRepository";
 import { safeGoBack } from "../../../utils/navigation";
+import { getContrastColor } from "../../../utils/colorUtils";
 
 // Quick Firebase imports for settings
 import { ref, remove } from "firebase/database";
@@ -37,10 +38,13 @@ export const QAViewScreen = () => {
   const title = P(params.title, "Activity Key");
 
   const fileName = P(params.fileName, "Unknown File");
-  const fileUrl = P(params.fileUrl, "");
   const fileId = P(params.fileId, "");
   const classId = P(params.classId, "");
   const activityId = P(params.activityId, "");
+
+  let rawUrl = P(params.fileUrl, "");
+  try { rawUrl = decodeURIComponent(rawUrl); } catch { }
+  const fileUrl = rawUrl;
 
   const [confirmDel, setConfirmDel] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -89,18 +93,20 @@ export const QAViewScreen = () => {
     }
   };
 
+  const headerTextColor = getContrastColor(headerColor);
+
   return (
     <View style={styles.container}>
       <View style={[styles.header, { backgroundColor: headerColor, paddingTop: insets.top + 20 }]}>
         <TouchableOpacity onPress={() => safeGoBack(router)} style={styles.backBtn}>
-          <Feather name="chevron-left" size={26} color={colors.white} />
+          <Feather name="chevron-left" size={26} color={headerTextColor} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerSmall}>{className} • {section}</Text>
-          <Text style={styles.headerBig} numberOfLines={1}>Answer Key</Text>
+          <Text style={[styles.headerSmall, { color: headerTextColor }]}>{className} • {section}</Text>
+          <Text style={[styles.headerBig, { color: headerTextColor }]} numberOfLines={1}>Answer Key</Text>
         </View>
         <TouchableOpacity onPress={() => setConfirmDel(true)} style={styles.headerActionBtn}>
-          <Feather name="trash-2" size={20} color={colors.white} />
+          <Feather name="trash-2" size={20} color={headerTextColor} />
         </TouchableOpacity>
       </View>
 

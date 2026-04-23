@@ -53,6 +53,27 @@ export class FirebaseStudentRepository implements IStudentRepository {
     }
     return [];
   }
+
+  async getUngradedStudents(professorId: string, classId: string, activityId: string): Promise<{ id: string; name: string }[]> {
+    const studentsRef = ref(db, `professors/${professorId}/classes/${classId}/students`);
+    const snapshot = await get(studentsRef);
+
+    if (snapshot.exists()) {
+      const data = snapshot.val();
+      return Object.keys(data)
+        .filter((key) => {
+          const student = data[key];
+          const activity = student.activities?.[activityId];
+          return !activity || (activity.status !== "graded" && activity.score === undefined);
+        })
+        .map((key) => ({
+          id: key,
+          name: data[key].name,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return [];
+  }
 }
 
 export const studentRepository = new FirebaseStudentRepository();

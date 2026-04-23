@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, BackHandler, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -108,7 +108,18 @@ export const ProcessingScreen = () => {
   const [backgroundCountdown, setBackgroundCountdown] = useState<number | null>(null);
   const mountedRef = React.useRef(true);
   const backgroundModeRef = React.useRef(false);
+<<<<<<< HEAD
  const isProcessingRef = React.useRef(false);
+=======
+  const hasStartedRef = React.useRef(false);
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const backHandler = BackHandler.addEventListener("hardwareBackPress", () => true);
+    return () => backHandler.remove();
+  }, []);
+
+>>>>>>> hais/semi-final
   const classId = P(params.classId);
   const activityId = P(params.activityId);
   const studentId = P(params.studentId);

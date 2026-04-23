@@ -22,6 +22,7 @@ export const LoginScreen = () => {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const [request, response, promptAsync] = Google.useAuthRequest({
@@ -127,18 +128,23 @@ export const LoginScreen = () => {
                 autoCapitalize="none"
                 keyboardType="email-address"
               />
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
-                placeholderTextColor={colors.grayLight}
-                secureTextEntry
-                autoCapitalize="none"
-                value={password}
-                onChangeText={setPassword}
-              />
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={[styles.input, { flex: 1, paddingRight: 50 }]}
+                  placeholder="Password"
+                  placeholderTextColor={colors.grayLight}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  value={password}
+                  onChangeText={setPassword}
+                />
+                <TouchableOpacity style={styles.eyeIcon} onPress={() => setShowPassword(!showPassword)}>
+                  <Feather name={showPassword ? 'eye' : 'eye-off'} size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
             </View>
 
-            <TouchableOpacity style={styles.forgotPass}>
+            <TouchableOpacity style={styles.forgotPass} onPress={() => router.push('/(auth)/forgot-password')}>
               <Text style={styles.forgotText}>Forgot Password?</Text>
             </TouchableOpacity>
 
@@ -176,6 +182,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 36, fontFamily: typography.fontFamily.bold, color: colors.white, marginBottom: 8 },
   subtitle: { fontSize: 18, fontFamily: typography.fontFamily.medium, color: colors.white + 'CC', marginBottom: 40 },
   formGroup: { gap: 16, marginBottom: 16 },
+  passwordContainer: { flexDirection: 'row', alignItems: 'center' },
+  eyeIcon: { position: 'absolute', right: 16, padding: 4 },
   input: { backgroundColor: colors.white, borderRadius: 16, paddingHorizontal: 20, paddingVertical: 16, fontSize: 16, fontFamily: typography.fontFamily.medium, color: colors.text, ...shadows.soft },
   forgotPass: { alignSelf: 'flex-end', marginBottom: 32 },
   forgotText: { color: colors.white, fontFamily: typography.fontFamily.bold, fontSize: 14 },

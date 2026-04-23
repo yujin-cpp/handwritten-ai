@@ -18,6 +18,7 @@ import { useAuthSession } from "../../../hooks/useAuthSession";
 import { showAlert } from "../../../utils/alert";
 import { storageRepository } from "../../../data/repositories/FirebaseStorageRepository";
 import { safeGoBack } from "../../../utils/navigation";
+import { getContrastColor } from "../../../utils/colorUtils";
 
 // Quick Firebase imports for settings
 import { onValue, push, ref, set, update } from "firebase/database";
@@ -209,15 +210,17 @@ export const QAScreen = () => {
     }
   };
 
+  const headerTextColor = getContrastColor(headerColor);
+
   return (
     <View style={styles.container}>
       <View style={[styles.header, { backgroundColor: headerColor, paddingTop: insets.top + 20 }]}>
         <TouchableOpacity onPress={() => safeGoBack(router)} style={styles.backBtn}>
-          <Feather name="chevron-left" size={26} color={colors.white} />
+          <Feather name="chevron-left" size={26} color={headerTextColor} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerSmall}>{className} • {section}</Text>
-          <Text style={styles.headerBig} numberOfLines={1}>{title}</Text>
+          <Text style={[styles.headerSmall, { color: headerTextColor }]}>{className} • {section}</Text>
+          <Text style={[styles.headerBig, { color: headerTextColor }]} numberOfLines={1}>{title}</Text>
         </View>
         <View style={{ width: 40 }} />
       </View>

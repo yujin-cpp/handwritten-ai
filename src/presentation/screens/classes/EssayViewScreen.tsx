@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, typography, shadows } from "../../theme";
 import { showAlert } from "../../../utils/alert";
 import { safeGoBack } from "../../../utils/navigation";
+import { getContrastColor } from "../../../utils/colorUtils";
 
 // Quick Firebase import
 import { ref, remove } from "firebase/database";
@@ -76,18 +77,20 @@ export const EssayViewScreen = () => {
     }
   }
 
+  const headerTextColor = getContrastColor(headerColor);
+
   return (
     <View style={styles.container}>
       <View style={[styles.header, { backgroundColor: headerColor, paddingTop: insets.top + 20 }]}>
         <TouchableOpacity onPress={() => safeGoBack(router)} style={styles.backBtn}>
-          <Feather name="chevron-left" size={26} color={colors.white} />
+          <Feather name="chevron-left" size={26} color={headerTextColor} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerSmall}>{className} • {section}</Text>
-          <Text style={styles.headerBig} numberOfLines={1}>Review Rubric</Text>
+          <Text style={[styles.headerSmall, { color: headerTextColor }]}>{className} • {section}</Text>
+          <Text style={[styles.headerBig, { color: headerTextColor }]} numberOfLines={1}>Review Rubric</Text>
         </View>
         <TouchableOpacity onPress={() => setConfirmVisible(true)} style={styles.headerActionBtn}>
-          <Feather name="trash-2" size={20} color={colors.white} />
+          <Feather name="trash-2" size={20} color={headerTextColor} />
         </TouchableOpacity>
       </View>
 

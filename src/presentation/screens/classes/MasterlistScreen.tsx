@@ -19,6 +19,7 @@ import { storageRepository } from "../../../data/repositories/FirebaseStorageRep
 import { studentRepository } from "../../../data/repositories/FirebaseStudentRepository";
 import { showAlert } from "../../../utils/alert";
 import { safeGoBack } from "../../../utils/navigation";
+import { getContrastColor } from "../../../utils/colorUtils";
 
 const P = (v: string | string[] | undefined, fb = "") => Array.isArray(v) ? v[0] : (v ?? fb);
 
@@ -78,15 +79,17 @@ export const MasterlistScreen = () => {
     }
   };
 
+  const headerTextColor = getContrastColor(headerColor);
+
   return (
     <View style={styles.container}>
       <View style={[styles.header, { backgroundColor: headerColor, paddingTop: insets.top + 20 }]}>
         <TouchableOpacity onPress={() => safeGoBack(router)} style={styles.backBtn}>
-          <Feather name="chevron-left" size={26} color={colors.white} />
+          <Feather name="chevron-left" size={26} color={headerTextColor} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerSmall}>{section}</Text>
-          <Text style={styles.headerBig} numberOfLines={1}>{className}</Text>
+          <Text style={[styles.headerSmall, { color: headerTextColor }]}>{section}</Text>
+          <Text style={[styles.headerBig, { color: headerTextColor }]} numberOfLines={1}>{className}</Text>
         </View>
         <View style={{ width: 40 }} />
       </View>

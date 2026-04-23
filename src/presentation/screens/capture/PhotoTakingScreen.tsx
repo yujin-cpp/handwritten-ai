@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
   camera: { flex: 1 },
   overlay: { ...StyleSheet.absoluteFillObject, justifyContent: "center", alignItems: "center", pointerEvents: "none" },
   scanFrame: { width: "75%", aspectRatio: 0.65, borderWidth: 2, borderColor: "rgba(255,255,255,0.6)", borderRadius: 16, borderStyle: "dashed" },
-  hintText: { position: "absolute", bottom: 180, textAlign: "center", color: colors.white, fontSize: 15, fontFamily: typography.fontFamily.bold, backgroundColor: "rgba(0,0,0,0.7)", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, overflow: "hidden" },
+  hintText: { position: "absolute", bottom: 240, textAlign: "center", color: colors.white, fontSize: 15, fontFamily: typography.fontFamily.bold, backgroundColor: "rgba(0,0,0,0.7)", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, overflow: "hidden" },
   bottomBar: { position: "absolute", bottom: 0, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 32, paddingHorizontal: 40, backgroundColor: "rgba(0,0,0,0.8)" },
   shutterOuter: { width: 88, height: 88, borderRadius: 44, borderWidth: 6, borderColor: "rgba(255,255,255,0.4)", alignItems: "center", justifyContent: "center" },
   shutterInner: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.white },

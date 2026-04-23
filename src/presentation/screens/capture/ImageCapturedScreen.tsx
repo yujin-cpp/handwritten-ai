@@ -6,6 +6,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Dimensions
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -23,6 +24,8 @@ export const ImageCapturedScreen = () => {
   const insets = useSafeAreaInsets();
 
   const [activeIndex, setActiveIndex] = useState(0);
+  const imageWidth = Dimensions.get("window").width - 96; // 24 screen padding + 24 card padding on both sides
+
 
   const imageUris: string[] = params.imageUris ? JSON.parse(P(params.imageUris)) : [P(params.imageUri)];
   const validImageUris = imageUris.filter((uri): uri is string => typeof uri === "string" && uri.trim().length > 0);
@@ -115,7 +118,7 @@ export const ImageCapturedScreen = () => {
                 }}
               >
                 {validImageUris.map((uri, index) => (
-                  <View key={`${uri}-${index}`} style={styles.imageWrap}>
+                  <View key={`${uri}-${index}`} style={[styles.imageWrap, { width: imageWidth }]}>
                     <Image source={{ uri }} style={styles.mainImage} resizeMode="cover" />
                     {validImageUris.length > 1 && (
                       <View style={styles.pageOverlay}>
@@ -177,7 +180,7 @@ const styles = StyleSheet.create({
   badge: { backgroundColor: colors.primary + "15", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 4 },
   badgeText: { fontSize: 12, fontFamily: typography.fontFamily.bold, color: colors.primary },
   imageScroll: { borderRadius: 16, overflow: "hidden", backgroundColor: colors.grayLight },
-  imageWrap: { width: 300, height: 400, justifyContent: "center", alignItems: "center" },
+  imageWrap: { height: 400, justifyContent: "center", alignItems: "center" },
   mainImage: { width: "100%", height: "100%" },
   pageOverlay: { position: "absolute", bottom: 16, right: 16, backgroundColor: "rgba(0,0,0,0.6)", borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
   pageOverlayText: { color: colors.white, fontSize: 12, fontFamily: typography.fontFamily.bold },

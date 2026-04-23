@@ -28,7 +28,7 @@ export const SavedScreen = () => {
   const handleGoToScores = () => {
     if (!classId || !activityId) return;
     router.dismissAll();
-    router.replace({ pathname: "/(tabs)/classes/quiz-score", params: { classId, activityId, name: className, section, color, title } });
+    router.replace({ pathname: "/(tabs)/classes/quiz-score", params: { classId, activityId, name: className, section, color, title, fromCapture: "1" } });
   };
 
   return (

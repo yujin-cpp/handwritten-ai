@@ -22,6 +22,11 @@ import { safeGoBack } from "../../../utils/navigation";
 // Quick Firebase import for direct updates
 import { ref, update } from "firebase/database";
 import { db } from "../../../firebase/firebaseConfig";
+import { getContrastColor } from "../../../utils/colorUtils";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
+import * as FileSystem from "expo-file-system";
+import * as XLSX from "xlsx";
 
 const P = (v: string | string[] | undefined, fb = "") => Array.isArray(v) ? v[0] : (v ?? fb);
 const isRemoteProofUrl = (value: unknown): value is string => typeof value === "string" && /^https?:\/\//i.test(value);
@@ -151,6 +156,8 @@ export const QuizScoreScreen = () => {
       params: {
         images: encodeURIComponent(JSON.stringify(student.images)),
         student: student.name, section: section, title: activityTitle, color: headerColor,
+        transcription: student.transcribedText || "",
+        explanation: student.verificationLog || "",
       },
     });
   }
@@ -186,6 +193,80 @@ export const QuizScoreScreen = () => {
     setAiDetailsOpen(true);
   }
 
+  async function handleExport(format: "CSV" | "XLSX" | "PDF") {
+    try {
+      setExportOpen(false);
+      const rows = students.map((s) => ({
+        Name: s.name,
+        Score: typeof s.score === "number" ? s.score : "N/A",
+        Total: s.total ?? "N/A",
+        Status: s.status || "pending",
+        Confidence: s.confidenceScore ? `${s.confidenceScore}%` : "N/A",
+      }));
+
+      if (format === "CSV") {
+        const header = "Name,Score,Total,Status,Confidence\n";
+        const csv = header + rows.map((r) => `"${r.Name}",${r.Score},${r.Total},${r.Status},${r.Confidence}`).join("\n");
+        const fileUri = FileSystem.documentDirectory + `${className}_${activityTitle}_Scores.csv`;
+        await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+        await Sharing.shareAsync(fileUri, { mimeType: "text/csv", dialogTitle: "Export CSV" });
+      } else if (format === "XLSX") {
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Scores");
+        const wbout = XLSX.write(wb, { type: "base64", bookType: "xlsx" });
+        const fileUri = FileSystem.documentDirectory + `${className}_${activityTitle}_Scores.xlsx`;
+        await FileSystem.writeAsStringAsync(fileUri, wbout, { encoding: FileSystem.EncodingType.Base64 });
+        await Sharing.shareAsync(fileUri, { mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", dialogTitle: "Export Excel" });
+      } else if (format === "PDF") {
+        const dateStr = new Date().toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" });
+        const html = `
+          <html><head><style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+            body { font-family: 'Inter', sans-serif; padding: 40px; color: #1F2937; }
+            .header { text-align: center; margin-bottom: 32px; border-bottom: 3px solid ${headerColor}; padding-bottom: 20px; }
+            .title { font-size: 22px; font-weight: 700; margin: 0; color: ${headerColor}; }
+            .subtitle { font-size: 14px; color: #6B7280; margin-top: 6px; }
+            .meta { display: flex; justify-content: space-between; font-size: 12px; color: #6B7280; margin-bottom: 24px; }
+            table { width: 100%; border-collapse: collapse; font-size: 13px; }
+            th { background: ${headerColor}; color: #fff; padding: 12px 16px; text-align: left; font-weight: 600; }
+            td { padding: 10px 16px; border-bottom: 1px solid #E5E7EB; }
+            tr:nth-child(even) { background: #F9FAFB; }
+            .score { font-weight: 700; font-size: 15px; }
+            .badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+            .graded { background: #DEF7EC; color: #00b679; }
+            .pending { background: #FEF3C7; color: #f59e0b; }
+            .footer { text-align: center; margin-top: 32px; font-size: 11px; color: #9CA3AF; }
+          </style></head><body>
+            <div class="header">
+              <p class="title">${className} — ${section}</p>
+              <p class="subtitle">${activityTitle} Score Report</p>
+            </div>
+            <div class="meta">
+              <span>Generated: ${dateStr}</span>
+              <span>Total Students: ${students.length}</span>
+            </div>
+            <table>
+              <tr><th>#</th><th>Student Name</th><th>Score</th><th>Total</th><th>Status</th><th>Confidence</th></tr>
+              ${rows.map((r, i) => `<tr>
+                <td>${i + 1}</td>
+                <td>${r.Name}</td>
+                <td class="score">${r.Score}</td>
+                <td>${r.Total}</td>
+                <td><span class="badge ${r.Status === "graded" ? "graded" : "pending"}">${r.Status}</span></td>
+                <td>${r.Confidence}</td>
+              </tr>`).join("")}
+            </table>
+            <div class="footer">Handwritten AI — Automated Grading System</div>
+          </body></html>`;
+        const { uri } = await Print.printToFileAsync({ html, base64: false });
+        await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: "Export PDF" });
+      }
+    } catch (e: any) {
+      showAlert("Export Error", e.message || "Failed to export.");
+    }
+  }
+
   const sortLabel = (() => {
     switch (sortOption) {
       case "name-asc": return "Name A-Z";
@@ -196,18 +277,26 @@ export const QuizScoreScreen = () => {
     }
   })();
 
+  const headerTextColor = getContrastColor(headerColor);
+
   return (
     <View style={styles.container}>
       <View style={[styles.header, { backgroundColor: headerColor, paddingTop: insets.top + 20 }]}>
-        <TouchableOpacity onPress={() => safeGoBack(router)} style={styles.backBtn}>
-          <Feather name="chevron-left" size={26} color={colors.white} />
+        <TouchableOpacity onPress={() => {
+          if (params.fromCapture === "1") {
+            router.replace("/(tabs)/");
+          } else {
+            safeGoBack(router);
+          }
+        }} style={styles.backBtn}>
+          <Feather name="chevron-left" size={26} color={headerTextColor} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerSmall}>{className} • {section}</Text>
-          <Text style={styles.headerBig} numberOfLines={1}>{activityTitle}</Text>
+          <Text style={[styles.headerSmall, { color: headerTextColor }]}>{className} • {section}</Text>
+          <Text style={[styles.headerBig, { color: headerTextColor }]} numberOfLines={1}>{activityTitle}</Text>
         </View>
         <TouchableOpacity onPress={() => setExportOpen(true)} style={styles.headerActionBtn}>
-          <Feather name="download" size={20} color={colors.white} />
+          <Feather name="download" size={20} color={headerTextColor} />
         </TouchableOpacity>
       </View>
 
@@ -465,6 +554,57 @@ export const QuizScoreScreen = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Export Modal */}
+      <Modal visible={exportOpen} transparent animationType="fade" onRequestClose={() => setExportOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setExportOpen(false)} />
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalTitle}>Export Scores</Text>
+                <Text style={styles.modalSub}>{activityTitle} • {students.length} students</Text>
+              </View>
+              <TouchableOpacity onPress={() => setExportOpen(false)}>
+                <Feather name="x" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.exportOption} onPress={() => handleExport("CSV")}>
+              <View style={[styles.exportIconBox, { backgroundColor: "#dcfce7" }]}>
+                <Feather name="file-text" size={24} color="#16a34a" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.exportOptionTitle}>CSV Spreadsheet</Text>
+                <Text style={styles.exportOptionSub}>Comma-separated, opens in Excel/Google Sheets</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={colors.grayLight} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.exportOption} onPress={() => handleExport("XLSX")}>
+              <View style={[styles.exportIconBox, { backgroundColor: "#dbeafe" }]}>
+                <Feather name="grid" size={24} color="#2563eb" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.exportOptionTitle}>Excel Workbook</Text>
+                <Text style={styles.exportOptionSub}>Native .xlsx format with formatting</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={colors.grayLight} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.exportOption} onPress={() => handleExport("PDF")}>
+              <View style={[styles.exportIconBox, { backgroundColor: "#fee2e2" }]}>
+                <Feather name="printer" size={24} color="#dc2626" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.exportOptionTitle}>PDF Report</Text>
+                <Text style={styles.exportOptionSub}>Print-ready score report with branding</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={colors.grayLight} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -534,4 +674,8 @@ const styles = StyleSheet.create({
   reportSectionTitle: { fontSize: 14, fontFamily: typography.fontFamily.bold, color: colors.text, marginBottom: 12, alignItems: 'center' },
   reportBox: { backgroundColor: colors.grayLight, padding: 16, borderRadius: 16 },
   reportText: { fontSize: 14, fontFamily: typography.fontFamily.medium, color: colors.textSecondary, lineHeight: 22 },
+  exportOption: { flexDirection: "row", alignItems: "center", gap: 16, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: colors.grayLight },
+  exportIconBox: { width: 52, height: 52, borderRadius: 16, justifyContent: "center", alignItems: "center" },
+  exportOptionTitle: { fontSize: 16, fontFamily: typography.fontFamily.bold, color: colors.text },
+  exportOptionSub: { fontSize: 13, fontFamily: typography.fontFamily.medium, color: colors.textSecondary, marginTop: 2 },
 });

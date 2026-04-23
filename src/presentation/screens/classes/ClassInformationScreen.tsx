@@ -7,6 +7,7 @@ import { colors, typography, shadows } from "../../theme";
 import { useAuthSession } from "../../../hooks/useAuthSession";
 import { classRepository } from "../../../data/repositories/FirebaseClassRepository";
 import { safeGoBack } from "../../../utils/navigation";
+import { getContrastColor } from "../../../utils/colorUtils";
 
 export const ClassInformationScreen = () => {
   const router = useRouter();
@@ -64,13 +65,15 @@ export const ClassInformationScreen = () => {
     }, [currentClassId, uid])
   );
 
+  const headerTextColor = getContrastColor(classData.color);
+
   return (
     <View style={styles.container}>
       <View style={[styles.header, { backgroundColor: classData.color, paddingTop: insets.top + 20 }]}>
         <TouchableOpacity onPress={() => safeGoBack(router)} style={styles.backBtn}>
-          <Feather name="chevron-left" size={26} color={colors.white} />
+          <Feather name="chevron-left" size={26} color={headerTextColor} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>{classData.name}</Text>
+        <Text style={[styles.headerTitle, { color: headerTextColor }]} numberOfLines={1}>{classData.name}</Text>
         <TouchableOpacity
           style={styles.editBtn}
           onPress={() =>
@@ -86,7 +89,7 @@ export const ClassInformationScreen = () => {
             })
           }
         >
-          <Feather name="edit-3" size={20} color={colors.white} />
+          <Feather name="edit-3" size={20} color={headerTextColor} />
         </TouchableOpacity>
       </View>
 
