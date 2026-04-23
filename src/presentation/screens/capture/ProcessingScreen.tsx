@@ -28,6 +28,8 @@ type NormalizedExamSettings = {
     multipleChoice: { enabled: boolean; items: number };
     trueFalse: { enabled: boolean; items: number };
     identification: { enabled: boolean; items: number };
+    matching: { enabled: boolean; items: number };
+    enumeration: { enabled: boolean; items: number };
   };
 };
 
@@ -41,6 +43,8 @@ const normalizeExamSettings = (activityData: any): NormalizedExamSettings => {
       multipleChoice: { enabled: Boolean(savedTypes?.multipleChoice?.enabled), items: normalizeItemCount(savedTypes?.multipleChoice?.items) },
       trueFalse: { enabled: Boolean(savedTypes?.trueFalse?.enabled), items: normalizeItemCount(savedTypes?.trueFalse?.items) },
       identification: { enabled: Boolean(savedTypes?.identification?.enabled), items: normalizeItemCount(savedTypes?.identification?.items) },
+      matching: { enabled: Boolean(savedTypes?.matching?.enabled), items: normalizeItemCount(savedTypes?.matching?.items) },
+      enumeration: { enabled: Boolean(savedTypes?.enumeration?.enabled), items: normalizeItemCount(savedTypes?.enumeration?.items) },
     },
   };
 };
@@ -58,7 +62,21 @@ const buildContextPayload = (activityData: any, examSettings: NormalizedExamSett
   }
 
   const obj = examSettings.objectiveTypes;
-  contextParts.push(`=== OBJECTIVE EXAM SETTINGS ===\nTotal exam score: ${examSettings.totalScore}\nMultiple Choice: ${obj.multipleChoice.enabled ? "ENABLED" : "DISABLED"} (${obj.multipleChoice.items} items)\nTrue/False: ${obj.trueFalse.enabled ? "ENABLED" : "DISABLED"} (${obj.trueFalse.items} items)\nIdentification: ${obj.identification.enabled ? "ENABLED" : "DISABLED"} (${obj.identification.items} items)`);
+  const typeEntries = [
+    { key: "multipleChoice", label: "Multiple Choice" },
+    { key: "trueFalse", label: "True/False" },
+    { key: "identification", label: "Identification" },
+    { key: "matching", label: "Matching Type" },
+    { key: "enumeration", label: "Enumeration" },
+  ];
+  const typeLines = typeEntries
+    .map(({ key, label }) => {
+      const t = (obj as any)[key];
+      if (!t) return `${label}: DISABLED (0 items)`;
+      return `${label}: ${t.enabled ? "ENABLED" : "DISABLED"} (${t.items} items)`;
+    })
+    .join("\n");
+  contextParts.push(`=== OBJECTIVE EXAM SETTINGS ===\nTotal exam score: ${examSettings.totalScore}\n${typeLines}`);
 
   const objectiveFiles = activityData?.files ? Object.values(activityData.files) : [];
   const answerKeyUrls = objectiveFiles.map((f: any) => f?.url).filter(isHttpUrl);
@@ -67,7 +85,15 @@ const buildContextPayload = (activityData: any, examSettings: NormalizedExamSett
     contextParts.push(`=== OBJECTIVE ANSWER KEY FILES ===\n${objectiveFiles.map((f: any, idx) => `${idx + 1}. ${f?.name || "Unnamed key"}`).join("\n")}`);
   }
 
-  const referenceUrls = [...essayInstructions.map((i: any) => i?.rubricsUrl), ...essayInstructions.map((i: any) => i?.lessonUrl)].filter(isHttpUrl);
+  // Collect all reference URLs including multi-file lessonUrls
+  const allLessonUrls = essayInstructions.flatMap((i: any) => {
+    const urls: string[] = [];
+    if (Array.isArray(i?.lessonUrls)) urls.push(...i.lessonUrls);
+    else if (i?.lessonUrl) urls.push(i.lessonUrl);
+    return urls;
+  });
+  const allRubricsUrls = essayInstructions.map((i: any) => i?.rubricsUrl);
+  const referenceUrls = [...allRubricsUrls, ...allLessonUrls].filter(isHttpUrl);
   return { context: contextParts.join("\n\n").trim(), answerKeyUrls: Array.from(new Set(answerKeyUrls)), referenceUrls: Array.from(new Set(referenceUrls)) };
 };
 
@@ -80,6 +106,7 @@ export const ProcessingScreen = () => {
   const [backgroundCountdown, setBackgroundCountdown] = useState<number | null>(null);
   const mountedRef = React.useRef(true);
   const backgroundModeRef = React.useRef(false);
+  const hasStartedRef = React.useRef(false);
 
   const classId = P(params.classId);
   const activityId = P(params.activityId);
@@ -87,6 +114,10 @@ export const ProcessingScreen = () => {
   const imageUri = P(params.imageUri);
   const imageUris = useMemo<string[]>(() => params.imageUris ? JSON.parse(P(params.imageUris)) : [imageUri], [params.imageUris, imageUri]);
   const shouldAutoBackground = P(params.background) === "1";
+
+  // Cache nav params in a ref so processExam doesn't re-create on every render
+  const navParamsRef = React.useRef({ name: P(params.name), section: P(params.section), color: P(params.color), title: P(params.title) });
+  navParamsRef.current = { name: P(params.name), section: P(params.section), color: P(params.color), title: P(params.title) };
 
   const safeSetStatus = useCallback((nextStatus: string) => { if (mountedRef.current) setStatus(nextStatus); }, []);
   const sleep = useCallback((ms: number) => new Promise(resolve => setTimeout(resolve, ms)), []);
@@ -181,14 +212,15 @@ export const ProcessingScreen = () => {
       setGradingResult({ essayScoreLog, feedback: result.feedback ?? "" });
 
       if (!backgroundModeRef.current && mountedRef.current) {
-        router.replace({ pathname: "/(tabs)/capture/result", params: { score: String(result.score), total: String(resolvedTotal), feedback: result.feedback, classId, activityId, studentId, name: params.name, section: params.section, color: params.color, title: params.title } });
+        const np = navParamsRef.current;
+        router.replace({ pathname: "/(tabs)/capture/result", params: { score: String(result.score), total: String(resolvedTotal), feedback: result.feedback, classId, activityId, studentId, name: np.name, section: np.section, color: np.color, title: np.title } });
       }
     } catch (error: any) {
       console.error("Processing Error:", error);
       setBackgroundCountdown(null);
       if (!backgroundModeRef.current && mountedRef.current) showAlert("Processing Failed", error.message || "Could not process the exam.", () => safeGoBack(router, '/(tabs)/capture'));
     }
-  }, [activityId, classId, continueInBackground, imageUris, imageUri, resolveNextStudentId, router, safeSetStatus, sleep, shouldAutoBackground, studentId, uploadProofImage, params]);
+  }, [activityId, classId, continueInBackground, imageUris, imageUri, resolveNextStudentId, router, safeSetStatus, sleep, shouldAutoBackground, studentId, uploadProofImage]);
 
   useEffect(() => {
     if (!imageUris.length || !classId || !activityId || !studentId) {
@@ -196,8 +228,12 @@ export const ProcessingScreen = () => {
       safeGoBack(router, '/(tabs)/capture');
       return;
     }
+    // Guard: only run once per mount
+    if (hasStartedRef.current) return;
+    hasStartedRef.current = true;
     processExam();
-  }, [activityId, classId, imageUris.length, processExam, router, studentId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => { return () => { mountedRef.current = false; }; }, []);
 

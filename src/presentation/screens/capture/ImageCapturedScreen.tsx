@@ -66,6 +66,18 @@ export const ImageCapturedScreen = () => {
     });
   };
 
+  const handleAddPage = () => {
+    // Navigate back to camera, passing existing images so next capture appends
+    router.push({
+      pathname: "/(tabs)/capture/photo-taking",
+      params: {
+        classId, activityId, studentId, returnTo,
+        name: originName, section: originSection, color: originColor, title: originTitle,
+        existingUris: JSON.stringify(validImageUris),
+      },
+    });
+  };
+
   return (
     <View style={styles.container}>
       <LinearGradient colors={["#0EA47A", "#017EBA"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.header, { paddingTop: insets.top + 20 }]}>
@@ -139,6 +151,10 @@ export const ImageCapturedScreen = () => {
         <TouchableOpacity style={styles.retakeBtn} onPress={() => safeGoBack(router, '/(tabs)/capture')}>
           <Text style={styles.retakeBtnText}>Retake</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.addPageBtn} onPress={handleAddPage}>
+          <Feather name="plus" size={20} color={colors.primary} />
+          <Text style={styles.addPageBtnText}>Add Page</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.continueBtn} onPress={handleProceed}>
           <Text style={styles.continueBtnText}>Continue</Text>
           <Feather name="arrow-right" size={20} color={colors.white} />
@@ -153,7 +169,7 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 24, flexDirection: "row", alignItems: "center", ...shadows.medium },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
   headerTitle: { color: colors.white, fontSize: 18, fontFamily: typography.fontFamily.bold, flex: 1, textAlign: 'center' },
-  content: { padding: 24, paddingBottom: 150 },
+  content: { padding: 24, paddingBottom: 200 },
   card: { backgroundColor: colors.white, borderRadius: 24, padding: 24, ...shadows.soft, marginBottom: 24 },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 },
   iconWrap: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primary + "15", alignItems: "center", justifyContent: "center" },
@@ -172,9 +188,11 @@ const styles = StyleSheet.create({
   noImageText: { color: colors.textSecondary, fontFamily: typography.fontFamily.medium, marginTop: 16, fontSize: 15 },
   infoCard: { backgroundColor: colors.primary + "10", borderRadius: 24, padding: 20, flexDirection: "row", gap: 16 },
   infoText: { flex: 1, color: colors.primary, fontFamily: typography.fontFamily.medium, fontSize: 14, lineHeight: 22 },
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: "row", paddingHorizontal: 24, paddingTop: 16, backgroundColor: colors.background, gap: 16 },
-  retakeBtn: { flex: 1, paddingVertical: 18, borderRadius: 16, borderWidth: 2, borderColor: colors.grayLight, alignItems: "center", justifyContent: "center" },
-  retakeBtnText: { color: colors.textSecondary, fontSize: 16, fontFamily: typography.fontFamily.bold },
-  continueBtn: { flex: 1.5, backgroundColor: colors.primary, paddingVertical: 18, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, ...shadows.soft },
-  continueBtnText: { color: colors.white, fontSize: 16, fontFamily: typography.fontFamily.bold },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: "row", paddingHorizontal: 16, paddingTop: 16, backgroundColor: colors.background, gap: 10 },
+  retakeBtn: { flex: 1, paddingVertical: 16, borderRadius: 16, borderWidth: 2, borderColor: colors.grayLight, alignItems: "center", justifyContent: "center" },
+  retakeBtnText: { color: colors.textSecondary, fontSize: 14, fontFamily: typography.fontFamily.bold },
+  addPageBtn: { flex: 1, paddingVertical: 16, borderRadius: 16, borderWidth: 2, borderColor: colors.primary, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6, backgroundColor: colors.primary + "08" },
+  addPageBtnText: { color: colors.primary, fontSize: 14, fontFamily: typography.fontFamily.bold },
+  continueBtn: { flex: 1.2, backgroundColor: colors.primary, paddingVertical: 16, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, ...shadows.soft },
+  continueBtnText: { color: colors.white, fontSize: 14, fontFamily: typography.fontFamily.bold },
 });

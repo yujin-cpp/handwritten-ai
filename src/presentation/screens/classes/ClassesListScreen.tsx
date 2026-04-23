@@ -245,7 +245,7 @@ export const ClassesListScreen = () => {
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background },
-  bgWrapper: { position: "absolute", top: 0, left: 0, right: 0, height: 250, overflow: "hidden" },
+  bgWrapper: { position: "absolute", top: 0, left: 0, right: 0, height: 250 },
   bgCurve: { flex: 1 },
   backdropOrbOne: { position: "absolute", width: 250, height: 250, borderRadius: 125, backgroundColor: "rgba(0, 200, 151, 0.08)", top: -50, right: -80 },
   header: { paddingHorizontal: 24, paddingBottom: 20 },
