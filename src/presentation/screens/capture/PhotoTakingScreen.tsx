@@ -31,6 +31,9 @@ export const PhotoTakingScreen = () => {
   const originColor = P(params.color, colors.primary);
   const originTitle = P(params.title, "Activity");
 
+  // Multi-page: read existing captured URIs from previous pages
+  const existingUris: string[] = params.existingUris ? JSON.parse(P(params.existingUris, "[]")) : [];
+
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [isReady, setIsReady] = useState(false);
@@ -54,10 +57,11 @@ export const PhotoTakingScreen = () => {
   };
 
   const goToImageCaptured = (uri: string) => {
+    const allUris = [...existingUris, uri];
     router.push({
       pathname: "/(tabs)/capture/image-captured",
       params: {
-        imageUri: uri, classId, activityId, studentId, returnTo,
+        imageUri: uri, imageUris: JSON.stringify(allUris), classId, activityId, studentId, returnTo,
         name: originName, section: originSection, color: originColor, title: originTitle,
       },
     });
@@ -80,9 +84,21 @@ export const PhotoTakingScreen = () => {
       showAlert("Permission Required", "We need access to your gallery to upload exams.");
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8, allowsMultipleSelection: true });
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      goToImageCaptured(result.assets[0].uri);
+      if (result.assets.length === 1) {
+        goToImageCaptured(result.assets[0].uri);
+      } else {
+        // Multiple images selected — go directly to review with all URIs
+        const allUris = [...existingUris, ...result.assets.map((a) => a.uri)];
+        router.push({
+          pathname: "/(tabs)/capture/image-captured",
+          params: {
+            imageUri: result.assets[0].uri, imageUris: JSON.stringify(allUris), classId, activityId, studentId, returnTo,
+            name: originName, section: originSection, color: originColor, title: originTitle,
+          },
+        });
+      }
     }
   };
 
@@ -146,8 +162,8 @@ const styles = StyleSheet.create({
   iconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 22 },
   headerTitle: { color: colors.white, fontSize: 18, fontFamily: typography.fontFamily.bold },
   camera: { flex: 1 },
-  overlay: { ...StyleSheet.absoluteFillObject, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.3)" },
-  scanFrame: { width: "85%", height: "65%", borderWidth: 2, borderColor: "rgba(255,255,255,0.6)", borderRadius: 24, borderStyle: "dashed" },
+  overlay: { ...StyleSheet.absoluteFillObject, justifyContent: "center", alignItems: "center", pointerEvents: "none" },
+  scanFrame: { width: "75%", aspectRatio: 0.65, borderWidth: 2, borderColor: "rgba(255,255,255,0.6)", borderRadius: 16, borderStyle: "dashed" },
   hintText: { position: "absolute", bottom: 180, textAlign: "center", color: colors.white, fontSize: 15, fontFamily: typography.fontFamily.bold, backgroundColor: "rgba(0,0,0,0.7)", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, overflow: "hidden" },
   bottomBar: { position: "absolute", bottom: 0, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 32, paddingHorizontal: 40, backgroundColor: "rgba(0,0,0,0.8)" },
   shutterOuter: { width: 88, height: 88, borderRadius: 44, borderWidth: 6, borderColor: "rgba(255,255,255,0.4)", alignItems: "center", justifyContent: "center" },

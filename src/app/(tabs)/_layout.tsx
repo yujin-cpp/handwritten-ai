@@ -102,6 +102,7 @@ export default function TabsLayout() {
             tabBarIcon: ({ color }) => (
               <Feather name="camera" color={color} size={22} />
             ),
+            tabBarStyle: { display: "none" },
           }}
         />
 

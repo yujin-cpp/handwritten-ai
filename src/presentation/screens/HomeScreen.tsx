@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Image, BackHandler, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -48,6 +48,16 @@ export const HomeScreen = () => {
     return () => unsubscribe();
   }, [uid]);
 
+  // Prevent Android back button from navigating back to auth screens
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+      // Return true = consume the event, don't go back
+      return true;
+    });
+    return () => handler.remove();
+  }, []);
+
   return (
     <View style={styles.container}>
       {/* Background Shapes matching the web design */}
@@ -63,20 +73,19 @@ export const HomeScreen = () => {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 40 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 40 }]} showsVerticalScrollIndicator={false} bounces={false} overScrollMode="never">
 
         <View style={styles.headerRow}>
-          <Text style={styles.headerText}>
-            Ready for today,{'\n'}
-            <Text style={{ color: colors.white }}>{user?.displayName || 'Professor'}</Text>?
-          </Text>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} style={styles.avatarContainer}>
+          <View style={{ flex: 1, marginRight: 16, marginTop: -20, marginBottom: 20 }}>
+            <Text style={styles.headerText}>
+              Ready for today,{'\n'}
+              <Text style={{ color: colors.white }}>{user?.displayName || 'Professor'}</Text>?
+            </Text>
+            <Text style={[styles.statsText, { marginTop: 0 }]}>You have {stats.totalClasses} classes and {stats.totalGraded} graded papers.</Text>
+          </View>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} style={[styles.avatarContainer, { marginTop: -40 }]}>
             <Image source={{ uri: user?.photoURL || 'https://i.imgur.com/4YQZ6uM.png' }} style={styles.avatar} />
           </TouchableOpacity>
-        </View>
-
-        <View style={styles.statsContainer}>
-          <Text style={styles.statsText}>You have {stats.totalClasses} classes and {stats.totalGraded} graded papers.</Text>
         </View>
 
         <AppCard onPress={() => router.push('/(tabs)/capture')} style={styles.actionCard}>
@@ -138,35 +147,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 28,
   },
   headerText: {
     fontSize: 26,
     fontFamily: typography.fontFamily.semiBold,
     color: colors.text,
     lineHeight: 34,
-  },
-  avatarContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 2,
-    borderColor: colors.white,
-    overflow: 'hidden',
-    ...shadows.soft,
-  },
-  avatar: {
-    width: '100%',
-    height: '100%',
-  },
-  statsContainer: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  statsText: {
-    fontSize: 14,
-    fontFamily: typography.fontFamily.medium,
-    color: colors.textSecondary,
   },
   card: {
     backgroundColor: colors.white,
@@ -190,5 +177,24 @@ const styles = StyleSheet.create({
   cardContentPlaceholder: {
     flexDirection: 'row',
     alignItems: 'center',
-  }
+  },
+  avatarContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
+    borderColor: colors.white,
+    overflow: 'hidden',
+    ...shadows.soft,
+  },
+  avatar: {
+    width: '100%',
+    height: '100%',
+  },
+  statsText: {
+    fontSize: 13,
+    fontFamily: typography.fontFamily.medium,
+    color: colors.white + 'CC',
+    marginTop: 6,
+  },
 });

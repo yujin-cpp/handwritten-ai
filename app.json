@@ -53,6 +53,7 @@
     "extra": {
       "googleAuth": {
         "expoClientId": "1093390926434-ivcngaqpp8d139mp915cdit1ip5v7ggs.apps.googleusercontent.com",
+        "iosClientId": "1093390926434-d0uvi309ncnc8qhhm9rl7b5p6l0t63lm.apps.googleusercontent.com",
         "androidClientId": "1093390926434-49tbmc9iaksm03jaltp34odcoo1sq6kh.apps.googleusercontent.com",
         "webClientId": "1093390926434-ur1pmp59h84rjdmdan930ogjj25742fa.apps.googleusercontent.com"
       },

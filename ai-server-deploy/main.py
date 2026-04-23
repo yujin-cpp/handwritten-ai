@@ -517,6 +517,10 @@ def merge_transcriptions(page_results):
     }
 
 
+
+#=========================================
+#PARAREL RUN TRANSCRIPTION FOR TIER 1
+#=========================================
 def run_transcription(file_data):
     """
     Core transcription logic used by both sync and async routes.

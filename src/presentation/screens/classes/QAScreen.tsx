@@ -26,13 +26,17 @@ import { db } from "../../../firebase/firebaseConfig";
 const P = (v: string | string[] | undefined, fb = "") => Array.isArray(v) ? v[0] : (v ?? fb);
 
 type QAFile = { id: string; name: string; url: string; type?: string };
-type ExamTypeKey = "multipleChoice" | "trueFalse" | "identification";
+type ExamTypeKey = "multipleChoice" | "trueFalse" | "identification" | "matching" | "enumeration";
 type ObjectiveTypeState = Record<ExamTypeKey, { enabled: boolean; items: string }>;
+
+const EXAM_TYPE_KEYS: ExamTypeKey[] = ["multipleChoice", "trueFalse", "identification", "matching", "enumeration"];
 
 const createDefaultObjectiveTypes = (): ObjectiveTypeState => ({
   multipleChoice: { enabled: true, items: "0" },
   trueFalse: { enabled: false, items: "0" },
   identification: { enabled: false, items: "0" },
+  matching: { enabled: false, items: "0" },
+  enumeration: { enabled: false, items: "0" },
 });
 
 const parsePositiveInt = (value: string) => {
@@ -44,6 +48,8 @@ const examTypeLabelMap: Record<ExamTypeKey, string> = {
   multipleChoice: "Multiple Choice",
   trueFalse: "True/False",
   identification: "Identification",
+  matching: "Matching Type",
+  enumeration: "Enumeration",
 };
 
 export const QAScreen = () => {
@@ -96,20 +102,14 @@ export const QAScreen = () => {
       setQaFiles(loadedFiles);
       setTotalScore(savedSettings.totalScore ? String(savedSettings.totalScore) : "");
       setProfessorInstructions(savedSettings.professorInstructions || "");
-      setObjectiveTypes({
-        multipleChoice: {
-          enabled: savedTypes.multipleChoice?.enabled ?? true,
-          items: String(savedTypes.multipleChoice?.items ?? 0),
-        },
-        trueFalse: {
-          enabled: savedTypes.trueFalse?.enabled ?? false,
-          items: String(savedTypes.trueFalse?.items ?? 0),
-        },
-        identification: {
-          enabled: savedTypes.identification?.enabled ?? false,
-          items: String(savedTypes.identification?.items ?? 0),
-        },
-      });
+      const loaded: ObjectiveTypeState = {} as ObjectiveTypeState;
+      for (const key of EXAM_TYPE_KEYS) {
+        loaded[key] = {
+          enabled: savedTypes[key]?.enabled ?? (key === "multipleChoice"),
+          items: String(savedTypes[key]?.items ?? 0),
+        };
+      }
+      setObjectiveTypes(loaded);
       setLoading(false);
     });
 
@@ -128,11 +128,10 @@ export const QAScreen = () => {
       return;
     }
 
-    const normalizedTypes = {
-      multipleChoice: { enabled: objectiveTypes.multipleChoice.enabled, items: parsePositiveInt(objectiveTypes.multipleChoice.items) },
-      trueFalse: { enabled: objectiveTypes.trueFalse.enabled, items: parsePositiveInt(objectiveTypes.trueFalse.items) },
-      identification: { enabled: objectiveTypes.identification.enabled, items: parsePositiveInt(objectiveTypes.identification.items) },
-    };
+    const normalizedTypes: Record<ExamTypeKey, { enabled: boolean; items: number }> = {} as any;
+    for (const key of EXAM_TYPE_KEYS) {
+      normalizedTypes[key] = { enabled: objectiveTypes[key].enabled, items: parsePositiveInt(objectiveTypes[key].items) };
+    }
 
     const enabledTypes = (Object.keys(normalizedTypes) as ExamTypeKey[]).filter((key) => normalizedTypes[key].enabled);
 
@@ -262,71 +261,31 @@ export const QAScreen = () => {
 
           <Text style={styles.inputLabel}>Objective Sections</Text>
 
-          <View style={styles.typeRow}>
-            <View style={styles.typeLabelWrap}>
-              <Text style={styles.typeTitle}>Multiple Choice</Text>
-              <Text style={styles.typeSub}>Auto-grade this section</Text>
-            </View>
-            <Switch
-              value={objectiveTypes.multipleChoice.enabled}
-              onValueChange={(enabled) => setObjectiveTypes((prev) => ({ ...prev, multipleChoice: { ...prev.multipleChoice, enabled } }))}
-              trackColor={{ false: colors.grayLight, true: headerColor + "66" }}
-              thumbColor={objectiveTypes.multipleChoice.enabled ? headerColor : colors.white}
-            />
-          </View>
-          <TextInput
-            value={objectiveTypes.multipleChoice.items}
-            onChangeText={(items) => setObjectiveTypes((prev) => ({ ...prev, multipleChoice: { ...prev.multipleChoice, items } }))}
-            editable={objectiveTypes.multipleChoice.enabled}
-            keyboardType="number-pad"
-            placeholder="Number of items"
-            placeholderTextColor={colors.textSecondary}
-            style={[styles.itemsInput, !objectiveTypes.multipleChoice.enabled && styles.inputDisabled]}
-          />
-
-          <View style={styles.typeRow}>
-            <View style={styles.typeLabelWrap}>
-              <Text style={styles.typeTitle}>True/False</Text>
-              <Text style={styles.typeSub}>Auto-grade this section</Text>
-            </View>
-            <Switch
-              value={objectiveTypes.trueFalse.enabled}
-              onValueChange={(enabled) => setObjectiveTypes((prev) => ({ ...prev, trueFalse: { ...prev.trueFalse, enabled } }))}
-              trackColor={{ false: colors.grayLight, true: headerColor + "66" }}
-              thumbColor={objectiveTypes.trueFalse.enabled ? headerColor : colors.white}
-            />
-          </View>
-          <TextInput
-            value={objectiveTypes.trueFalse.items}
-            onChangeText={(items) => setObjectiveTypes((prev) => ({ ...prev, trueFalse: { ...prev.trueFalse, items } }))}
-            editable={objectiveTypes.trueFalse.enabled}
-            keyboardType="number-pad"
-            placeholder="Number of items"
-            placeholderTextColor={colors.textSecondary}
-            style={[styles.itemsInput, !objectiveTypes.trueFalse.enabled && styles.inputDisabled]}
-          />
-
-          <View style={styles.typeRow}>
-            <View style={styles.typeLabelWrap}>
-              <Text style={styles.typeTitle}>Identification</Text>
-              <Text style={styles.typeSub}>Auto-grade this section</Text>
-            </View>
-            <Switch
-              value={objectiveTypes.identification.enabled}
-              onValueChange={(enabled) => setObjectiveTypes((prev) => ({ ...prev, identification: { ...prev.identification, enabled } }))}
-              trackColor={{ false: colors.grayLight, true: headerColor + "66" }}
-              thumbColor={objectiveTypes.identification.enabled ? headerColor : colors.white}
-            />
-          </View>
-          <TextInput
-            value={objectiveTypes.identification.items}
-            onChangeText={(items) => setObjectiveTypes((prev) => ({ ...prev, identification: { ...prev.identification, items } }))}
-            editable={objectiveTypes.identification.enabled}
-            keyboardType="number-pad"
-            placeholder="Number of items"
-            placeholderTextColor={colors.textSecondary}
-            style={[styles.itemsInput, !objectiveTypes.identification.enabled && styles.inputDisabled]}
-          />
+          {EXAM_TYPE_KEYS.map((key) => (
+            <React.Fragment key={key}>
+              <View style={styles.typeRow}>
+                <View style={styles.typeLabelWrap}>
+                  <Text style={styles.typeTitle}>{examTypeLabelMap[key]}</Text>
+                  <Text style={styles.typeSub}>Auto-grade this section</Text>
+                </View>
+                <Switch
+                  value={objectiveTypes[key].enabled}
+                  onValueChange={(enabled) => setObjectiveTypes((prev) => ({ ...prev, [key]: { ...prev[key], enabled } }))}
+                  trackColor={{ false: colors.grayLight, true: headerColor + "66" }}
+                  thumbColor={objectiveTypes[key].enabled ? headerColor : colors.white}
+                />
+              </View>
+              <TextInput
+                value={objectiveTypes[key].items}
+                onChangeText={(items) => setObjectiveTypes((prev) => ({ ...prev, [key]: { ...prev[key], items } }))}
+                editable={objectiveTypes[key].enabled}
+                keyboardType="number-pad"
+                placeholder="Number of items"
+                placeholderTextColor={colors.textSecondary}
+                style={[styles.itemsInput, !objectiveTypes[key].enabled && styles.inputDisabled]}
+              />
+            </React.Fragment>
+          ))}
 
           <TouchableOpacity
             style={[styles.saveSettingsBtn, { backgroundColor: headerColor }, savingSettings && { opacity: 0.75 }]}

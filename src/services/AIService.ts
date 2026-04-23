@@ -13,6 +13,8 @@ export type ExamSettingsPayload = {
     multipleChoice?: ObjectiveSectionConfig;
     trueFalse?: ObjectiveSectionConfig;
     identification?: ObjectiveSectionConfig;
+    matching?: ObjectiveSectionConfig;
+    enumeration?: ObjectiveSectionConfig;
   };
 };
 

@@ -38,7 +38,7 @@ export const EssayEditScreen = () => {
 
   const [instructions, setInstructions] = useState("");
   const [loading, setLoading] = useState(false);
-  const [lessonAsset, setLessonAsset] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
+  const [lessonAssets, setLessonAssets] = useState<DocumentPicker.DocumentPickerAsset[]>([]);
   const [rubricsAsset, setRubricsAsset] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
 
   async function pickLessonFile() {
@@ -46,9 +46,10 @@ export const EssayEditScreen = () => {
       const result = await DocumentPicker.getDocumentAsync({
         type: ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
         copyToCacheDirectory: true,
+        multiple: true,
       });
-      if (result.canceled || !result.assets?.[0]) return;
-      setLessonAsset(result.assets[0]);
+      if (result.canceled || !result.assets?.length) return;
+      setLessonAssets((prev) => [...prev, ...result.assets]);
     } catch {
       showAlert("Error", "Unable to select file.");
     }
@@ -87,10 +88,15 @@ export const EssayEditScreen = () => {
       const shortTitle = (firstLine && firstLine.slice(0, 40)) || "Essay Instruction";
       const basePath = `essay_assets/${uid}/${classId}/${activityId}`;
 
-      const [lessonUrl, rubricsUrl] = await Promise.all([
-        lessonAsset ? storageRepository.uploadFileFromUri(`${basePath}/${lessonAsset.name}`, lessonAsset.uri) : Promise.resolve(""),
-        rubricsAsset ? storageRepository.uploadFileFromUri(`${basePath}/${rubricsAsset.name}`, rubricsAsset.uri) : Promise.resolve(""),
-      ]);
+      // Upload all lesson assets in parallel
+      const lessonUploads = await Promise.all(
+        lessonAssets.map((asset) =>
+          storageRepository.uploadFileFromUri(`${basePath}/${asset.name}`, asset.uri)
+        )
+      );
+      const rubricsUrl = rubricsAsset
+        ? await storageRepository.uploadFileFromUri(`${basePath}/${rubricsAsset.name}`, rubricsAsset.uri)
+        : "";
 
       const instructionsRef = ref(db, `professors/${uid}/classes/${classId}/activities/${activityId}/essayInstructions`);
       const newRef = push(instructionsRef);
@@ -98,8 +104,10 @@ export const EssayEditScreen = () => {
       await set(newRef, {
         title: shortTitle,
         fullInstructions: instructions,
-        lessonRef: lessonAsset ? lessonAsset.name : "No file attached",
-        lessonUrl: lessonUrl || "No file attached",
+        lessonRef: lessonAssets.length > 0 ? lessonAssets.map((a) => a.name).join(", ") : "No file attached",
+        lessonUrl: lessonUploads[0] || "No file attached",
+        lessonUrls: lessonUploads.length > 0 ? lessonUploads : [],
+        lessonNames: lessonAssets.map((a) => a.name),
         rubrics: rubricsAsset ? rubricsAsset.name : "No file attached",
         rubricsUrl: rubricsUrl || "No file attached",
         createdAt: new Date().toISOString(),
@@ -147,16 +155,26 @@ export const EssayEditScreen = () => {
           <Text style={styles.label}>Support Materials</Text>
 
           <View style={styles.attachmentGroup}>
-            <Text style={styles.subLabel}>Lesson Reference</Text>
+            <Text style={styles.subLabel}>Lesson References</Text>
+            {lessonAssets.map((asset, idx) => (
+              <View key={`${asset.name}-${idx}`} style={[styles.attachBtn, { borderColor: headerColor, backgroundColor: headerColor + "05", marginBottom: 8 }]}>
+                <Feather name="file-text" size={20} color={headerColor} />
+                <Text style={[styles.attachText, { color: headerColor, fontFamily: typography.fontFamily.bold, flex: 1 }]} numberOfLines={1}>
+                  {asset.name}
+                </Text>
+                <TouchableOpacity onPress={() => setLessonAssets((prev) => prev.filter((_, i) => i !== idx))}>
+                  <Feather name="x" size={18} color={colors.danger} />
+                </TouchableOpacity>
+              </View>
+            ))}
             <TouchableOpacity
-              style={[styles.attachBtn, lessonAsset && { borderColor: headerColor, backgroundColor: headerColor + "05" }]}
+              style={styles.attachBtn}
               onPress={pickLessonFile}
             >
-              <Feather name="paperclip" size={20} color={lessonAsset ? headerColor : colors.textSecondary} />
-              <Text style={[styles.attachText, lessonAsset && { color: headerColor, fontFamily: typography.fontFamily.bold }]} numberOfLines={1}>
-                {lessonAsset ? lessonAsset.name : "Attach PDF or Doc"}
+              <Feather name="plus" size={20} color={colors.textSecondary} />
+              <Text style={styles.attachText}>
+                {lessonAssets.length === 0 ? "Attach PDF or Doc" : "Add More Files"}
               </Text>
-              {lessonAsset && <Feather name="check" size={20} color={headerColor} />}
             </TouchableOpacity>
           </View>
 

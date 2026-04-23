@@ -3,6 +3,7 @@ import * as AuthSession from "expo-auth-session";
 
 type GoogleAuthExtra = {
   expoClientId?: string;
+  iosClientId?: string;
   androidClientId?: string;
   webClientId?: string;
 };
@@ -12,6 +13,7 @@ const extra =
 
 export const GOOGLE_AUTH_CONFIG = {
   expoClientId: extra.expoClientId || "",
+  iosClientId: extra.iosClientId || "",
   androidClientId: extra.androidClientId || "",
   webClientId: extra.webClientId || "",
 };
@@ -38,5 +40,5 @@ export const EXPO_GO_GOOGLE_AUTH_MESSAGE =
   "Google sign-in cannot be tested inside Expo Go. Use a development build or an installed Android build for this app so Google can redirect back to the handwrittenai:// scheme.";
 
 export const hasNativeGoogleAuthConfig = Boolean(
-  GOOGLE_AUTH_CONFIG.expoClientId || GOOGLE_AUTH_CONFIG.androidClientId,
+  GOOGLE_AUTH_CONFIG.expoClientId || GOOGLE_AUTH_CONFIG.androidClientId || GOOGLE_AUTH_CONFIG.iosClientId,
 );

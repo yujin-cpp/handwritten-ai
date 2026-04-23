@@ -255,7 +255,7 @@ export const ProfileScreen = () => {
             </View>
             <View style={styles.settingContent}>
               <Text style={styles.settingLabel}>University Email</Text>
-              <Text style={styles.settingValue}>{user?.email}</Text>
+              <Text style={styles.settingValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{user?.email}</Text>
             </View>
             {user?.emailVerified ? (
               <View style={[styles.badge, styles.badgeSuccess]}>
@@ -278,7 +278,7 @@ export const ProfileScreen = () => {
               </View>
               <View style={styles.settingContent}>
                 <Text style={styles.settingLabel}>Personal Email</Text>
-                <Text style={styles.settingValue}>{user?.personalEmail}</Text>
+                <Text style={styles.settingValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{user?.personalEmail}</Text>
               </View>
               {user?.personalEmailVerified ? (
                 <View style={[styles.badge, styles.badgeSuccess]}>

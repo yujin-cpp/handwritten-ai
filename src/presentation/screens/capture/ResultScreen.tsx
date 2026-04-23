@@ -1,16 +1,16 @@
 import React, { useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ref, update } from "firebase/database";
+import { get, ref, update } from "firebase/database";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, typography, shadows } from "../../theme";
 import { auth, db } from "../../../firebase/firebaseConfig";
 import { showAlert } from "../../../utils/alert";
 import { getGradingResult } from "../../../utils/gradingStore";
-
-const P = (v: any, fb: string) => (Array.isArray(v) ? v[0] : v || fb);
+import { P } from "../../../utils/params";
+import { fbPaths } from "../../../utils/firebasePaths";
 
 export const ResultScreen = () => {
   const router = useRouter();
@@ -22,6 +22,22 @@ export const ResultScreen = () => {
   const total = P(params.total, "0");
   const { essayScoreLog, feedback } = getGradingResult();
   const { classId, activityId, studentId } = params;
+
+  const [studentName, setStudentName] = useState("Loading...");
+  const [editableScore, setEditableScore] = useState(P(params.score, "0"));
+  const [isEditingScore, setIsEditingScore] = useState(false);
+
+  React.useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (uid && classId && studentId) {
+      get(ref(db, fbPaths.student(uid, String(classId), String(studentId))))
+        .then(snap => {
+          if (snap.exists()) setStudentName(snap.val().name || "Unknown");
+          else setStudentName("Unknown Student");
+        })
+        .catch(() => setStudentName("Unknown Student"));
+    }
+  }, [classId, studentId]);
 
   const sanitizeForFirebase = (str: string) => {
     if (!str) return str;
@@ -37,9 +53,9 @@ export const ResultScreen = () => {
 
     setSaving(true);
     try {
-      await update(ref(db, `professors/${uid}/classes/${classId}/students/${studentId}/activities/${activityId}`), {
-        score: parseInt(score),
-        total: parseInt(total),
+      await update(ref(db, fbPaths.grade(uid, String(classId), String(studentId), String(activityId))), {
+        score: parseInt(editableScore) || 0,
+        total: parseInt(total) || 0,
         feedback: sanitizeForFirebase(feedback),
         essayScoreLog: sanitizeForFirebase(essayScoreLog),
         gradedAt: new Date().toISOString(),
@@ -48,7 +64,7 @@ export const ResultScreen = () => {
 
       router.push({
         pathname: "/(tabs)/capture/saved",
-        params: { score, total, classId, activityId, studentId, name: params.name, section: params.section, color: params.color, title: params.title },
+        params: { score: editableScore, total, classId, activityId, studentId, name: params.name, section: params.section, color: params.color, title: params.title },
       });
     } catch (error) {
       console.error("Save failed:", error);
@@ -72,9 +88,31 @@ export const ResultScreen = () => {
           <Text style={styles.title}>Scoring Complete</Text>
 
           <View style={styles.scoreRow}>
-            <Text style={styles.scoreText}>{score}</Text>
-            <View style={styles.scoreSeparator} />
-            <Text style={styles.totalText}>{total}</Text>
+            {isEditingScore ? (
+              <View style={styles.editScoreContainer}>
+                <TextInput
+                  value={editableScore}
+                  onChangeText={setEditableScore}
+                  keyboardType="numeric"
+                  style={styles.scoreInput}
+                  autoFocus
+                />
+                <TouchableOpacity onPress={() => setIsEditingScore(false)} style={styles.saveScoreBtn}>
+                  <Feather name="check" size={24} color={colors.white} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <TouchableOpacity onPress={() => setIsEditingScore(true)} style={styles.editableScoreWrap}>
+                  <Text style={styles.scoreText}>{editableScore}</Text>
+                  <View style={styles.editIconBadge}>
+                    <Feather name="edit-2" size={12} color={colors.white} />
+                  </View>
+                </TouchableOpacity>
+                <View style={styles.scoreSeparator} />
+                <Text style={styles.totalText}>{total}</Text>
+              </>
+            )}
           </View>
           <Text style={styles.pointsLabel}>Points Earned</Text>
         </View>
@@ -124,8 +162,8 @@ export const ResultScreen = () => {
 
         <View style={styles.infoSection}>
           <Feather name="user" size={16} color={colors.textSecondary} />
-          <Text style={styles.infoLabel}>Student ID:</Text>
-          <Text style={styles.infoValue}>{studentId}</Text>
+          <Text style={styles.infoLabel}>Student:</Text>
+          <Text style={styles.infoValue}>{studentName}</Text>
         </View>
       </ScrollView>
 
@@ -181,4 +219,9 @@ const styles = StyleSheet.create({
   saveText: { color: colors.white, fontFamily: typography.fontFamily.bold, fontSize: 16 },
   retakeBtn: { marginTop: 16, paddingVertical: 16, alignItems: "center" },
   retakeLabel: { color: colors.danger, fontSize: 15, fontFamily: typography.fontFamily.bold },
+  editableScoreWrap: { flexDirection: "row", alignItems: "flex-start" },
+  editIconBadge: { backgroundColor: colors.primary, width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", marginLeft: -12, marginTop: -4, borderWidth: 2, borderColor: colors.white },
+  editScoreContainer: { flexDirection: "row", alignItems: "center" },
+  scoreInput: { fontSize: 56, fontFamily: typography.fontFamily.bold, color: colors.primary, borderBottomWidth: 2, borderBottomColor: colors.primary, minWidth: 80, textAlign: "center", padding: 0 },
+  saveScoreBtn: { backgroundColor: colors.primary, width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", marginLeft: 16, ...shadows.soft }
 });

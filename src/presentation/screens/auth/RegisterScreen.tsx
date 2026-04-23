@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, ScrollView, Platform } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithCredential } from 'firebase/auth';
 import * as Google from 'expo-auth-session/providers/google';
 import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
+
+WebBrowser.maybeCompleteAuthSession();
 
 import { auth } from '../../../firebase/firebaseConfig';
 import { colors, typography, shadows } from '../../theme';
@@ -23,6 +26,7 @@ export const RegisterScreen = () => {
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     expoClientId: GOOGLE_AUTH_CONFIG.expoClientId || undefined,
+    iosClientId: GOOGLE_AUTH_CONFIG.iosClientId || undefined,
     androidClientId: GOOGLE_AUTH_CONFIG.androidClientId || undefined,
     webClientId: GOOGLE_AUTH_CONFIG.webClientId || undefined,
     responseType: AuthSession.ResponseType.IdToken,
@@ -30,7 +34,7 @@ export const RegisterScreen = () => {
     scopes: ['profile', 'email'],
   });
 
-  const isGoogleDisabled = loading || (Platform.OS !== "web" && (!request || isExpoGo));
+  const isGoogleDisabled = loading || (Platform.OS !== "web" && !request);
 
   React.useEffect(() => {
     if (response?.type === 'success') {
@@ -77,7 +81,6 @@ export const RegisterScreen = () => {
       }
     } else {
       if (!hasNativeGoogleAuthConfig) return Alert.alert("Setup Required", MOBILE_GOOGLE_AUTH_SETUP_MESSAGE);
-      if (isExpoGo) return Alert.alert("Unavailable", EXPO_GO_GOOGLE_AUTH_MESSAGE);
       if (!request) return Alert.alert("Please Wait", "Preparing Google Sign-In...");
       promptAsync();
     }
@@ -101,7 +104,14 @@ export const RegisterScreen = () => {
 
   return (
     <LinearGradient colors={['#0EA47A', '#017EBA']} style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          bounces={false}
+          overScrollMode="never"
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
         <View style={styles.content}>
           <Text style={styles.title}>Create Account</Text>
           <Text style={styles.subtitle}>to get started now!</Text>
@@ -130,7 +140,8 @@ export const RegisterScreen = () => {
             </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </LinearGradient>
   );
 };

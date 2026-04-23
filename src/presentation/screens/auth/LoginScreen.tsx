@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, ScrollView, Platform } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithCredential } from 'firebase/auth';
 import * as Google from 'expo-auth-session/providers/google';
 import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
+
+// Ensures the browser window closes properly after Google auth redirect
+WebBrowser.maybeCompleteAuthSession();
 
 import { auth } from '../../../firebase/firebaseConfig';
 import { classRepository } from '../../../data/repositories/FirebaseClassRepository'; // Just reusing a repository to ensure access to DB
@@ -22,6 +26,7 @@ export const LoginScreen = () => {
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     expoClientId: GOOGLE_AUTH_CONFIG.expoClientId || undefined,
+    iosClientId: GOOGLE_AUTH_CONFIG.iosClientId || undefined,
     androidClientId: GOOGLE_AUTH_CONFIG.androidClientId || undefined,
     webClientId: GOOGLE_AUTH_CONFIG.webClientId || undefined,
     responseType: AuthSession.ResponseType.IdToken,
@@ -29,7 +34,7 @@ export const LoginScreen = () => {
     scopes: ['profile', 'email'],
   });
 
-  const isGoogleDisabled = loading || (Platform.OS !== "web" && (!request || isExpoGo));
+  const isGoogleDisabled = loading || (Platform.OS !== "web" && !request);
 
   React.useEffect(() => {
     if (response?.type === 'success') {
@@ -79,7 +84,6 @@ export const LoginScreen = () => {
       }
     } else {
       if (!hasNativeGoogleAuthConfig) return Alert.alert("Setup Required", MOBILE_GOOGLE_AUTH_SETUP_MESSAGE);
-      if (isExpoGo) return Alert.alert("Unavailable", EXPO_GO_GOOGLE_AUTH_MESSAGE);
       if (!request) return Alert.alert("Please Wait", "Preparing Google Sign-In...");
       promptAsync();
     }
@@ -101,58 +105,66 @@ export const LoginScreen = () => {
 
   return (
     <LinearGradient colors={['#0EA47A', '#017EBA']} style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.content}>
-          <Text style={styles.title}>Welcome,</Text>
-          <Text style={styles.subtitle}>Glad to see you!</Text>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          bounces={false}
+          overScrollMode="never"
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.content}>
+            <Text style={styles.title}>Welcome,</Text>
+            <Text style={styles.subtitle}>Glad to see you!</Text>
 
-          <View style={styles.formGroup}>
-            <TextInput
-              style={styles.input}
-              placeholder="Email Address"
-              placeholderTextColor={colors.grayLight}
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              placeholderTextColor={colors.grayLight}
-              secureTextEntry
-              autoCapitalize="none"
-              value={password}
-              onChangeText={setPassword}
-            />
-          </View>
+            <View style={styles.formGroup}>
+              <TextInput
+                style={styles.input}
+                placeholder="Email Address"
+                placeholderTextColor={colors.grayLight}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Password"
+                placeholderTextColor={colors.grayLight}
+                secureTextEntry
+                autoCapitalize="none"
+                value={password}
+                onChangeText={setPassword}
+              />
+            </View>
 
-          <TouchableOpacity style={styles.forgotPass}>
-            <Text style={styles.forgotText}>Forgot Password?</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.loginBtn} onPress={handleLogin} disabled={loading}>
-            <Text style={styles.loginBtnText}>{loading ? 'Logging in...' : 'Login'}</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.orText}>Or login with</Text>
-
-          <TouchableOpacity 
-            style={[styles.googleBtn, isGoogleDisabled && styles.googleBtnDisabled]} 
-            onPress={onGoogleButtonPress} 
-            disabled={isGoogleDisabled}
-          >
-            <Ionicons name="logo-google" size={24} color={isGoogleDisabled ? colors.textSecondary : colors.text} />
-          </TouchableOpacity>
-
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
-              <Text style={styles.signupText}>Sign Up</Text>
+            <TouchableOpacity style={styles.forgotPass}>
+              <Text style={styles.forgotText}>Forgot Password?</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity style={styles.loginBtn} onPress={handleLogin} disabled={loading}>
+              <Text style={styles.loginBtnText}>{loading ? 'Logging in...' : 'Login'}</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.orText}>Or login with</Text>
+
+            <TouchableOpacity 
+              style={[styles.googleBtn, isGoogleDisabled && styles.googleBtnDisabled]} 
+              onPress={onGoogleButtonPress} 
+              disabled={isGoogleDisabled}
+            >
+              <Ionicons name="logo-google" size={24} color={isGoogleDisabled ? colors.textSecondary : colors.text} />
+            </TouchableOpacity>
+
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Don't have an account? </Text>
+              <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
+                <Text style={styles.signupText}>Sign Up</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </LinearGradient>
   );
 };
