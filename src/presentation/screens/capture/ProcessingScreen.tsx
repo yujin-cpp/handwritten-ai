@@ -12,7 +12,9 @@ import { showAlert } from "../../../utils/alert";
 import { setGradingResult } from "../../../utils/gradingStore";
 import { safeGoBack } from "../../../utils/navigation";
 
-const P = (v: string | string[] | undefined, fb = "") => Array.isArray(v) ? v[0] : (v ?? fb);
+import { P } from "../../../utils/params";
+import { fbPaths } from "../../../utils/firebasePaths";
+
 const isHttpUrl = (value: unknown): value is string => typeof value === "string" && value.startsWith("http");
 const isPersistableProofUri = (value: unknown): value is string => typeof value === "string" && /^https?:\/\//i.test(value);
 
@@ -124,7 +126,7 @@ export const ProcessingScreen = () => {
 
   const resolveNextStudentId = useCallback(async (uid: string) => {
     try {
-      const snapshot = await get(ref(db, `professors/${uid}/classes/${classId}/students`));
+      const snapshot = await get(ref(db, fbPaths.students(uid, classId)));
       if (!snapshot.exists()) return "";
       const data = snapshot.val() || {};
       const students = Object.keys(data).map(id => ({ id, name: String(data[id]?.name || "") })).sort((a, b) => a.name.localeCompare(b.name));
@@ -158,7 +160,7 @@ export const ProcessingScreen = () => {
 
     try {
       safeSetStatus("Loading Activity...");
-      const snapshot = await get(ref(db, `professors/${uid}/classes/${classId}/activities/${activityId}`));
+      const snapshot = await get(ref(db, fbPaths.activity(uid, classId, activityId)));
       if (!snapshot.exists()) throw new Error("Activity not found.");
 
       const activityData = snapshot.val();
@@ -166,7 +168,7 @@ export const ProcessingScreen = () => {
       if (!Number.isFinite(examSettings.totalScore) || examSettings.totalScore <= 0) throw new Error("Please set the Total Score before grading.");
 
       const { context, answerKeyUrls, referenceUrls } = buildContextPayload(activityData, examSettings);
-      const gradePath = `professors/${uid}/classes/${classId}/students/${studentId}/activities/${activityId}`;
+      const gradePath = fbPaths.grade(uid, classId, studentId, activityId);
       const gradeSnapshot = await get(ref(db, gradePath));
       const existingGrade = gradeSnapshot.exists() ? gradeSnapshot.val() : {};
       const existingLatestImage = isPersistableProofUri(existingGrade?.latestImage) ? existingGrade.latestImage : "";
@@ -205,8 +207,12 @@ export const ProcessingScreen = () => {
       const resolvedTotal = Number.isFinite(Number(result.total)) && Number(result.total) > 0 ? Number(result.total) : examSettings.totalScore;
       const essayScoreLog = result.essay_score_log || result.true_enough_reasoning || "";
 
+      // Only mark as fully graded if doing background auto-grading.
+      // Otherwise, mark it as needs_review so the professor can confirm it.
+      const finalStatus = (!backgroundModeRef.current && mountedRef.current) ? "needs_review" : "graded";
+
       await update(ref(db, gradePath), {
-        status: "graded", score: result.score, total: resolvedTotal, feedback: result.feedback, confidence: result.confidence_score, confidenceScore: result.confidence_score, legibility: result.legibility, gradingType: result.grading_type, verificationLog: essayScoreLog, transcribedText: result.transcribed_text, transcription: result.transcribed_text, essayScoreLog, images: mergedImages, latestImage: proofImageUrl || existingLatestImage || "", professorInstructions: examSettings.professorInstructions, objectiveTypes: examSettings.objectiveTypes, totalConfiguredScore: examSettings.totalScore, gradedAt: new Date().toISOString()
+        status: finalStatus, score: result.score, total: resolvedTotal, feedback: result.feedback, confidence: result.confidence_score, confidenceScore: result.confidence_score, legibility: result.legibility, gradingType: result.grading_type, verificationLog: essayScoreLog, transcribedText: result.transcribed_text, transcription: result.transcribed_text, essayScoreLog, images: mergedImages, latestImage: proofImageUrl || existingLatestImage || "", professorInstructions: examSettings.professorInstructions, objectiveTypes: examSettings.objectiveTypes, totalConfiguredScore: examSettings.totalScore, gradedAt: new Date().toISOString()
       });
 
       setGradingResult({ essayScoreLog, feedback: result.feedback ?? "" });
@@ -218,7 +224,18 @@ export const ProcessingScreen = () => {
     } catch (error: any) {
       console.error("Processing Error:", error);
       setBackgroundCountdown(null);
-      if (!backgroundModeRef.current && mountedRef.current) showAlert("Processing Failed", error.message || "Could not process the exam.", () => safeGoBack(router, '/(tabs)/capture'));
+      
+      // Update the status to 'failed' so it's not stuck in 'grading' forever
+      try {
+        const gradePath = fbPaths.grade(uid, classId, studentId, activityId);
+        await update(ref(db, gradePath), { status: "failed" });
+      } catch (e) {
+        console.error("Failed to update status to failed:", e);
+      }
+
+      if (!backgroundModeRef.current && mountedRef.current) {
+        safeSetStatus(`Failed: ${error.message}`);
+      }
     }
   }, [activityId, classId, continueInBackground, imageUris, imageUri, resolveNextStudentId, router, safeSetStatus, sleep, shouldAutoBackground, studentId, uploadProofImage]);
 
@@ -270,6 +287,20 @@ export const ProcessingScreen = () => {
           <Feather name="clock" size={16} color={colors.textSecondary} style={{ marginRight: 8 }} />
           <Text style={styles.hint}>This usually takes 5-10 seconds.</Text>
         </View>
+        {status.startsWith("Failed:") && (
+          <View style={{ marginTop: 24, gap: 12, width: '100%' }}>
+            <TouchableOpacity style={styles.retryBtn} onPress={() => {
+              safeSetStatus("Initializing...");
+              processExam();
+            }}>
+              <Feather name="refresh-cw" size={20} color={colors.white} />
+              <Text style={styles.retryText}>Retry Grading</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => safeGoBack(router, '/(tabs)/capture')}>
+              <Text style={styles.cancelText}>Go Back</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -283,11 +314,15 @@ const styles = StyleSheet.create({
   loaderContainer: { width: 120, height: 120, justifyContent: "center", alignItems: "center", marginBottom: 32 },
   iconOverlay: { position: "absolute", backgroundColor: colors.white, padding: 12, borderRadius: 24, ...shadows.soft },
   title: { fontSize: 24, fontFamily: typography.fontFamily.bold, color: colors.text, marginBottom: 12 },
-  subtitle: { textAlign: "center", color: colors.primary, fontSize: 16, fontFamily: typography.fontFamily.medium, marginBottom: 24 },
-  validationBox: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: colors.primary + "15", borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 16, gap: 12 },
-  validationText: { color: colors.primary, fontSize: 13, fontFamily: typography.fontFamily.bold },
+  subtitle: { fontSize: 16, fontFamily: typography.fontFamily.medium, color: colors.textSecondary, textAlign: "center", paddingHorizontal: 40 },
+  validationBox: { flexDirection: "row", alignItems: "center", backgroundColor: colors.primary + "15", paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, marginTop: 32 },
+  validationText: { fontSize: 13, fontFamily: typography.fontFamily.medium, color: colors.primary, marginLeft: 8 },
   backgroundBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12, backgroundColor: colors.white, borderWidth: 2, borderColor: colors.primary, paddingHorizontal: 24, paddingVertical: 16, borderRadius: 16, marginBottom: 24, ...shadows.soft },
   backgroundBtnText: { color: colors.primary, fontSize: 14, fontFamily: typography.fontFamily.bold, textTransform: "uppercase" },
   infoBox: { flexDirection: "row", alignItems: "center", backgroundColor: colors.grayLight, paddingHorizontal: 20, paddingVertical: 16, borderRadius: 16 },
   hint: { color: colors.textSecondary, fontSize: 14, fontFamily: typography.fontFamily.medium },
+  retryBtn: { backgroundColor: colors.primary, paddingVertical: 16, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', ...shadows.soft },
+  retryText: { color: colors.white, fontSize: 16, fontFamily: typography.fontFamily.bold, marginLeft: 8 },
+  cancelBtn: { paddingVertical: 16, alignItems: 'center' },
+  cancelText: { color: colors.textSecondary, fontSize: 16, fontFamily: typography.fontFamily.medium }
 });
