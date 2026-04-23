@@ -80,7 +80,7 @@ export const ProcessingScreen = () => {
   const [backgroundCountdown, setBackgroundCountdown] = useState<number | null>(null);
   const mountedRef = React.useRef(true);
   const backgroundModeRef = React.useRef(false);
-
+ const isProcessingRef = React.useRef(false);
   const classId = P(params.classId);
   const activityId = P(params.activityId);
   const studentId = P(params.studentId);
@@ -122,6 +122,9 @@ export const ProcessingScreen = () => {
   }, [activityId, classId, router]);
 
   const processExam = useCallback(async () => {
+    if(isProcessingRef.current) return;
+    isProcessingRef.current = true;
+
     const uid = auth.currentUser?.uid;
     if (!uid) return;
 
@@ -166,7 +169,15 @@ export const ProcessingScreen = () => {
 
       safeSetStatus("Analyzing Handwriting...");
       const { processWithAI } = await import("../../../services/AIService");
-      const result = await processWithAI(imageUris, "grade", context, answerKeyUrls, referenceUrls, { totalScore: examSettings.totalScore, professorInstructions: examSettings.professorInstructions, objectiveTypes: examSettings.objectiveTypes });
+      const result = await processWithAI(
+        imageUris,
+        "grade",
+        context,
+        answerKeyUrls,
+        referenceUrls,
+        undefined,
+        safeSetStatus,
+      );
 
       if (!result || typeof result.score === "undefined") throw new Error("No grading result returned by AI server.");
 
@@ -187,6 +198,8 @@ export const ProcessingScreen = () => {
       console.error("Processing Error:", error);
       setBackgroundCountdown(null);
       if (!backgroundModeRef.current && mountedRef.current) showAlert("Processing Failed", error.message || "Could not process the exam.", () => safeGoBack(router, '/(tabs)/capture'));
+    }finally{
+      isProcessingRef.current = false;
     }
   }, [activityId, classId, continueInBackground, imageUris, imageUri, resolveNextStudentId, router, safeSetStatus, sleep, shouldAutoBackground, studentId, uploadProofImage, params]);
 
@@ -197,7 +210,7 @@ export const ProcessingScreen = () => {
       return;
     }
     processExam();
-  }, [activityId, classId, imageUris.length, processExam, router, studentId]);
+  }, []);
 
   useEffect(() => { return () => { mountedRef.current = false; }; }, []);
 
