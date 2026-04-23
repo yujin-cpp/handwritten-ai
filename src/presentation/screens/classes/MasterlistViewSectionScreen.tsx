@@ -19,6 +19,7 @@ import { useAuthSession } from "../../../hooks/useAuthSession";
 import { studentRepository } from "../../../data/repositories/FirebaseStudentRepository";
 import { showAlert, showConfirm } from "../../../utils/alert";
 import { safeGoBack } from "../../../utils/navigation";
+import { getContrastColor } from "../../../utils/colorUtils";
 
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -232,18 +233,20 @@ export const MasterlistViewSectionScreen = () => {
     });
   };
 
+  const headerTextColor = getContrastColor(headerColor);
+
   return (
     <View style={styles.container}>
       <View style={[styles.header, { backgroundColor: headerColor, paddingTop: insets.top + 20 }]}>
         <TouchableOpacity onPress={() => safeGoBack(router)} style={styles.backBtn}>
-          <Feather name="chevron-left" size={26} color={colors.white} />
+          <Feather name="chevron-left" size={26} color={headerTextColor} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerSmall}>{className}</Text>
-          <Text style={styles.headerBig} numberOfLines={1}>{section}</Text>
+          <Text style={[styles.headerSmall, { color: headerTextColor }]}>{className}</Text>
+          <Text style={[styles.headerBig, { color: headerTextColor }]} numberOfLines={1}>{section}</Text>
         </View>
         <TouchableOpacity onPress={() => setExportOpen(true)} style={styles.headerActionBtn}>
-          <Feather name="download" size={20} color={colors.white} />
+          <Feather name="download" size={20} color={headerTextColor} />
         </TouchableOpacity>
       </View>
 

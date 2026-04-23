@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Image, BackHandler, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { auth } from '../../firebase/firebaseConfig';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, typography, shadows } from '../theme';
 import { classRepository } from '../../data/repositories/FirebaseClassRepository';
@@ -22,6 +23,13 @@ export const HomeScreen = () => {
   const { uid, user } = useAuthSession();
 
   const [stats, setStats] = useState({ totalClasses: 0, totalGraded: 0 });
+  const [currentUser, setCurrentUser] = useState(auth.currentUser);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      setCurrentUser(auth.currentUser ? { ...auth.currentUser } as any : null);
+    }, [])
+  );
 
   useEffect(() => {
     if (!uid) return;
@@ -79,12 +87,12 @@ export const HomeScreen = () => {
           <View style={{ flex: 1, marginRight: 16, marginTop: -20, marginBottom: 20 }}>
             <Text style={styles.headerText}>
               Ready for today,{'\n'}
-              <Text style={{ color: colors.white }}>{user?.displayName || 'Professor'}</Text>?
+              <Text style={{ color: colors.white }}>{currentUser?.displayName || user?.displayName || 'Professor'}</Text>?
             </Text>
             <Text style={[styles.statsText, { marginTop: 0 }]}>You have {stats.totalClasses} classes and {stats.totalGraded} graded papers.</Text>
           </View>
           <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} style={[styles.avatarContainer, { marginTop: -40 }]}>
-            <Image source={{ uri: user?.photoURL || 'https://i.imgur.com/4YQZ6uM.png' }} style={styles.avatar} />
+            <Image source={{ uri: currentUser?.photoURL || user?.photoURL || 'https://i.imgur.com/4YQZ6uM.png' }} style={styles.avatar} />
           </TouchableOpacity>
         </View>
 

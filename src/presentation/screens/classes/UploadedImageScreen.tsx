@@ -15,6 +15,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, typography, shadows } from "../../theme";
 import { safeGoBack } from "../../../utils/navigation";
+import { getContrastColor } from "../../../utils/colorUtils";
 
 const { width, height } = Dimensions.get("window");
 
@@ -29,6 +30,8 @@ export const UploadedImageScreen = () => {
   const student = P(params.student, "Student");
   const section = P(params.section, "");
   const title = P(params.title, "Exam Submission");
+  const transcription = P(params.transcription, "");
+  const explanation = P(params.explanation, "");
 
   const [fullScreenUri, setFullScreenUri] = useState<string | null>(null);
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
@@ -59,15 +62,17 @@ export const UploadedImageScreen = () => {
     }
   }, [params.imageUri, params.images]);
 
+  const headerTextColor = getContrastColor(headerColor);
+
   return (
     <View style={styles.container}>
       <View style={[styles.header, { backgroundColor: headerColor, paddingTop: insets.top + 20 }]}>
         <TouchableOpacity onPress={() => safeGoBack(router)} style={styles.backBtn}>
-          <Feather name="chevron-left" size={26} color={colors.white} />
+          <Feather name="chevron-left" size={26} color={headerTextColor} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerSmall}>{section || "Submission Review"}</Text>
-          <Text style={styles.headerBig} numberOfLines={1}>{student}</Text>
+          <Text style={[styles.headerSmall, { color: headerTextColor }]}>{section || "Submission Review"}</Text>
+          <Text style={[styles.headerBig, { color: headerTextColor }]} numberOfLines={1}>{student}</Text>
         </View>
         <View style={{ width: 40 }} />
       </View>
@@ -128,6 +133,29 @@ export const UploadedImageScreen = () => {
             ))}
           </View>
         )}
+
+        {(transcription.length > 0 || explanation.length > 0) && (
+          <View style={styles.aiResultCard}>
+            <View style={styles.aiResultHeader}>
+              <Feather name="cpu" size={20} color={headerColor} />
+              <Text style={[styles.aiResultTitle, { color: headerColor }]}>AI Validation Result</Text>
+            </View>
+            
+            {transcription.length > 0 && (
+              <View style={styles.aiResultSection}>
+                <Text style={styles.aiResultLabel}>Transcribed Text:</Text>
+                <Text style={styles.aiResultContent}>{transcription}</Text>
+              </View>
+            )}
+
+            {explanation.length > 0 && (
+              <View style={styles.aiResultSection}>
+                <Text style={styles.aiResultLabel}>Explanation & Logic:</Text>
+                <Text style={styles.aiResultContent}>{explanation}</Text>
+              </View>
+            )}
+          </View>
+        )}
       </ScrollView>
 
       {/* Detail Viewer Modal */}
@@ -177,4 +205,10 @@ const styles = StyleSheet.create({
   modalContainer: { flex: 1, backgroundColor: "rgba(0,0,0,0.95)", justifyContent: "center", alignItems: "center" },
   modalClose: { position: "absolute", right: 24, width: 48, height: 48, borderRadius: 24, backgroundColor: "rgba(255,255,255,0.2)", justifyContent: "center", alignItems: "center", zIndex: 10 },
   fullImg: { width: width, height: height },
+  aiResultCard: { backgroundColor: colors.white, borderRadius: 16, padding: 20, marginTop: 24, marginBottom: 40, ...shadows.medium },
+  aiResultHeader: { flexDirection: "row", alignItems: "center", marginBottom: 16, gap: 8 },
+  aiResultTitle: { fontSize: 16, fontFamily: typography.fontFamily.bold },
+  aiResultSection: { marginTop: 12 },
+  aiResultLabel: { fontSize: 13, fontFamily: typography.fontFamily.semiBold, color: colors.textSecondary, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
+  aiResultContent: { fontSize: 15, fontFamily: typography.fontFamily.medium, color: colors.text, lineHeight: 24, backgroundColor: colors.background, padding: 16, borderRadius: 12 }
 });

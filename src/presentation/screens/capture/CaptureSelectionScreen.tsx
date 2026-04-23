@@ -152,11 +152,26 @@ export const CaptureSelectionScreen = () => {
     await fetchSubData(selectedClass.id);
   };
 
-  const handleSelectActivity = (id: string, name: string) => {
+  const handleSelectActivity = async (id: string, name: string) => {
     setSelectedActivityId(id);
     setSelectedActivityName(name);
     setPickerType(null);
     setConfirmed(false);
+    setSelectedStudentId("");
+    setSelectedStudentName("");
+    
+    // Filter out students who are already graded for this activity
+    if (uid && selectedClassId) {
+      setFetchingSubData(true);
+      try {
+        const ungradedStudents = await studentRepository.getUngradedStudents(uid, selectedClassId, id);
+        setStudentsList(ungradedStudents);
+      } catch (error) {
+        console.error("Error fetching ungraded students:", error);
+      } finally {
+        setFetchingSubData(false);
+      }
+    }
   };
 
   const handleSelectStudent = (id: string, name: string) => {
