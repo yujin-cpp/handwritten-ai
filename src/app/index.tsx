@@ -5,10 +5,42 @@ import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "rea
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GlassCard } from "../components/GlassCard";
 import { FloatMotion, PageMotion } from "../components/PageMotion";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useEffect, useState } from "react";
+import { OnboardingScreen } from "../presentation/screens/onboarding/OnboardingScreen";
 
 export default function SplashScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    async function checkFirstLaunch() {
+      try {
+        const hasSeen = await AsyncStorage.getItem("hasSeenOnboarding");
+        if (hasSeen === null) {
+          setIsFirstLaunch(true);
+        } else {
+          setIsFirstLaunch(false);
+        }
+      } catch (error) {
+        setIsFirstLaunch(false);
+      }
+    }
+    checkFirstLaunch();
+  }, []);
+
+  if (isFirstLaunch === null) {
+    return null; // Loading state
+  }
+
+  if (isFirstLaunch) {
+    return (
+      <OnboardingScreen 
+        onFinish={() => setIsFirstLaunch(false)} 
+      />
+    );
+  }
 
   return (
     <LinearGradient colors={["#0B8C70", "#0E7E99", "#14546F"]} style={styles.container}>

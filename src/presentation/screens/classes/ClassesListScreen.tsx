@@ -15,6 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { colors, typography, shadows } from "../../theme";
 import { classRepository } from "../../../data/repositories/FirebaseClassRepository";
 import { useAuthSession } from "../../../hooks/useAuthSession";
+import { getContrastColor } from "../../../utils/colorUtils";
 
 type ClassItem = {
   id: string;
@@ -158,44 +159,47 @@ export const ClassesListScreen = () => {
         )}
 
         <View style={styles.grid}>
-          {items.map((item) => (
-            <Pressable
-              key={item.id}
-              style={[
-                styles.classCard,
-                { borderTopColor: item.color, borderTopWidth: 6 },
-                editMode && selected.has(item.id) && { opacity: 0.7, transform: [{ scale: 0.96 }] }
-              ]}
-              onPress={() =>
-                editMode
-                  ? toggleSelect(item.id)
-                  : router.push({
-                    pathname: "/(tabs)/classes/classinformation",
-                    params: {
-                      classId: item.id,
-                      name: item.name,
-                      section: item.section,
-                      color: item.color,
-                      academicYear: item.academicYear
-                    },
-                  })
-              }
-            >
-              <Text style={styles.className} numberOfLines={1}>{item.name}</Text>
-              <Text style={styles.classSection} numberOfLines={1}>{item.section}</Text>
-              
-              <View style={styles.studentCount}>
-                <Feather name="users" size={14} color={colors.textSecondary} style={{ marginRight: 6 }} />
-                <Text style={styles.studentCountText}>{item.studentCount} Students</Text>
-              </View>
-
-              {editMode && (
-                <View style={[styles.selectCircle, selected.has(item.id) && styles.selectCircleActive]}>
-                  {selected.has(item.id) && <Feather name="check" size={12} color="#fff" />}
+          {items.map((item) => {
+            const contrastTextColor = getContrastColor(item.color);
+            return (
+              <Pressable
+                key={item.id}
+                style={[
+                  styles.classCard,
+                  { backgroundColor: item.color },
+                  editMode && selected.has(item.id) && { opacity: 0.7, transform: [{ scale: 0.96 }] }
+                ]}
+                onPress={() =>
+                  editMode
+                    ? toggleSelect(item.id)
+                    : router.push({
+                      pathname: "/(tabs)/classes/classinformation",
+                      params: {
+                        classId: item.id,
+                        name: item.name,
+                        section: item.section,
+                        color: item.color,
+                        academicYear: item.academicYear
+                      },
+                    })
+                }
+              >
+                <Text style={[styles.className, { color: contrastTextColor }]} numberOfLines={1}>{item.name}</Text>
+                <Text style={[styles.classSection, { color: contrastTextColor }]} numberOfLines={1}>{item.section}</Text>
+                
+                <View style={styles.studentCount}>
+                  <Feather name="users" size={14} color={contrastTextColor} style={{ marginRight: 6, opacity: 0.8 }} />
+                  <Text style={[styles.studentCountText, { color: contrastTextColor, opacity: 0.8 }]}>{item.studentCount} Students</Text>
                 </View>
-              )}
-            </Pressable>
-          ))}
+
+                {editMode && (
+                  <View style={[styles.selectCircle, selected.has(item.id) && styles.selectCircleActive]}>
+                    {selected.has(item.id) && <Feather name="check" size={12} color="#fff" />}
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
 
           {!editMode && (
             <TouchableOpacity style={styles.addCard} onPress={() => router.push("/(tabs)/classes/addclass")}>

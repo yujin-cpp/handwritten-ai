@@ -9,8 +9,11 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Dimensions,
+  PanResponder,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, typography, shadows } from "../../theme";
@@ -18,6 +21,7 @@ import { classRepository } from "../../../data/repositories/FirebaseClassReposit
 import { useAuthSession } from "../../../hooks/useAuthSession";
 import { showAlert } from "../../../utils/alert";
 import { safeGoBack } from "../../../utils/navigation";
+import { getContrastColor } from "../../../utils/colorUtils";
 
 const YEARS = ["A.Y. 2025 - 2026", "A.Y. 2026 - 2027", "A.Y. 2027 - 2028"];
 const SWATCHES = [
@@ -43,6 +47,26 @@ export const EditClassScreen = () => {
   const [themeModal, setThemeModal] = useState(false);
   const [yearOpen, setYearOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const sliderWidth = Dimensions.get("window").width - 80;
+
+  const colorSliderResponder = React.useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (e) => {
+        const x = e.nativeEvent.locationX;
+        const h = Math.max(0, Math.min(360, (x / sliderWidth) * 360));
+        setTheme(`hsl(${Math.round(h)}, 70%, 50%)`);
+      },
+      onPanResponderMove: (e, gestureState) => {
+        let x = gestureState.moveX - 40; // Subtract padding Left
+        x = Math.max(0, Math.min(sliderWidth, x));
+        const h = (x / sliderWidth) * 360;
+        setTheme(`hsl(${Math.round(h)}, 70%, 50%)`);
+      },
+    })
+  ).current;
 
   const handleSave = async () => {
     if (!name || !section) {
@@ -163,6 +187,7 @@ export const EditClassScreen = () => {
         </TouchableOpacity>
       </ScrollView>
 
+      {/* Theme Picker Modal */}
       <Modal visible={themeModal} animationType="slide">
         <View style={{ flex: 1, backgroundColor: colors.background }}>
           <View style={[styles.header, { paddingTop: insets.top + 20, borderBottomWidth: 1, borderBottomColor: colors.grayLight }]}>
@@ -174,15 +199,38 @@ export const EditClassScreen = () => {
           </View>
 
           <ScrollView contentContainerStyle={styles.themeGrid}>
-            {SWATCHES.map(s => (
-              <TouchableOpacity
-                key={s}
-                style={[styles.themeSwatch, { backgroundColor: s }]}
-                onPress={() => { setTheme(s); setThemeModal(false); }}
-              >
-                {theme === s && <Feather name="check" size={24} color={colors.white} />}
-              </TouchableOpacity>
-            ))}
+            <View style={styles.previewBox}>
+              <View style={[styles.previewColor, { backgroundColor: theme }]} />
+              <Text style={styles.previewText}>Dynamic Color Preview</Text>
+            </View>
+
+            <View style={styles.sliderContainer} {...colorSliderResponder.panHandlers}>
+              <LinearGradient
+                colors={["#ff0000", "#ffff00", "#00ff00", "#00ffff", "#0000ff", "#ff00ff", "#ff0000"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.colorSlider}
+              />
+              <Text style={styles.sliderHint}>Slide or tap to select a color</Text>
+            </View>
+
+            <Text style={styles.orText}>Or pick a preset:</Text>
+
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16, justifyContent: "flex-start" }}>
+              {SWATCHES.map((s) => (
+                <TouchableOpacity
+                  key={s}
+                  style={[styles.themeSwatch, { backgroundColor: s }]}
+                  onPress={() => { setTheme(s); setThemeModal(false); }}
+                >
+                  {theme === s && <Feather name="check" size={24} color={colors.white} />}
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity style={styles.doneBtn} onPress={() => setThemeModal(false)}>
+              <Text style={styles.doneBtnText}>Confirm Color</Text>
+            </TouchableOpacity>
           </ScrollView>
         </View>
       </Modal>
@@ -211,6 +259,15 @@ const styles = StyleSheet.create({
   moreColorsBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.grayLight, alignItems: "center", justifyContent: "center" },
   saveBtnAction: { marginTop: 20, backgroundColor: colors.primary, paddingVertical: 18, borderRadius: 16, flexDirection: 'row', alignItems: "center", justifyContent: 'center', ...shadows.soft },
   saveTextAction: { color: colors.white, fontFamily: typography.fontFamily.bold, fontSize: 16 },
-  themeGrid: { padding: 24, flexDirection: "row", flexWrap: "wrap", gap: 16, justifyContent: "flex-start" },
-  themeSwatch: { width: "21%", aspectRatio: 1, borderRadius: 999, alignItems: 'center', justifyContent: 'center', marginBottom: 5, ...shadows.soft },
+  themeGrid: { padding: 20, paddingBottom: 60 },
+  themeSwatch: { width: "20%", aspectRatio: 1, borderRadius: 16, justifyContent: "center", alignItems: "center", ...shadows.soft },
+  previewBox: { alignItems: "center", marginBottom: 32 },
+  previewColor: { width: 100, height: 100, borderRadius: 50, ...shadows.medium, marginBottom: 16 },
+  previewText: { fontFamily: typography.fontFamily.medium, color: colors.textSecondary },
+  sliderContainer: { height: 40, justifyContent: "center", marginBottom: 40, paddingHorizontal: 20 },
+  colorSlider: { height: 16, borderRadius: 8, width: "100%" },
+  sliderHint: { position: "absolute", bottom: -24, left: 20, right: 20, textAlign: "center", fontSize: 12, color: colors.textSecondary, fontFamily: typography.fontFamily.medium },
+  orText: { fontFamily: typography.fontFamily.bold, color: colors.text, marginBottom: 16, fontSize: 16 },
+  doneBtn: { backgroundColor: colors.primary, paddingVertical: 18, borderRadius: 16, alignItems: "center", marginTop: 40, ...shadows.soft },
+  doneBtnText: { color: colors.white, fontSize: 16, fontFamily: typography.fontFamily.bold }
 });
