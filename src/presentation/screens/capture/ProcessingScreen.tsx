@@ -108,14 +108,7 @@ export const ProcessingScreen = () => {
   const [backgroundCountdown, setBackgroundCountdown] = useState<number | null>(null);
   const mountedRef = React.useRef(true);
   const backgroundModeRef = React.useRef(false);
-  const hasStartedRef = React.useRef(false);
-
-  useEffect(() => {
-    if (Platform.OS !== "android") return;
-    const backHandler = BackHandler.addEventListener("hardwareBackPress", () => true);
-    return () => backHandler.remove();
-  }, []);
-
+ const isProcessingRef = React.useRef(false);
   const classId = P(params.classId);
   const activityId = P(params.activityId);
   const studentId = P(params.studentId);
@@ -161,6 +154,9 @@ export const ProcessingScreen = () => {
   }, [activityId, classId, router]);
 
   const processExam = useCallback(async () => {
+    if(isProcessingRef.current) return;
+    isProcessingRef.current = true;
+
     const uid = auth.currentUser?.uid;
     if (!uid) return;
 
@@ -205,7 +201,15 @@ export const ProcessingScreen = () => {
 
       safeSetStatus("Analyzing Handwriting...");
       const { processWithAI } = await import("../../../services/AIService");
-      const result = await processWithAI(imageUris, "grade", context, answerKeyUrls, referenceUrls, { totalScore: examSettings.totalScore, professorInstructions: examSettings.professorInstructions, objectiveTypes: examSettings.objectiveTypes });
+      const result = await processWithAI(
+        imageUris,
+        "grade",
+        context,
+        answerKeyUrls,
+        referenceUrls,
+        undefined,
+        safeSetStatus,
+      );
 
       if (!result || typeof result.score === "undefined") throw new Error("No grading result returned by AI server.");
 
@@ -230,18 +234,9 @@ export const ProcessingScreen = () => {
     } catch (error: any) {
       console.error("Processing Error:", error);
       setBackgroundCountdown(null);
-      
-      // Update the status to 'failed' so it's not stuck in 'grading' forever
-      try {
-        const gradePath = fbPaths.grade(uid, classId, studentId, activityId);
-        await update(ref(db, gradePath), { status: "failed" });
-      } catch (e) {
-        console.error("Failed to update status to failed:", e);
-      }
-
-      if (!backgroundModeRef.current && mountedRef.current) {
-        safeSetStatus(`Failed: ${error.message}`);
-      }
+      if (!backgroundModeRef.current && mountedRef.current) showAlert("Processing Failed", error.message || "Could not process the exam.", () => safeGoBack(router, '/(tabs)/capture'));
+    }finally{
+      isProcessingRef.current = false;
     }
   }, [activityId, classId, continueInBackground, imageUris, imageUri, resolveNextStudentId, router, safeSetStatus, sleep, shouldAutoBackground, studentId, uploadProofImage]);
 
@@ -252,10 +247,7 @@ export const ProcessingScreen = () => {
       return;
     }
     // Guard: only run once per mount
-    if (hasStartedRef.current) return;
-    hasStartedRef.current = true;
     processExam();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => { return () => { mountedRef.current = false; }; }, []);
