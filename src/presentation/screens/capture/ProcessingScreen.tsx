@@ -8,6 +8,7 @@ import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, typography, shadows } from "../../theme";
 import { auth, db, storage } from "../../../firebase/firebaseConfig";
+import { notifyExamProcessingComplete, notifyExamProcessingFailed } from "../../../services/notification.service";
 import { showAlert } from "../../../utils/alert";
 import { setGradingResult } from "../../../utils/gradingStore";
 import { safeGoBack } from "../../../utils/navigation";
@@ -225,6 +226,19 @@ export const ProcessingScreen = () => {
         status: finalStatus, score: result.score, total: resolvedTotal, feedback: result.feedback, confidence: result.confidence_score, confidenceScore: result.confidence_score, legibility: result.legibility, gradingType: result.grading_type, verificationLog: essayScoreLog, transcribedText: result.transcribed_text, transcription: result.transcribed_text, essayScoreLog, images: mergedImages, latestImage: proofImageUrl || existingLatestImage || "", professorInstructions: examSettings.professorInstructions, objectiveTypes: examSettings.objectiveTypes, totalConfiguredScore: examSettings.totalScore, gradedAt: new Date().toISOString()
       });
 
+      if (backgroundModeRef.current || !mountedRef.current) {
+        try {
+          await notifyExamProcessingComplete({
+            studentName: navParamsRef.current.name,
+            activityTitle: navParamsRef.current.title,
+            score: Number(result.score),
+            total: resolvedTotal,
+          });
+        } catch (notifyError) {
+          console.warn("Could not send completion notification", notifyError);
+        }
+      }
+
       setGradingResult({ essayScoreLog, feedback: result.feedback ?? "" });
 
       if (!backgroundModeRef.current && mountedRef.current) {
@@ -234,6 +248,16 @@ export const ProcessingScreen = () => {
     } catch (error: any) {
       console.error("Processing Error:", error);
       setBackgroundCountdown(null);
+      if (backgroundModeRef.current || !mountedRef.current) {
+        try {
+          await notifyExamProcessingFailed({
+            studentName: navParamsRef.current.name,
+            activityTitle: navParamsRef.current.title,
+          });
+        } catch (notifyError) {
+          console.warn("Could not send failure notification", notifyError);
+        }
+      }
       if (!backgroundModeRef.current && mountedRef.current) showAlert("Processing Failed", error.message || "Could not process the exam.", () => safeGoBack(router, '/(tabs)/capture'));
     }finally{
       isProcessingRef.current = false;

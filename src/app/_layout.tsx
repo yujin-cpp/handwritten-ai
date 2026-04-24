@@ -13,6 +13,7 @@ import { useEffect } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { AlertProvider } from "../components/AlertProvider";
 import { UI_COLORS } from "../constants/DesignTokens";
+import { configureLocalNotifications } from "../services/notification.service";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -33,6 +34,12 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [loaded, error]);
+
+  useEffect(() => {
+    configureLocalNotifications().catch((error) => {
+      console.warn("Local notifications setup failed", error);
+    });
+  }, []);
 
   useEffect(() => {
     if (Platform.OS === "web") {
