@@ -91,10 +91,18 @@ export const QuizScoreScreen = () => {
   const [sortOption, setSortOption] = useState<SortOption>("none");
 
   const [missingOpen, setMissingOpen] = useState(false);
+
   const [selectedSection, setSelectedSection] = useState<{
     title: string;
     lines: string[];
+    sectionScore: string;
   } | null>(null);
+  const [selectedEssaySection, setSelectedEssaySection] = useState<{
+    title: string;
+    lines: string[];
+    finalScore: string;
+  } | null>(null);
+
   useEffect(() => {
     if (!uid || !classId || !activityId) return;
 
@@ -845,19 +853,33 @@ export const QuizScoreScreen = () => {
                   </Text>
                 </View>
               </View>
+
               {/* Objective Score Log */}
               {aiTarget?.objectiveScoreLog &&
                 (() => {
-                  const sections: { title: string; lines: string[] }[] = [];
-                  let current: { title: string; lines: string[] } | null = null;
+                  const sections: {
+                    title: string;
+                    lines: string[];
+                    sectionScore: string;
+                  }[] = [];
+                  let current: {
+                    title: string;
+                    lines: string[];
+                    sectionScore: string;
+                  } | null = null;
 
                   aiTarget.objectiveScoreLog.split("\n").forEach((line) => {
                     const isSection =
                       line.startsWith("[") && line.endsWith("]");
                     if (isSection) {
                       if (current) sections.push(current);
-                      current = { title: line, lines: [] };
+                      current = { title: line, lines: [], sectionScore: "" };
                     } else if (current) {
+                      if (line.startsWith("SECTION SCORE")) {
+                        current.sectionScore = line
+                          .replace("SECTION SCORE:", "")
+                          .trim();
+                      }
                       current.lines.push(line);
                     }
                   });
@@ -868,8 +890,15 @@ export const QuizScoreScreen = () => {
                       <Text style={styles.reportSectionTitle}>
                         📋 Objective Score Log
                       </Text>
-
-                      {/* Section Chips */}
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          alignSelf: "flex-start",
+                          color: colors.textSecondary,
+                        }}
+                      >
+                        Click to see the logs
+                      </Text>
                       <View
                         style={{
                           flexDirection: "row",
@@ -899,119 +928,222 @@ export const QuizScoreScreen = () => {
                               }}
                             >
                               {section.title.replace(/[\[\]]/g, "")}
+                              {section.sectionScore
+                                ? `  ${section.sectionScore}`
+                                : ""}
                             </Text>
                           </TouchableOpacity>
                         ))}
                       </View>
-
-                      {/* Section Detail Modal */}
-                      <Modal
-                        visible={!!selectedSection}
-                        transparent
-                        animationType="slide"
-                        onRequestClose={() => setSelectedSection(null)}
-                      >
-                        <View style={styles.modalOverlay}>
-                          <Pressable
-                            style={StyleSheet.absoluteFillObject}
-                            onPress={() => setSelectedSection(null)}
-                          />
-                          <View
-                            style={[styles.modalCard, { maxHeight: "70%" }]}
-                          >
-                            <View style={styles.modalHeaderRow}>
-                              <Text style={styles.modalTitle}>
-                                {selectedSection?.title.replace(/[\[\]]/g, "")}
-                              </Text>
-                              <TouchableOpacity
-                                onPress={() => setSelectedSection(null)}
-                              >
-                                <Feather
-                                  name="x"
-                                  size={22}
-                                  color={colors.textSecondary}
-                                />
-                              </TouchableOpacity>
-                            </View>
-                            <ScrollView showsVerticalScrollIndicator={false}>
-                              <View style={styles.reportBox}>
-                                {selectedSection?.lines.map((line, i) => {
-                                  const isTotal =
-                                    line.startsWith("TOTAL") ||
-                                    line.startsWith("SECTION SCORE");
-                                  const isDivider =
-                                    line.startsWith("===") || line === "---";
-                                  return (
-                                    <Text
-                                      key={i}
-                                      style={[
-                                        styles.reportText,
-                                        isTotal && {
-                                          color: colors.primary,
-                                          fontFamily:
-                                            typography.fontFamily.bold,
-                                        },
-                                        isDivider && {
-                                          color: colors.grayLight,
-                                          letterSpacing: 2,
-                                        },
-                                      ]}
-                                    >
-                                      {line}
-                                    </Text>
-                                  );
-                                })}
-                              </View>
-                            </ScrollView>
-                          </View>
-                        </View>
-                      </Modal>
                     </View>
                   );
                 })()}
 
               {/* Essay Score Log */}
-              {aiTarget?.essayScoreLog && (
-                <View style={styles.reportSection}>
-                  <Text style={styles.reportSectionTitle}>
-                    ✍️ Essay Score Log
+              {aiTarget?.essayScoreLog &&
+                (() => {
+                  const sections: {
+                    title: string;
+                    lines: string[];
+                    finalScore: string;
+                  }[] = [];
+                  let current: {
+                    title: string;
+                    lines: string[];
+                    finalScore: string;
+                  } | null = null;
+
+                  aiTarget.essayScoreLog.split("\n").forEach((line) => {
+                    if (line.startsWith("Question:")) {
+                      if (current) sections.push(current);
+                      current = { title: line, lines: [], finalScore: "" };
+                    } else if (current) {
+                      if (line.startsWith("Final Score:")) {
+                        // Extract e.g. "5" from "Final Score: floor((4/4) * 5) = 5"
+                        const match = line.match(/=\s*(\d+)/);
+                        current.finalScore = match ? match[1] : "";
+                      }
+                      current.lines.push(line);
+                    }
+                  });
+                  if (current) sections.push(current);
+
+                  return (
+                    <View style={styles.reportSection}>
+                      <Text style={styles.reportSectionTitle}>
+                        ✍️ Essay Score Log
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          alignSelf: "flex-start",
+                          color: colors.textSecondary,
+                        }}
+                      >
+                        Click to see the logs
+                      </Text>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          flexWrap: "wrap",
+                          gap: 8,
+                          marginTop: 8,
+                        }}
+                      >
+                        {sections.map((section, i) => (
+                          <TouchableOpacity
+                            key={i}
+                            onPress={() => setSelectedEssaySection(section)}
+                            style={{
+                              paddingHorizontal: 14,
+                              paddingVertical: 8,
+                              borderRadius: 20,
+                              backgroundColor: "#00b679" + "20",
+                              borderWidth: 1,
+                              borderColor: "#00b679",
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: "#00b679",
+                                fontFamily: typography.fontFamily.medium,
+                                fontSize: 13,
+                              }}
+                            >
+                              {section.title}
+                              {section.finalScore
+                                ? `  (${section.finalScore} pts)`
+                                : ""}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  );
+                })()}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Objective Section Detail Modal */}
+      <Modal
+        visible={!!selectedSection}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedSection(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFillObject}
+            onPress={() => setSelectedSection(null)}
+          />
+          <View style={[styles.modalCard, { maxHeight: "70%" }]}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalTitle}>
+                  {selectedSection?.title.replace(/[\[\]]/g, "")}
+                </Text>
+                {selectedSection?.sectionScore ? (
+                  <Text style={styles.modalSub}>
+                    Score: {selectedSection.sectionScore}
                   </Text>
-                  <View style={styles.reportBox}>
-                    {aiTarget.essayScoreLog.split("\n").map((line, i) => {
-                      const isCriterion = line.includes("→");
-                      const isTotal = line.startsWith("TOTAL");
-                      const isQuestion = line.startsWith("Question:");
-                      const isReason = line.startsWith("Reason:");
-                      const isDivider = line === "---";
-                      return (
-                        <Text
-                          key={i}
-                          style={[
-                            styles.reportText,
-                            isCriterion && {
-                              color: "#00b679",
-                              fontFamily: typography.fontFamily.medium,
-                            },
-                            isTotal && {
-                              color: colors.primary,
-                              fontFamily: typography.fontFamily.bold,
-                            },
-                            isQuestion && {
-                              color: colors.text,
-                              fontFamily: typography.fontFamily.bold,
-                              marginTop: 8,
-                            },
-                            isReason && { fontStyle: "italic" },
-                            isDivider && { color: colors.grayLight },
-                          ]}
-                        >
-                          {line}
-                        </Text>
-                      );
-                    })}
-                  </View>
-                </View>
-              )}
+                ) : null}
+              </View>
+              <TouchableOpacity onPress={() => setSelectedSection(null)}>
+                <Feather name="x" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.reportBox}>
+                {selectedSection?.lines.map((line, i) => {
+                  const isTotal =
+                    line.startsWith("TOTAL") ||
+                    line.startsWith("SECTION SCORE");
+                  const isDivider = line.startsWith("===") || line === "---";
+                  return (
+                    <Text
+                      key={i}
+                      style={[
+                        styles.reportText,
+                        isTotal && {
+                          color: colors.primary,
+                          fontFamily: typography.fontFamily.bold,
+                        },
+                        isDivider && {
+                          color: colors.grayLight,
+                          letterSpacing: 2,
+                        },
+                      ]}
+                    >
+                      {line}
+                    </Text>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Essay Section Detail Modal */}
+      <Modal
+        visible={!!selectedEssaySection}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedEssaySection(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFillObject}
+            onPress={() => setSelectedEssaySection(null)}
+          />
+          <View style={[styles.modalCard, { maxHeight: "70%" }]}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalTitle}>
+                  {selectedEssaySection?.title}
+                </Text>
+                {selectedEssaySection?.finalScore ? (
+                  <Text style={styles.modalSub}>
+                    Score: {selectedEssaySection.finalScore} pts
+                  </Text>
+                ) : null}
+              </View>
+              <TouchableOpacity onPress={() => setSelectedEssaySection(null)}>
+                <Feather name="x" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.reportBox}>
+                {selectedEssaySection?.lines.map((line, i) => {
+                  const isCriterion = line.includes("→");
+                  const isTotal =
+                    line.startsWith("TOTAL") || line.startsWith("Final Score:");
+                  const isReason = line.startsWith("Reason:");
+                  const isDivider = line === "---";
+                  return (
+                    <Text
+                      key={i}
+                      style={[
+                        styles.reportText,
+                        isCriterion && {
+                          color: "#00b679",
+                          fontFamily: typography.fontFamily.medium,
+                        },
+                        isTotal && {
+                          color: colors.primary,
+                          fontFamily: typography.fontFamily.bold,
+                        },
+                        isReason && { fontStyle: "italic" },
+                        isDivider && { color: colors.grayLight },
+                      ]}
+                    >
+                      {line}
+                    </Text>
+                  );
+                })}
+              </View>
             </ScrollView>
           </View>
         </View>
