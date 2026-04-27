@@ -1,5 +1,13 @@
 import React, { useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -20,7 +28,7 @@ export const ResultScreen = () => {
 
   const score = P(params.score, "0");
   const total = P(params.total, "0");
-  const { essayScoreLog, feedback } = getGradingResult();
+  const { essayScoreLog, objectiveScoreLog, feedback } = getGradingResult();
   const { classId, activityId, studentId } = params;
 
   const [studentName, setStudentName] = useState("Loading...");
@@ -31,7 +39,7 @@ export const ResultScreen = () => {
     const uid = auth.currentUser?.uid;
     if (uid && classId && studentId) {
       get(ref(db, fbPaths.student(uid, String(classId), String(studentId))))
-        .then(snap => {
+        .then((snap) => {
           if (snap.exists()) setStudentName(snap.val().name || "Unknown");
           else setStudentName("Unknown Student");
         })
@@ -41,7 +49,13 @@ export const ResultScreen = () => {
 
   const sanitizeForFirebase = (str: string) => {
     if (!str) return str;
-    return str.replace(/\./g, ",").replace(/\#/g, "-").replace(/\$/g, "-").replace(/\//g, "-").replace(/\[/g, "(").replace(/\]/g, ")");
+    return str
+      .replace(/\./g, ",")
+      .replace(/\#/g, "-")
+      .replace(/\$/g, "-")
+      .replace(/\//g, "-")
+      .replace(/\[/g, "(")
+      .replace(/\]/g, ")");
   };
 
   const handleSave = async () => {
@@ -52,19 +66,42 @@ export const ResultScreen = () => {
     }
 
     setSaving(true);
+    console.log("objectiveScoreLog:", objectiveScoreLog);
     try {
-      await update(ref(db, fbPaths.grade(uid, String(classId), String(studentId), String(activityId))), {
-        score: parseInt(editableScore) || 0,
-        total: parseInt(total) || 0,
-        feedback: sanitizeForFirebase(feedback),
-        essayScoreLog: sanitizeForFirebase(essayScoreLog),
-        gradedAt: new Date().toISOString(),
-        status: "graded",
-      });
+      await update(
+        ref(
+          db,
+          fbPaths.grade(
+            uid,
+            String(classId),
+            String(studentId),
+            String(activityId),
+          ),
+        ),
+        {
+          score: parseInt(editableScore) || 0,
+          total: parseInt(total) || 0,
+          feedback: sanitizeForFirebase(feedback),
+          essayScoreLog: sanitizeForFirebase(essayScoreLog),
+          objectiveScoreLog: sanitizeForFirebase(objectiveScoreLog),
+          gradedAt: new Date().toISOString(),
+          status: "graded",
+        },
+      );
 
       router.push({
         pathname: "/(tabs)/capture/saved",
-        params: { score: editableScore, total, classId, activityId, studentId, name: params.name, section: params.section, color: params.color, title: params.title },
+        params: {
+          score: editableScore,
+          total,
+          classId,
+          activityId,
+          studentId,
+          name: params.name,
+          section: params.section,
+          color: params.color,
+          title: params.title,
+        },
       });
     } catch (error) {
       console.error("Save failed:", error);
@@ -76,11 +113,19 @@ export const ResultScreen = () => {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={["#0EA47A", "#017EBA"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.header, { paddingTop: insets.top + 20 }]}>
+      <LinearGradient
+        colors={["#0EA47A", "#017EBA"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={[styles.header, { paddingTop: insets.top + 20 }]}
+      >
         <Text style={styles.headerTitle}>Grading Analysis</Text>
       </LinearGradient>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.scoreCard}>
           <View style={styles.checkCircle}>
             <Feather name="check" size={48} color={colors.white} />
@@ -97,13 +142,19 @@ export const ResultScreen = () => {
                   style={styles.scoreInput}
                   autoFocus
                 />
-                <TouchableOpacity onPress={() => setIsEditingScore(false)} style={styles.saveScoreBtn}>
+                <TouchableOpacity
+                  onPress={() => setIsEditingScore(false)}
+                  style={styles.saveScoreBtn}
+                >
                   <Feather name="check" size={24} color={colors.white} />
                 </TouchableOpacity>
               </View>
             ) : (
               <>
-                <TouchableOpacity onPress={() => setIsEditingScore(true)} style={styles.editableScoreWrap}>
+                <TouchableOpacity
+                  onPress={() => setIsEditingScore(true)}
+                  style={styles.editableScoreWrap}
+                >
                   <Text style={styles.scoreText}>{editableScore}</Text>
                   <View style={styles.editIconBadge}>
                     <Feather name="edit-2" size={12} color={colors.white} />
@@ -137,7 +188,9 @@ export const ResultScreen = () => {
               {essayScoreLog.split("\n").map((line: string, index: number) => {
                 const isCriterion = line.includes("→");
                 const isTotal = line.startsWith("TOTAL");
-                const isHeader = line.startsWith("ESSAY SCORE LOG") || line.startsWith("Rubric Criteria");
+                const isHeader =
+                  line.startsWith("ESSAY SCORE LOG") ||
+                  line.startsWith("Rubric Criteria");
                 const isQuestion = line.startsWith("Question:");
                 const isReason = line.startsWith("Reason:");
                 return (
@@ -168,17 +221,43 @@ export const ResultScreen = () => {
       </ScrollView>
 
       <View style={[styles.bottomArea, { paddingBottom: insets.bottom + 24 }]}>
-        <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.8 }]} onPress={handleSave} disabled={saving}>
-          {saving ? <ActivityIndicator color={colors.white} /> : (
+        <TouchableOpacity
+          style={[styles.saveBtn, saving && { opacity: 0.8 }]}
+          onPress={handleSave}
+          disabled={saving}
+        >
+          {saving ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
             <>
               <Text style={styles.saveText}>Confirm & Save Grade</Text>
-              <Feather name="database" size={20} color={colors.white} style={{ marginLeft: 12 }} />
+              <Feather
+                name="database"
+                size={20}
+                color={colors.white}
+                style={{ marginLeft: 12 }}
+              />
             </>
           )}
         </TouchableOpacity>
 
         {!saving && (
-          <TouchableOpacity style={styles.retakeBtn} onPress={() => router.replace({ pathname: "/(tabs)/capture", params: { classId: params.classId, activityId: params.activityId, name: params.name, section: params.section, color: params.color, title: params.title } })}>
+          <TouchableOpacity
+            style={styles.retakeBtn}
+            onPress={() =>
+              router.replace({
+                pathname: "/(tabs)/capture",
+                params: {
+                  classId: params.classId,
+                  activityId: params.activityId,
+                  name: params.name,
+                  section: params.section,
+                  color: params.color,
+                  title: params.title,
+                },
+              })
+            }
+          >
             <Text style={styles.retakeLabel}>Discard & Try Again</Text>
           </TouchableOpacity>
         )}
@@ -189,39 +268,193 @@ export const ResultScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  header: { paddingHorizontal: 20, paddingBottom: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", ...shadows.medium },
-  headerTitle: { color: colors.white, fontSize: 18, fontFamily: typography.fontFamily.bold },
+  header: {
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    ...shadows.medium,
+  },
+  headerTitle: {
+    color: colors.white,
+    fontSize: 18,
+    fontFamily: typography.fontFamily.bold,
+  },
   content: { padding: 24, paddingBottom: 150 },
-  scoreCard: { backgroundColor: colors.white, borderRadius: 24, padding: 32, alignItems: "center", marginBottom: 24, ...shadows.soft },
-  checkCircle: { width: 88, height: 88, borderRadius: 44, backgroundColor: colors.primary, justifyContent: "center", alignItems: "center", marginBottom: 24, ...shadows.medium },
-  title: { fontSize: 24, fontFamily: typography.fontFamily.bold, color: colors.text, marginBottom: 24 },
+  scoreCard: {
+    backgroundColor: colors.white,
+    borderRadius: 24,
+    padding: 32,
+    alignItems: "center",
+    marginBottom: 24,
+    ...shadows.soft,
+  },
+  checkCircle: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 24,
+    ...shadows.medium,
+  },
+  title: {
+    fontSize: 24,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.text,
+    marginBottom: 24,
+  },
   scoreRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
-  scoreText: { fontSize: 64, fontFamily: typography.fontFamily.bold, color: colors.primary },
-  scoreSeparator: { width: 2, height: 48, backgroundColor: colors.grayLight, marginHorizontal: 20, transform: [{ rotate: "20deg" }] },
-  totalText: { fontSize: 40, fontFamily: typography.fontFamily.bold, color: colors.textSecondary },
-  pointsLabel: { fontSize: 13, fontFamily: typography.fontFamily.bold, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: 1 },
+  scoreText: {
+    fontSize: 64,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.primary,
+  },
+  scoreSeparator: {
+    width: 2,
+    height: 48,
+    backgroundColor: colors.grayLight,
+    marginHorizontal: 20,
+    transform: [{ rotate: "20deg" }],
+  },
+  totalText: {
+    fontSize: 40,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.textSecondary,
+  },
+  pointsLabel: {
+    fontSize: 13,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
   section: { marginBottom: 24 },
-  sectionHeader: { flexDirection: "row", alignItems: "center", marginBottom: 16, marginLeft: 8 },
-  sectionTitle: { fontSize: 16, fontFamily: typography.fontFamily.bold, color: colors.text, marginLeft: 12 },
-  card: { backgroundColor: colors.white, borderRadius: 24, padding: 24, ...shadows.soft },
-  feedbackText: { fontSize: 15, fontFamily: typography.fontFamily.medium, color: colors.text, lineHeight: 24 },
-  logText: { fontSize: 15, fontFamily: typography.fontFamily.medium, color: colors.textSecondary, lineHeight: 24 },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+    marginLeft: 8,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.text,
+    marginLeft: 12,
+  },
+  card: {
+    backgroundColor: colors.white,
+    borderRadius: 24,
+    padding: 24,
+    ...shadows.soft,
+  },
+  feedbackText: {
+    fontSize: 15,
+    fontFamily: typography.fontFamily.medium,
+    color: colors.text,
+    lineHeight: 24,
+  },
+  logText: {
+    fontSize: 15,
+    fontFamily: typography.fontFamily.medium,
+    color: colors.textSecondary,
+    lineHeight: 24,
+  },
   logCriterion: { fontFamily: typography.fontFamily.bold, color: colors.text },
-  logTotal: { fontFamily: typography.fontFamily.bold, color: colors.primary, marginTop: 12 },
+  logTotal: {
+    fontFamily: typography.fontFamily.bold,
+    color: colors.primary,
+    marginTop: 12,
+  },
   logHeader: { fontFamily: typography.fontFamily.bold, color: colors.text },
-  logQuestion: { fontFamily: typography.fontFamily.bold, color: colors.textSecondary },
+  logQuestion: {
+    fontFamily: typography.fontFamily.bold,
+    color: colors.textSecondary,
+  },
   logReason: { fontStyle: "italic", color: colors.textSecondary, fontSize: 13 },
-  infoSection: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: colors.grayLight, paddingVertical: 16, borderRadius: 16 },
-  infoLabel: { fontSize: 13, fontFamily: typography.fontFamily.bold, color: colors.textSecondary, marginLeft: 8, marginRight: 8 },
-  infoValue: { fontSize: 14, fontFamily: typography.fontFamily.bold, color: colors.text },
-  bottomArea: { position: "absolute", bottom: 0, left: 0, right: 0, paddingHorizontal: 24, paddingTop: 20, backgroundColor: colors.background },
-  saveBtn: { backgroundColor: colors.primary, paddingVertical: 18, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", ...shadows.soft },
-  saveText: { color: colors.white, fontFamily: typography.fontFamily.bold, fontSize: 16 },
+  infoSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.grayLight,
+    paddingVertical: 16,
+    borderRadius: 16,
+  },
+  infoLabel: {
+    fontSize: 13,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.textSecondary,
+    marginLeft: 8,
+    marginRight: 8,
+  },
+  infoValue: {
+    fontSize: 14,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.text,
+  },
+  bottomArea: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    backgroundColor: colors.background,
+  },
+  saveBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: 18,
+    borderRadius: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    ...shadows.soft,
+  },
+  saveText: {
+    color: colors.white,
+    fontFamily: typography.fontFamily.bold,
+    fontSize: 16,
+  },
   retakeBtn: { marginTop: 16, paddingVertical: 16, alignItems: "center" },
-  retakeLabel: { color: colors.danger, fontSize: 15, fontFamily: typography.fontFamily.bold },
+  retakeLabel: {
+    color: colors.danger,
+    fontSize: 15,
+    fontFamily: typography.fontFamily.bold,
+  },
   editableScoreWrap: { flexDirection: "row", alignItems: "flex-start" },
-  editIconBadge: { backgroundColor: colors.primary, width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", marginLeft: -12, marginTop: -4, borderWidth: 2, borderColor: colors.white },
+  editIconBadge: {
+    backgroundColor: colors.primary,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: -12,
+    marginTop: -4,
+    borderWidth: 2,
+    borderColor: colors.white,
+  },
   editScoreContainer: { flexDirection: "row", alignItems: "center" },
-  scoreInput: { fontSize: 56, fontFamily: typography.fontFamily.bold, color: colors.primary, borderBottomWidth: 2, borderBottomColor: colors.primary, minWidth: 80, textAlign: "center", padding: 0 },
-  saveScoreBtn: { backgroundColor: colors.primary, width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", marginLeft: 16, ...shadows.soft }
+  scoreInput: {
+    fontSize: 56,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.primary,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.primary,
+    minWidth: 80,
+    textAlign: "center",
+    padding: 0,
+  },
+  saveScoreBtn: {
+    backgroundColor: colors.primary,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 16,
+    ...shadows.soft,
+  },
 });
