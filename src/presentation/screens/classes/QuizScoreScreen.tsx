@@ -27,7 +27,6 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system";
 import * as XLSX from "xlsx";
-import { FileSpreadsheet } from "lucide-react";
 
 const P = (v: string | string[] | undefined, fb = "") =>
   Array.isArray(v) ? v[0] : (v ?? fb);
@@ -883,12 +882,29 @@ export const QuizScoreScreen = () => {
                       current.lines.push(line);
                     }
                   });
+
+                  const totalObjectiveScore =
+                    aiTarget.objectiveScoreLog
+                      .split("\n")
+                      .find((line) =>
+                        line.startsWith("TOTAL OBJECTIVE SCORE:"),
+                      ) ?? "";
+
                   if (current) sections.push(current);
 
                   return (
                     <View style={styles.reportSection}>
                       <Text style={styles.reportSectionTitle}>
                         📋 Objective Score Log
+                      </Text>
+                      <Text
+                        style={{
+                          color: "#00b679",
+                          fontSize: 14,
+                          fontWeight: "bold",
+                        }}
+                      >
+                        {totalObjectiveScore}
                       </Text>
                       <Text
                         style={{
@@ -959,19 +975,34 @@ export const QuizScoreScreen = () => {
                       current = { title: line, lines: [], finalScore: "" };
                     } else if (current) {
                       if (line.startsWith("Final Score:")) {
-                        // Extract e.g. "5" from "Final Score: floor((4/4) * 5) = 5"
                         const match = line.match(/=\s*(\d+)/);
                         current.finalScore = match ? match[1] : "";
                       }
                       current.lines.push(line);
                     }
                   });
+
+                  const totalEssayScore =
+                    aiTarget.essayScoreLog
+                      .split("\n")
+                      .find((line) => line.startsWith("TOTAL ESSAY SCORE:")) ??
+                    "";
+                  console.log(totalEssayScore);
                   if (current) sections.push(current);
 
                   return (
                     <View style={styles.reportSection}>
                       <Text style={styles.reportSectionTitle}>
                         ✍️ Essay Score Log
+                      </Text>
+                      <Text
+                        style={{
+                          color: "#00b679",
+                          fontSize: 14,
+                          fontWeight: "bold",
+                        }}
+                      >
+                        {totalEssayScore}
                       </Text>
                       <Text
                         style={{
