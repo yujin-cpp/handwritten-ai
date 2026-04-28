@@ -958,24 +958,31 @@ export const QuizScoreScreen = () => {
               {/* Essay Score Log */}
               {aiTarget?.essayScoreLog &&
                 (() => {
-                  const sections: {
+                  type EssaySection = {
                     title: string;
                     lines: string[];
                     finalScore: string;
-                  }[] = [];
-                  let current: {
-                    title: string;
-                    lines: string[];
-                    finalScore: string;
-                  } | null = null;
+                  };
+
+                  const sections: EssaySection[] = [];
+                  let current: EssaySection | null = null;
+                  const seen = new Map<string, number>();
 
                   aiTarget.essayScoreLog.split("\n").forEach((line) => {
                     if (line.startsWith("Question:")) {
-                      if (current) sections.push(current);
+                      if (current) {
+                        const existingIndex = seen.get(current.title);
+                        if (existingIndex !== undefined) {
+                          sections[existingIndex] = current; // overwrite duplicate
+                        } else {
+                          seen.set(current.title, sections.length);
+                          sections.push(current);
+                        }
+                      }
                       current = { title: line, lines: [], finalScore: "" };
                     } else if (current) {
                       if (line.startsWith("Final Score:")) {
-                        const match = line.match(/=\s*(\d+)/);
+                        const match = line.match(/Final Score:\s*(\d+)/);
                         current.finalScore = match ? match[1] : "";
                       }
                       current.lines.push(line);
@@ -988,7 +995,14 @@ export const QuizScoreScreen = () => {
                       .find((line) => line.startsWith("TOTAL ESSAY SCORE:")) ??
                     "";
                   console.log(totalEssayScore);
-                  if (current) sections.push(current);
+                  if (current) {
+                    const existingIndex = seen.get(current.title);
+                    if (existingIndex !== undefined) {
+                      sections[existingIndex] = current;
+                    } else {
+                      sections.push(current);
+                    }
+                  }
 
                   return (
                     <View style={styles.reportSection}>
@@ -1596,7 +1610,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   aiStatValue: {
-    fontSize: 18,
+    fontSize: 14,
     fontFamily: typography.fontFamily.bold,
     color: colors.text,
   },
