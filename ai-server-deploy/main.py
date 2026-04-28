@@ -17,6 +17,7 @@ import threading
 import concurrent.futures
 import platform
 import google.api_core.exceptions
+import re
 from queue import Queue
 from dotenv import load_dotenv
 
@@ -39,8 +40,8 @@ for m in genai.list_models():
 # ==========================================
 # SELECT MODELS
 # ==========================================
-transcription_model = genai.GenerativeModel('gemini-2.5-flash-lite')
-grading_model = genai.GenerativeModel('gemini-2.5-flash-lite')
+transcription_model = genai.GenerativeModel('gemini-2.5-pro')
+grading_model = genai.GenerativeModel('gemini-2.5-pro')
 print(f"🎯 TRANSCRIPTION MODEL:", transcription_model.model_name)
 print(f"🎯 GRADING MODEL:", grading_model.model_name)
 
@@ -91,6 +92,14 @@ RULES:
 - Preserve question numbers exactly as written (e.g. 46. 47. 48.)
 - Transcribe ALL numbered questions present in the image.
 
+MULTIPLE CHOICE DETECTION RULES:
+- If a letter option (A, B, C, D) is CIRCLED, UNDERLINED, BOXED, or visually marked
+  next to a question number — treat that as the student's answer.
+- Write it as: "1. B" (question number + selected letter).
+- Do NOT write "BLANK" if you can see a circled or marked letter.
+- A faint circle, partial circle, or checkmark next to a letter still counts as selected.
+- If truly nothing is marked, then write BLANK.
+
 CONFIDENCE RULES:
 - Start at 100
 - Deduct 20 if handwriting is mostly unclear
@@ -110,6 +119,13 @@ GRADING_PROMPT = """
 Target: Deterministic Grading Engine
 Input Context: {context_block}
 Student Transcription: {transcribed_text}
+
+[CRITICAL RULE — PAGE-SCOPED GRADING]
+You are grading ONE PAGE of a multi-page exam.
+- ONLY grade questions that are EXPLICITLY PRESENT in the Student Transcription above.
+- Do NOT invent, assume, or carry over questions from the answer key that are not visible in this transcription.
+- If a question number does not appear in the transcription, SKIP IT entirely — do not mark it as BLANK.
+- If a section header appears in the answer key but no questions from that section appear in the transcription, OMIT that section from your log entirely.
 
 [GRADING RULES]
 1. Detect Sections: Separate ESSAY (Explain/Discuss) from OBJECTIVE (MCQ/TF/Matching).
@@ -170,8 +186,6 @@ Points: 1
 SECTION SCORE: 1 / 1
 =====================================
 
-TOTAL OBJECTIVE SCORE: [sum]
-
 [OUTPUT LOG FORMATS]
 - ESSAY_LOG:
 Question: [number]
@@ -184,9 +198,12 @@ Rubric Max Score: [max]
 Final Score: floor((P/R) * max) = [result]
 Reason: [1-2 sentences]
 
-TOTAL ESSAY SCORE: [sum]
-
-FINAL TOTAL SCORE: [objective + essay]
+After all sections, write:
+TOTAL OBJECTIVE SCORE: {{exact number}}
+=====================================
+TOTAL ESSAY SCORE: {{exact number}}
+=====================================
+FINAL TOTAL SCORE: {{exact number}}
 
 FAIL-SAFE RULES:
 - Missing rubric → score 0.
@@ -226,6 +243,40 @@ def enhance_image(pil_img):
     except Exception as e:
         print(f"⚠️ OpenCV Error: {e}")
         return pil_img
+
+
+def extract_images_to_text(images: list, label: str = "Reference") -> str:
+    """
+    Use Flash to extract text from reference/rubric images once,
+    so they don't need to be re-sent as images to every grading call.
+    """
+    if not images:
+        return ""
+
+    extracted_parts = []
+    for i, img in enumerate(images):
+        buf = io.BytesIO()
+        img.save(buf, format='JPEG', quality=90)
+
+        prompt = """Extract ALL text from this image exactly as written.
+Preserve formatting, numbering, and structure.
+This may be an answer key, rubric, or reference material.
+Return ONLY the extracted text, no commentary."""
+
+        try:
+          response = transcription_model.generate_content(
+            [prompt, {"mime_type": "image/jpeg", "data": buf.getvalue()}],
+            generation_config=GENERATION_CONFIG,
+            safety_settings=SAFETY_SETTINGS,
+          )
+          text = response.text.strip()
+          if text:
+              extracted_parts.append(f"[{label} Image {i+1}]\n{text}")
+              print(f"✅ Extracted {label} image {i+1}: {len(text)} chars")
+        except Exception as e:
+            print(f"⚠️ Could not extract {label} image {i+1}: {e}")
+
+    return "\n\n".join(extracted_parts)
 
 
 def read_file_as_images(file_bytes, label="exam"):
@@ -439,6 +490,40 @@ def save_grade_log(data):
     except Exception as e:
         print(f"⚠️ Could not save grade log: {e}")
 
+def create_context_cache(context_block: str) -> str | None:
+    """
+    Upload the context_block to Gemini's cache.
+    Returns cache name (string) or None if caching failed/not worth it.
+    """
+    # Only cache if context is large enough to be worth it
+    estimated_tokens = len(context_block) // 4
+    if estimated_tokens < 1024:
+        print(f"⚠️ Context too small to cache ({estimated_tokens} est. tokens), skipping.")
+        return None
+
+    try:
+        import datetime
+        cache = genai.caching.CachedContent.create(
+            model='models/gemini-2.5-pro',
+            contents=[context_block],
+            ttl=datetime.timedelta(minutes=60),  # Cache lives 60 mins
+        )
+        print(f"✅ Context cached: {cache.name} | tokens: {cache.usage_metadata.total_token_count}")
+        return cache.name
+    except Exception as e:
+        print(f"⚠️ Context caching failed: {e}. Falling back to inline context.")
+        return None
+
+
+def delete_context_cache(cache_name: str):
+    """Clean up the cache after grading is done."""
+    try:
+        cache = genai.caching.CachedContent.get(cache_name)
+        cache.delete()
+        print(f"🗑️ Cache deleted: {cache_name}")
+    except Exception as e:
+        print(f"⚠️ Could not delete cache {cache_name}: {e}")
+
 
 # ==========================================
 # TRANSCRIPTION HELPERS (per-page + merge)
@@ -484,7 +569,88 @@ def merge_transcriptions(page_results):
         "pages": len(page_results)
     }
 
+def grade_single_page(transcribed_text, context_block, page_num, cache_name: str | None = None):
+    
+    if page_num == 1:
+        identifiers = ["gem 14", "gem-14", "life and works", "jose rizal", "rizal"]
+        text_lower = transcribed_text.lower()
+        if not any(keyword in text_lower for keyword in identifiers):
+            raise ValueError("Wrong subject — this grader only accepts GEM 14 exams.")
+        
+    prompt = GRADING_PROMPT.format(
+        context_block=context_block,
+        transcribed_text=transcribed_text
+    )
 
+    if cache_name:
+        # Use cached content model instead of base model
+        cached_model = genai.GenerativeModel.from_cached_content(
+            cached_content=cache_name
+        )
+        data = call_gemini([prompt], cached_model)
+    else:
+        data = call_gemini([prompt], grading_model)
+
+    data["page"] = page_num
+    print(f"✅ Page {page_num} graded: score={data.get('score')}")
+    return data
+
+def extract_essay_total_from_log(essay_log: str) -> int:
+    """
+    Parse 'Final Score: N' or 'Final Score: floor(...) = N' lines from essay log.
+    """
+    # Match the LAST number on any 'Final Score:' line — handles both formats
+    scores = re.findall(r'Final Score:[^\n]*?(\d+)\s*$', essay_log, re.MULTILINE)
+    return sum(int(s) for s in scores)
+
+
+def merge_grades(page_grades):
+    page_grades.sort(key=lambda x: x["page"])
+
+    combined_objective_log = "\n\n".join(
+        g.get('objective_score_log', '')
+        for g in page_grades
+        if g.get('objective_score_log', '').strip()
+    )
+    combined_essay_log = "\n\n".join(
+        g.get('essay_score_log', '')
+        for g in page_grades
+        if g.get('essay_score_log', '').strip()
+    )
+
+    objective_total = sum(g.get("objective_total", 0) or 0 for g in page_grades)
+
+    essay_total_from_json = sum(g.get("essay_total", 0) or 0 for g in page_grades)
+    essay_total_from_log = extract_essay_total_from_log(combined_essay_log)
+    essay_total = max(essay_total_from_json, essay_total_from_log)
+
+    if essay_total_from_json != essay_total_from_log:
+        print(f"⚠️ Essay total mismatch — JSON: {essay_total_from_json}, Log: {essay_total_from_log}, Using: {essay_total}")
+
+    avg_confidence = sum(g.get("confidence_score", 0) or 0 for g in page_grades) // len(page_grades)
+    feedbacks = [g.get("feedback", "") for g in page_grades if g.get("feedback")]
+
+    #Append totals to the log strings so frontend can find them
+    combined_objective_log += f"\n\n=====================================\nTOTAL OBJECTIVE SCORE: {objective_total}"
+    combined_essay_log += f"\n\n=====================================\nTOTAL ESSAY SCORE: {essay_total}"
+
+    return {
+        "grading_type": page_grades[0].get("grading_type", "STRICT_MATCH"),
+        "objective_score_log": combined_objective_log,
+        "essay_score_log": combined_essay_log,
+        "confidence_score": avg_confidence,
+        "objective_total": objective_total,
+        "essay_total": essay_total,
+        "score": objective_total + essay_total,
+        "feedback": " | ".join(feedbacks),
+    }
+
+def transcribe_and_grade_page(img, page_num, context_block, cache_name=None):
+    transcript_data = transcribe_single_page(img, page_num)
+    transcribed_text = transcript_data.get("transcribed_text", "")
+    grade_data = grade_single_page(transcribed_text, context_block, page_num, cache_name)
+    grade_data["transcribed_text"] = transcribed_text
+    return grade_data
 
 #=========================================
 #PARAREL RUN TRANSCRIPTION FOR TIER 1
@@ -599,6 +765,112 @@ def transcribe_async():
     return jsonify({"success": True, "job_id": job_id}), 202
 
 
+@app.route('/grade/async', methods=['POST'])
+def grade_async():
+    """Async version — enqueues transcribe+grade job, returns job_id immediately."""
+    files = request.files.getlist('file')
+    if not files:
+        return jsonify({"success": False, "error": "No file uploaded"}), 400
+
+    # Read bytes NOW before request context closes
+    file_data = [(f.filename, f.read()) for f in files]
+
+    # Read all form fields now too
+    context = request.form.get('context', '').strip()
+    answer_key_text = request.form.get('answer_key_text', '').strip()
+    reference_url = request.form.get('reference_url', '')
+    reference_urls = request.form.getlist('reference_urls')
+    answer_key_url = request.form.get('answer_key_url', '')
+    answer_key_urls = request.form.getlist('answer_key_urls')
+
+    def run_grade_job():
+        all_answer_key_urls = list({answer_key_url, *answer_key_urls} - {''})
+        all_reference_urls = list({reference_url, *reference_urls} - {''})
+
+        context_block = ""
+        extra_images = []
+
+        if context:
+            context_block += f"=== PROFESSOR CONTEXT ===\n{context}\n=========================\n\n"
+        if answer_key_text:
+            context_block += f"=== ESSAY RUBRIC ===\n{answer_key_text}\n===================\n\n"
+
+        for url in all_answer_key_urls:
+            try:
+                imgs, text = fetch_and_parse_url(url)
+                if text:
+                    context_block += f"=== OBJECTIVE ANSWER KEY ===\n{text}\n============================\n\n"
+                    print(f"📋 OBJECTIVE ANSWER KEY: {len(text)} chars appended")
+                if imgs:
+                  extracted_text = extract_images_to_text(imgs, label="Answer Key")
+                  if extracted_text:
+                      context_block += f"=== EXTRACTED REFERENCE IMAGES ===\n{extracted_text}\n==================================\n\n"
+            except Exception as e:
+                print(f"⚠️ Could not fetch answer key URL {url}: {e}")
+
+        for url in all_reference_urls:
+            try:
+                imgs, text = fetch_and_parse_url(url)
+                if text:
+                    context_block += f"=== REFERENCE MATERIAL ===\n{text}\n==========================\n\n"
+                    print(f"📋 REFERENCE MATERIAL: {len(text)} chars appended")
+                if imgs:
+                  extracted_text = extract_images_to_text(imgs, label="Answer Key")
+                  if extracted_text:
+                      context_block += f"=== EXTRACTED REFERENCE IMAGES ===\n{extracted_text}\n==================================\n\n"
+            except Exception as e:
+                print(f"⚠️ Could not fetch reference URL {url}: {e}")
+
+        if not context_block.strip():
+            context_block = "=== NO RUBRIC PROVIDED — Score everything as 0 ==="
+
+        print(f"📋 Context block ready ({len(context_block)} chars)")
+
+        # Build all images from all files
+        all_images = []
+        for filename, file_bytes in file_data:
+            all_images.extend(read_file_as_images(file_bytes, label=filename or "exam"))
+
+        print(f"⚙️ Transcribing + grading {len(all_images)} page(s) in parallel...")
+
+       # After building context_block, before parallel grading:
+        cache_name = create_context_cache(context_block)
+
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+                futures = [
+                    executor.submit(transcribe_and_grade_page, img, i + 1, context_block, cache_name)
+                    for i, img in enumerate(all_images)
+                ]
+                page_grades = [f.result() for f in concurrent.futures.as_completed(futures)]
+        finally:
+            # Always clean up cache after grading, even if something errors
+            if cache_name:
+                delete_context_cache(cache_name)
+
+        # Save merged transcript log
+        merged_transcript = "\n\n".join(
+            f"[PAGE {g['page']}]\n{g.get('transcribed_text', '')}"
+            for g in sorted(page_grades, key=lambda x: x["page"])
+        )
+        
+        avg_confidence = sum(g.get("confidence_score", 0) or 0 for g in page_grades) // len(page_grades)
+        save_transcript_log({"transcribed_text": merged_transcript, "confidence_score": avg_confidence})
+
+        data = merge_grades(page_grades)
+        save_grade_log(data)
+
+        print(f"✅ All pages graded. Final score={data['score']}")
+        return data
+
+    job_id = str(uuid.uuid4())
+    job_store[job_id] = {"status": "queued"}
+    job_queue.put((job_id, run_grade_job, [], {}))
+
+    print(f"📥 Grade job {job_id} queued ({len(file_data)} file(s))")
+    return jsonify({"success": True, "job_id": job_id}), 202
+
+
 @app.route('/job/<job_id>', methods=['GET'])
 def get_job(job_id):
     """Poll the status of an async job."""
@@ -610,30 +882,39 @@ def get_job(job_id):
 
 @app.route('/grade', methods=['POST'])
 def grade():
-    """Grade a transcribed text using the provided rubric/answer key."""
     try:
-        body = request.get_json()
-        transcribed_text = body.get('transcribed_text', '').strip()
-        context = body.get('context', '').strip()
-        answer_key_text = body.get('answer_key_text', '').strip()
-        reference_url = body.get('reference_url', '')
-        reference_urls = body.get('reference_urls', [])
-        answer_key_url = body.get('answer_key_url', '')
-        answer_key_urls = body.get('answer_key_urls', [])
+        # --- Support both JSON body (old) and multipart form with files (new) ---
+        files = request.files.getlist('file')
+
+        if files:
+            # PATH B: files uploaded — transcribe + grade each page in parallel
+            context = request.form.get('context', '').strip()
+            answer_key_text = request.form.get('answer_key_text', '').strip()
+            reference_url = request.form.get('reference_url', '')
+            reference_urls = request.form.getlist('reference_urls')
+            answer_key_url = request.form.get('answer_key_url', '')
+            answer_key_urls = request.form.getlist('answer_key_urls')
+            transcribed_text_override = ''
+        else:
+            # PATH A: JSON body with pre-transcribed text (original behavior)
+            body = request.get_json(silent=True) or {}
+            transcribed_text_override = body.get('transcribed_text', '').strip()
+            context = body.get('context', '').strip()
+            answer_key_text = body.get('answer_key_text', '').strip()
+            reference_url = body.get('reference_url', '')
+            reference_urls = body.get('reference_urls', [])
+            answer_key_url = body.get('answer_key_url', '')
+            answer_key_urls = body.get('answer_key_urls', [])
 
         all_answer_key_urls = list({answer_key_url, *answer_key_urls} - {''})
         all_reference_urls = list({reference_url, *reference_urls} - {''})
 
-        if not transcribed_text:
-            return jsonify({"success": False, "error": "No transcription provided"}), 400
-
-        # BUILD CONTEXT BLOCK
+        # --- BUILD CONTEXT BLOCK (shared across all pages) ---
         context_block = ""
         extra_images = []
 
         if context:
             context_block += f"=== PROFESSOR CONTEXT ===\n{context}\n=========================\n\n"
-
         if answer_key_text:
             context_block += f"=== ESSAY RUBRIC ===\n{answer_key_text}\n===================\n\n"
 
@@ -644,7 +925,9 @@ def grade():
                     context_block += f"=== OBJECTIVE ANSWER KEY ===\n{text}\n============================\n\n"
                     print(f"📋 OBJECTIVE ANSWER KEY: {len(text)} chars appended")
                 if imgs:
-                    extra_images.extend(imgs)
+                  extracted_text = extract_images_to_text(imgs, label="Answer Key")
+                  if extracted_text:
+                      context_block += f"=== EXTRACTED REFERENCE IMAGES ===\n{extracted_text}\n==================================\n\n"
             except Exception as e:
                 print(f"⚠️ Could not fetch answer key URL {url}: {e}")
 
@@ -655,7 +938,9 @@ def grade():
                     context_block += f"=== REFERENCE MATERIAL ===\n{text}\n==========================\n\n"
                     print(f"📋 REFERENCE MATERIAL: {len(text)} chars appended")
                 if imgs:
-                    extra_images.extend(imgs)
+                  extracted_text = extract_images_to_text(imgs, label="Answer Key")
+                  if extracted_text:
+                      context_block += f"=== EXTRACTED REFERENCE IMAGES ===\n{extracted_text}\n==================================\n\n"
             except Exception as e:
                 print(f"⚠️ Could not fetch reference URL {url}: {e}")
 
@@ -664,34 +949,67 @@ def grade():
 
         print(f"📋 Final context_block ({len(context_block)} chars):\n{context_block[:600]}")
 
-        # Use the module-level GRADING_PROMPT constant
-        prompt = GRADING_PROMPT.format(
-            context_block=context_block,
-            transcribed_text=transcribed_text
+        # --- PATH A: pre-transcribed text, grade directly ---
+        if transcribed_text_override:
+            if not transcribed_text_override:
+                return jsonify({"success": False, "error": "No transcription provided"}), 400
+
+            data = grade_single_page(transcribed_text_override, context_block, page_num=1)
+            save_grade_log(data)
+
+            obj = data.get("objective_total", 0) or 0
+            essay_from_json = data.get("essay_total", 0) or 0
+            essay_from_log = extract_essay_total_from_log(data.get("essay_score_log", ""))
+            essay = max(essay_from_json, essay_from_log)
+
+            if essay_from_json != essay_from_log:
+                print(f"⚠️ Essay total mismatch (PATH A) — JSON: {essay_from_json}, Log: {essay_from_log}")
+
+            data["essay_total"] = essay
+            data["score"] = obj + essay
+
+            print(f"✅ Grading done: score={data.get('score')}")
+            return jsonify({"success": True, "data": data})
+
+        # --- PATH B: files uploaded — transcribe + grade each page in parallel ---
+        if not files:
+            return jsonify({"success": False, "error": "No file or transcribed_text provided"}), 400
+
+        all_images = []
+        for f in files:
+            file_bytes = f.read()
+            print(f"📄 File received: {f.filename}, size: {len(file_bytes)} bytes")
+            all_images.extend(read_file_as_images(file_bytes, label=f.filename or "exam"))
+
+        print(f"⚙️ Transcribing + grading {len(all_images)} page(s) in parallel...")
+
+        # After building context_block, before parallel grading:
+        cache_name = create_context_cache(context_block)
+
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+                futures = [
+                    executor.submit(transcribe_and_grade_page, img, i + 1, context_block, cache_name)
+                    for i, img in enumerate(all_images)
+                ]
+                page_grades = [f.result() for f in concurrent.futures.as_completed(futures)]
+        finally:
+            # Always clean up cache after grading, even if something errors
+            if cache_name:
+                delete_context_cache(cache_name)
+
+        # Save merged transcript log
+        merged_transcript = "\n\n".join(
+            f"[PAGE {g['page']}]\n{g.get('transcribed_text', '')}"
+            for g in sorted(page_grades, key=lambda x: x["page"])
         )
+        avg_confidence = sum(g.get("confidence_score", 0) or 0 for g in page_grades) // len(page_grades)
+        save_transcript_log({"transcribed_text": merged_transcript, "confidence_score": avg_confidence})
 
-        ai_inputs = [prompt]
-
-        if extra_images:
-            ai_inputs.append("The following pages are reference/rubric material:")
-            for img in extra_images:
-                buf = io.BytesIO()
-                img.save(buf, format='JPEG', quality=90)
-                ai_inputs.append({"mime_type": "image/jpeg", "data": buf.getvalue()})
-
-        data = call_gemini(ai_inputs, grading_model)
+        data = merge_grades(page_grades)
         save_grade_log(data)
-        
 
-        # Server-side score sanity check
-        obj = data.get("objective_total", 0) or 0
-        essay = data.get("essay_total", 0) or 0
-        expected = obj + essay
-        if data.get("score") != expected:
-            print(f"⚠️ Score mismatch: AI said {data.get('score')} but obj({obj}) + essay({essay}) = {expected}. Correcting.")
-            data["score"] = expected
-
-        print(f"✅ Grading done: score={data.get('score')}")
+        print(f"✅ All pages graded. Final score={data['score']}")
         return jsonify({"success": True, "data": data})
 
     except google.api_core.exceptions.ResourceExhausted:
