@@ -39,7 +39,7 @@ for m in genai.list_models():
 # ==========================================
 # SELECT MODELS
 # ==========================================
-transcription_model = genai.GenerativeModel('gemini-2.5-flash')
+transcription_model = genai.GenerativeModel('gemini-2.5-flash-lite')
 grading_model = genai.GenerativeModel('gemini-2.5-flash-lite')
 print(f"🎯 TRANSCRIPTION MODEL:", transcription_model.model_name)
 print(f"🎯 GRADING MODEL:", grading_model.model_name)
@@ -107,36 +107,15 @@ Return ONLY this JSON, no extra text:
 """.strip()
 
 GRADING_PROMPT = """
-You are a deterministic exam grading engine.
+Target: Deterministic Grading Engine
+Input Context: {context_block}
+Student Transcription: {transcribed_text}
 
-{context_block}
-
-=== STUDENT TRANSCRIPTION ===
-{transcribed_text}
-=============================
-
-Grade the student transcription above using ONLY the rubric and answer key provided.
-Do NOT re-read any image. Grade only from the transcription text above.
-
-GENERAL RULES:
-- Grade only from the provided materials.
-- Never invent rubric criteria, point values, or answer keys.
-- Never exceed the rubric maximum score.
-- If unsure, always choose the LOWER score.
-
-SECTION DETECTION RULES (apply FIRST before scoring anything):
-- Read the full transcription and identify ALL section headers (e.g. "PART I", "PART V SHORT ESSAY", "TRUE OR FALSE", "MATCHING TYPE").
-- Questions under headers containing "ESSAY", "SHORT ANSWER", "EXPLAIN", "DISCUSS", "DESCRIBE" = ESSAY TYPE. Grade using ESSAY SCORING RULES only.
-- Questions under headers containing "MULTIPLE CHOICE", "TRUE OR FALSE", "MATCHING", "IDENTIFICATION" = OBJECTIVE TYPE. Grade using OBJECTIVE SCORING RULES only.
-- A question marked as ESSAY must NEVER appear in the objective score log.
-- A question marked as OBJECTIVE must NEVER appear in the essay score log.
-- If the answer key marks a question as "N/A" = it is an ESSAY question. Do NOT score it as objective. Skip it in the objective log entirely.
-
-QUESTION TYPE DETECTION:
-- Keywords like "Match", "Column A", "Column B" = MATCHING TYPE
-- Keywords like "Choose", "Circle", "True or False" = MCQ/TF
-- Keywords like "Explain", "Discuss", "Describe" = ESSAY
-- If no clear header, infer from answer format (single letter = MCQ, paired answers = matching).
+[GRADING RULES]
+1. Detect Sections: Separate ESSAY (Explain/Discuss) from OBJECTIVE (MCQ/TF/Matching).
+2. Objective: 1pt if correct (case-insensitive, substring allowed). 0pt if wrong.
+3. Essay: Score = floor((Present/Total) * Max). Apply rubric minimum for any attempt.
+4. Logic: Never invent quotes. If unsure, score lower. Return ONLY JSON.
 
 OBJECTIVE SCORING RULES (MCQ / TRUE-FALSE / MATCHING):
 - Compare each student answer to the answer key exactly.
@@ -193,28 +172,17 @@ SECTION SCORE: 1 / 1
 
 TOTAL OBJECTIVE SCORE: [sum]
 
-ESSAY SCORING RULES:
-STEP 1 — List rubric requirements (only literally written ones, no inferences).
-STEP 2 — For each: find a DIRECT QUOTE from transcription. Present=found, Absent=not found.
-STEP 3 — raw_score = floor(P/R * rubric_max). Apply rubric minimum unless blank/off-topic.
-STEP 4 — Re-verify quotes. Remove paraphrased/implied. Recount P. Recalculate.
-
-MINIMUM SCORE RULE:
-- If rubric defines a scale (e.g. 2 to 5), lowest value = minimum.
-- Never below minimum unless blank or off-topic.
-- A wrong or poor answer still gets the minimum if student attempted.
-
-ESSAY SCORE LOG FORMAT:
+[OUTPUT LOG FORMATS]
+- ESSAY_LOG:
 Question: [number]
 Rubric Requirements: [list]
 Present (P/R):
-- [requirement] → "[exact quote from transcription]"
+- [req] → "[exact quote]"
 Absent:
-- [requirement] → no direct quote found
+- [req] → no direct quote found
 Rubric Max Score: [max]
 Final Score: floor((P/R) * max) = [result]
 Reason: [1-2 sentences]
----
 
 TOTAL ESSAY SCORE: [sum]
 
