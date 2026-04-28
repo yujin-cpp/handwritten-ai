@@ -19,7 +19,7 @@ import { useAuthSession } from "../../../hooks/useAuthSession";
 import { studentRepository } from "../../../data/repositories/FirebaseStudentRepository";
 import { showAlert, showConfirm } from "../../../utils/alert";
 import { safeGoBack } from "../../../utils/navigation";
-import { getContrastColor } from "../../../utils/colorUtils";
+import { getContrastColor, getIconBoxColors } from "../../../utils/colorUtils";
 
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -234,6 +234,7 @@ export const MasterlistViewSectionScreen = () => {
   };
 
   const headerTextColor = getContrastColor(headerColor);
+  const { bg: iconBg, icon: iconFg } = getIconBoxColors(headerColor);
 
   return (
     <View style={styles.container}>
@@ -254,8 +255,8 @@ export const MasterlistViewSectionScreen = () => {
         <View style={styles.rosterHeader}>
           <View>
             <Text style={styles.rosterTitle}>Class Roster</Text>
-            <View style={[styles.countBadge, { backgroundColor: headerColor + "15" }]}>
-              <Text style={[styles.countText, { color: headerColor }]}>{rows.length} Students</Text>
+            <View style={[styles.countBadge, { backgroundColor: iconBg }]}>
+              <Text style={[styles.countText, { color: iconFg }]}>{rows.length} Students</Text>
             </View>
           </View>
 
@@ -328,7 +329,7 @@ export const MasterlistViewSectionScreen = () => {
               {SORT_OPTIONS.map((opt) => (
                 <TouchableOpacity
                   key={opt.value}
-                  style={[styles.sortItem, sortKey === opt.value && { backgroundColor: headerColor + "10" }]}
+                  style={[styles.sortItem, sortKey === opt.value && { backgroundColor: iconBg }]}
                   onPress={() => { setSortKey(opt.value); setSortPickerOpen(false); }}
                 >
                   <Text style={[styles.sortItemText, sortKey === opt.value && { color: headerColor, fontFamily: typography.fontFamily.bold }]}>

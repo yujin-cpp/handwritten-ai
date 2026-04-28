@@ -16,7 +16,7 @@ import { colors, typography, shadows } from "../../theme";
 import { showAlert } from "../../../utils/alert";
 import { storageRepository } from "../../../data/repositories/FirebaseStorageRepository";
 import { safeGoBack } from "../../../utils/navigation";
-import { getContrastColor } from "../../../utils/colorUtils";
+import { getContrastColor, getIconBoxColors } from "../../../utils/colorUtils";
 
 // Quick Firebase import
 import { push, ref, set } from "firebase/database";
@@ -124,6 +124,7 @@ export const EssayEditScreen = () => {
   }
 
   const headerTextColor = getContrastColor(headerColor);
+  const { bg: iconBg, icon: iconFg } = getIconBoxColors(headerColor);
 
   return (
     <View style={styles.container}>
@@ -160,7 +161,7 @@ export const EssayEditScreen = () => {
           <View style={styles.attachmentGroup}>
             <Text style={styles.subLabel}>Lesson References</Text>
             {lessonAssets.map((asset, idx) => (
-              <View key={`${asset.name}-${idx}`} style={[styles.attachBtn, { borderColor: headerColor, backgroundColor: headerColor + "05", marginBottom: 8 }]}>
+              <View key={`${asset.name}-${idx}`} style={[styles.attachBtn, { borderColor: headerColor, backgroundColor: iconBg, marginBottom: 8 }]}>
                 <Feather name="file-text" size={20} color={headerColor} />
                 <Text style={[styles.attachText, { color: headerColor, fontFamily: typography.fontFamily.bold, flex: 1 }]} numberOfLines={1}>
                   {asset.name}
@@ -184,7 +185,7 @@ export const EssayEditScreen = () => {
           <View style={[styles.attachmentGroup, { marginTop: 20 }]}>
             <Text style={styles.subLabel}>Scoring Rubrics</Text>
             <TouchableOpacity
-              style={[styles.attachBtn, rubricsAsset && { borderColor: headerColor, backgroundColor: headerColor + "05" }]}
+              style={[styles.attachBtn, rubricsAsset && { borderColor: headerColor, backgroundColor: iconBg }]}
               onPress={pickRubricsFile}
             >
               <Feather name="paperclip" size={20} color={rubricsAsset ? headerColor : colors.textSecondary} />

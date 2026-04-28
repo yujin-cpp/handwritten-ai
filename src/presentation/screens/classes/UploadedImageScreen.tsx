@@ -15,7 +15,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, typography, shadows } from "../../theme";
 import { safeGoBack } from "../../../utils/navigation";
-import { getContrastColor } from "../../../utils/colorUtils";
+import { getContrastColor, getIconBoxColors } from "../../../utils/colorUtils";
 
 const { width, height } = Dimensions.get("window");
 
@@ -63,6 +63,7 @@ export const UploadedImageScreen = () => {
   }, [params.imageUri, params.images]);
 
   const headerTextColor = getContrastColor(headerColor);
+  const { bg: iconBg, icon: iconFg } = getIconBoxColors(headerColor);
 
   return (
     <View style={styles.container}>
@@ -90,8 +91,8 @@ export const UploadedImageScreen = () => {
 
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionLabel}>CAPTURED PAGES</Text>
-          <View style={[styles.badge, { backgroundColor: headerColor + "15" }]}>
-            <Text style={[styles.badgeText, { color: headerColor }]}>{images.length}</Text>
+          <View style={[styles.badge, { backgroundColor: iconBg }]}>
+            <Text style={[styles.badgeText, { color: iconFg }]}>{images.length}</Text>
           </View>
         </View>
 

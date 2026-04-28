@@ -18,7 +18,7 @@ import { useAuthSession } from "../../../hooks/useAuthSession";
 import { showAlert } from "../../../utils/alert";
 import { storageRepository } from "../../../data/repositories/FirebaseStorageRepository";
 import { safeGoBack } from "../../../utils/navigation";
-import { getContrastColor } from "../../../utils/colorUtils";
+import { getContrastColor, getIconBoxColors } from "../../../utils/colorUtils";
 
 // Quick Firebase imports for settings
 import { onValue, push, ref, set, update } from "firebase/database";
@@ -211,6 +211,7 @@ export const QAScreen = () => {
   };
 
   const headerTextColor = getContrastColor(headerColor);
+  const { bg: iconBg, icon: iconFg } = getIconBoxColors(headerColor);
 
   return (
     <View style={styles.container}>
@@ -274,7 +275,7 @@ export const QAScreen = () => {
                 <Switch
                   value={objectiveTypes[key].enabled}
                   onValueChange={(enabled) => setObjectiveTypes((prev) => ({ ...prev, [key]: { ...prev[key], enabled } }))}
-                  trackColor={{ false: colors.grayLight, true: headerColor + "66" }}
+                  trackColor={{ false: colors.grayLight, true: iconBg }}
                   thumbColor={objectiveTypes[key].enabled ? headerColor : colors.white}
                 />
               </View>
@@ -310,8 +311,8 @@ export const QAScreen = () => {
           onPress={handleUpload}
           disabled={uploading}
         >
-          <View style={[styles.uploadIconBox, { backgroundColor: headerColor + "15" }]}>
-            {uploading ? <ActivityIndicator color={headerColor} /> : <Feather name="upload-cloud" size={28} color={headerColor} />}
+          <View style={[styles.uploadIconBox, { backgroundColor: iconBg }]}>
+            {uploading ? <ActivityIndicator color={iconFg} /> : <Feather name="upload-cloud" size={28} color={iconFg} />}
           </View>
           <View style={styles.uploadInfo}>
             <Text style={styles.uploadTitle}>{uploading ? "Uploading File..." : "Tap to Upload Key"}</Text>
@@ -323,8 +324,8 @@ export const QAScreen = () => {
         <View style={styles.listSection}>
           <View style={styles.listHeaderRow}>
             <Text style={styles.listHeader}>UPLOADED KEYS</Text>
-            <View style={[styles.badge, { backgroundColor: headerColor + "15" }]}>
-              <Text style={[styles.badgeText, { color: headerColor }]}>{qaFiles.length}</Text>
+            <View style={[styles.badge, { backgroundColor: iconBg }]}>
+              <Text style={[styles.badgeText, { color: iconFg }]}>{qaFiles.length}</Text>
             </View>
           </View>
 

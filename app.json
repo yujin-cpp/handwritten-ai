@@ -19,7 +19,14 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.handwrittenai.handwrittenAI",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.1093390926434-d0uvi309ncnc8qhhm9rl7b5p6l0t63lm"
+            ]
+          }
+        ]
       }
     },
     "android": {
@@ -48,7 +55,8 @@
             "backgroundColor": "#0EA47A"
           }
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "googleAuth": {

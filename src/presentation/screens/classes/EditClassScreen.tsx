@@ -48,6 +48,9 @@ export const EditClassScreen = () => {
   const [yearOpen, setYearOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const isCustomTheme = !SWATCHES.includes(theme);
+  const themeIconColor = getContrastColor(theme);
+
   const sliderWidth = Dimensions.get("window").width - 80;
 
   const colorSliderResponder = React.useRef(
@@ -166,11 +169,18 @@ export const EditClassScreen = () => {
                 style={[styles.swatch, { backgroundColor: s }]}
                 onPress={() => setTheme(s)}
               >
-                {theme === s && <Feather name="check" size={20} color={colors.white} />}
+                {theme === s && <Feather name="check" size={20} color={getContrastColor(s)} />}
               </TouchableOpacity>
             ))}
-            <TouchableOpacity style={styles.moreColorsBtn} onPress={() => setThemeModal(true)}>
-              <Feather name="plus" size={20} color={colors.textSecondary} />
+            <TouchableOpacity
+              style={[styles.moreColorsBtn, isCustomTheme && { backgroundColor: theme }]}
+              onPress={() => setThemeModal(true)}
+            >
+              <Feather
+                name={isCustomTheme ? "check" : "plus"}
+                size={20}
+                color={isCustomTheme ? themeIconColor : colors.textSecondary}
+              />
             </TouchableOpacity>
           </View>
         </View>
@@ -223,7 +233,7 @@ export const EditClassScreen = () => {
                   style={[styles.themeSwatch, { backgroundColor: s }]}
                   onPress={() => { setTheme(s); setThemeModal(false); }}
                 >
-                  {theme === s && <Feather name="check" size={24} color={colors.white} />}
+                  {theme === s && <Feather name="check" size={24} color={getContrastColor(s)} />}
                 </TouchableOpacity>
               ))}
             </View>
