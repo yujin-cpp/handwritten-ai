@@ -40,8 +40,8 @@ for m in genai.list_models():
 # ==========================================
 # SELECT MODELS
 # ==========================================
-transcription_model = genai.GenerativeModel('gemini-2.5-pro')
-grading_model = genai.GenerativeModel('gemini-2.5-pro')
+transcription_model = genai.GenerativeModel('gemini-2.5-flash-lite')
+grading_model = genai.GenerativeModel('gemini-2.5-flash-lite')
 print(f"🎯 TRANSCRIPTION MODEL:", transcription_model.model_name)
 print(f"🎯 GRADING MODEL:", grading_model.model_name)
 
@@ -515,7 +515,7 @@ def create_context_cache(context_block: str) -> str | None:
     try:
         import datetime
         cache = genai.caching.CachedContent.create(
-            model='models/gemini-2.5-pro',
+            model='models/gemini-2.5-flash-lite',
             contents=[context_block],
             ttl=datetime.timedelta(minutes=60),  # Cache lives 60 mins
         )
@@ -666,27 +666,27 @@ def transcribe_and_grade_page(img, page_num, context_block, cache_name=None):
 #=========================================
 #PARAREL RUN TRANSCRIPTION FOR TIER 1
 #=========================================
-def run_transcription(file_data):
-    """
-    Core transcription logic used by both sync and async routes.
-    file_data: list of (filename, file_bytes) tuples.
-    """
-    all_images = []
-    for filename, file_bytes in file_data:
-        all_images.extend(read_file_as_images(file_bytes, label=filename or "exam"))
+# def run_transcription(file_data):
+#     """
+#     Core transcription logic used by both sync and async routes.
+#     file_data: list of (filename, file_bytes) tuples.
+#     """
+#     all_images = []
+#     for filename, file_bytes in file_data:
+#         all_images.extend(read_file_as_images(file_bytes, label=filename or "exam"))
 
-    print(f"⚙️ Transcribing {len(all_images)} page(s) in parallel...", flush=True)
+#     print(f"⚙️ Transcribing {len(all_images)} page(s) in parallel...", flush=True)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [
-            executor.submit(transcribe_single_page, img, i + 1)
-            for i, img in enumerate(all_images)
-        ]
-        page_results = [f.result() for f in concurrent.futures.as_completed(futures)]
+#     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+#         futures = [
+#             executor.submit(transcribe_single_page, img, i + 1)
+#             for i, img in enumerate(all_images)
+#         ]
+#         page_results = [f.result() for f in concurrent.futures.as_completed(futures)]
 
-    data = merge_transcriptions(page_results)
-    save_transcript_log(data)
-    return data
+#     data = merge_transcriptions(page_results)
+#     save_transcript_log(data)
+#     return data
 
 
 # ==========================================
@@ -728,52 +728,52 @@ def ping():
     return jsonify({"status": "ok"}), 200
 
 
-@app.route('/transcribe', methods=['POST'])
-def transcribe():
-    """Synchronous transcription — processes all pages in parallel, then returns."""
-    files = request.files.getlist('file')
-    if not files:
-        return jsonify({"success": False, "error": "No file uploaded"}), 400
+# @app.route('/transcribe', methods=['POST'])
+# def transcribe():
+#     """Synchronous transcription — processes all pages in parallel, then returns."""
+#     files = request.files.getlist('file')
+#     if not files:
+#         return jsonify({"success": False, "error": "No file uploaded"}), 400
 
-    try:
-        file_data = []
-        for file in files:
-            file_bytes = file.read()
-            print(f"📄 File received: {file.filename}, size: {len(file_bytes)} bytes", flush=True)
-            file_data.append((file.filename, file_bytes))
+#     try:
+#         file_data = []
+#         for file in files:
+#             file_bytes = file.read()
+#             print(f"📄 File received: {file.filename}, size: {len(file_bytes)} bytes", flush=True)
+#             file_data.append((file.filename, file_bytes))
 
-        data = run_transcription(file_data)
-        return jsonify({"success": True, "data": data})
+#         data = run_transcription(file_data)
+#         return jsonify({"success": True, "data": data})
 
-    except google.api_core.exceptions.ResourceExhausted:
-        return jsonify({
-            "success": False,
-            "error": "quota_exceeded",
-            "message": "AI service is temporarily unavailable. Please try again in a minute."
-        }), 429
-    except ValueError as e:
-        return jsonify({"success": False, "error": str(e)}), 400
-    except Exception as e:
-        print(f"❌ Transcription Error: {e}", flush=True)
-        return jsonify({"success": False, "error": "server_error", "message": "Something went wrong."}), 500
+#     except google.api_core.exceptions.ResourceExhausted:
+#         return jsonify({
+#             "success": False,
+#             "error": "quota_exceeded",
+#             "message": "AI service is temporarily unavailable. Please try again in a minute."
+#         }), 429
+#     except ValueError as e:
+#         return jsonify({"success": False, "error": str(e)}), 400
+#     except Exception as e:
+#         print(f"❌ Transcription Error: {e}", flush=True)
+#         return jsonify({"success": False, "error": "server_error", "message": "Something went wrong."}), 500
 
 
-@app.route('/transcribe/async', methods=['POST'])
-def transcribe_async():
-    """Async transcription — enqueues the job and returns a job_id immediately."""
-    files = request.files.getlist('file')
-    if not files:
-        return jsonify({"success": False, "error": "No file uploaded"}), 400
+# @app.route('/transcribe/async', methods=['POST'])
+# def transcribe_async():
+#     """Async transcription — enqueues the job and returns a job_id immediately."""
+#     files = request.files.getlist('file')
+#     if not files:
+#         return jsonify({"success": False, "error": "No file uploaded"}), 400
 
-    # Read bytes NOW before the request context closes
-    file_data = [(f.filename, f.read()) for f in files]
+#     # Read bytes NOW before the request context closes
+#     file_data = [(f.filename, f.read()) for f in files]
 
-    job_id = str(uuid.uuid4())
-    job_store[job_id] = {"status": "queued"}
-    job_queue.put((job_id, run_transcription, [file_data], {}))
+#     job_id = str(uuid.uuid4())
+#     job_store[job_id] = {"status": "queued"}
+#     job_queue.put((job_id, run_transcription, [file_data], {}))
 
-    print(f"📥 Job {job_id} queued ({len(file_data)} file(s))")
-    return jsonify({"success": True, "job_id": job_id}), 202
+#     print(f"📥 Job {job_id} queued ({len(file_data)} file(s))")
+#     return jsonify({"success": True, "job_id": job_id}), 202
 
 
 @app.route('/grade/async', methods=['POST'])
@@ -891,147 +891,147 @@ def get_job(job_id):
     return jsonify({"success": True, **job})
 
 
-@app.route('/grade', methods=['POST'])
-def grade():
-    try:
-        # --- Support both JSON body (old) and multipart form with files (new) ---
-        files = request.files.getlist('file')
+# @app.route('/grade', methods=['POST'])
+# def grade():
+#     try:
+#         # --- Support both JSON body (old) and multipart form with files (new) ---
+#         files = request.files.getlist('file')
 
-        if files:
-            # PATH B: files uploaded — transcribe + grade each page in parallel
-            context = request.form.get('context', '').strip()
-            answer_key_text = request.form.get('answer_key_text', '').strip()
-            reference_url = request.form.get('reference_url', '')
-            reference_urls = request.form.getlist('reference_urls')
-            answer_key_url = request.form.get('answer_key_url', '')
-            answer_key_urls = request.form.getlist('answer_key_urls')
-            transcribed_text_override = ''
-        else:
-            # PATH A: JSON body with pre-transcribed text (original behavior)
-            body = request.get_json(silent=True) or {}
-            transcribed_text_override = body.get('transcribed_text', '').strip()
-            context = body.get('context', '').strip()
-            answer_key_text = body.get('answer_key_text', '').strip()
-            reference_url = body.get('reference_url', '')
-            reference_urls = body.get('reference_urls', [])
-            answer_key_url = body.get('answer_key_url', '')
-            answer_key_urls = body.get('answer_key_urls', [])
+#         if files:
+#             # PATH B: files uploaded — transcribe + grade each page in parallel
+#             context = request.form.get('context', '').strip()
+#             answer_key_text = request.form.get('answer_key_text', '').strip()
+#             reference_url = request.form.get('reference_url', '')
+#             reference_urls = request.form.getlist('reference_urls')
+#             answer_key_url = request.form.get('answer_key_url', '')
+#             answer_key_urls = request.form.getlist('answer_key_urls')
+#             transcribed_text_override = ''
+#         else:
+#             # PATH A: JSON body with pre-transcribed text (original behavior)
+#             body = request.get_json(silent=True) or {}
+#             transcribed_text_override = body.get('transcribed_text', '').strip()
+#             context = body.get('context', '').strip()
+#             answer_key_text = body.get('answer_key_text', '').strip()
+#             reference_url = body.get('reference_url', '')
+#             reference_urls = body.get('reference_urls', [])
+#             answer_key_url = body.get('answer_key_url', '')
+#             answer_key_urls = body.get('answer_key_urls', [])
 
-        all_answer_key_urls = list({answer_key_url, *answer_key_urls} - {''})
-        all_reference_urls = list({reference_url, *reference_urls} - {''})
+#         all_answer_key_urls = list({answer_key_url, *answer_key_urls} - {''})
+#         all_reference_urls = list({reference_url, *reference_urls} - {''})
 
-        # --- BUILD CONTEXT BLOCK (shared across all pages) ---
-        context_block = ""
-        extra_images = []
+#         # --- BUILD CONTEXT BLOCK (shared across all pages) ---
+#         context_block = ""
+#         extra_images = []
 
-        if context:
-            context_block += f"=== PROFESSOR CONTEXT ===\n{context}\n=========================\n\n"
-        if answer_key_text:
-            context_block += f"=== ESSAY RUBRIC ===\n{answer_key_text}\n===================\n\n"
+#         if context:
+#             context_block += f"=== PROFESSOR CONTEXT ===\n{context}\n=========================\n\n"
+#         if answer_key_text:
+#             context_block += f"=== ESSAY RUBRIC ===\n{answer_key_text}\n===================\n\n"
 
-        for url in all_answer_key_urls:
-            try:
-                imgs, text = fetch_and_parse_url(url)
-                if text:
-                    context_block += f"=== OBJECTIVE ANSWER KEY ===\n{text}\n============================\n\n"
-                    print(f"📋 OBJECTIVE ANSWER KEY: {len(text)} chars appended")
-                if imgs:
-                  extracted_text = extract_images_to_text(imgs, label="Answer Key")
-                  if extracted_text:
-                      context_block += f"=== EXTRACTED REFERENCE IMAGES ===\n{extracted_text}\n==================================\n\n"
-            except Exception as e:
-                print(f"⚠️ Could not fetch answer key URL {url}: {e}")
+#         for url in all_answer_key_urls:
+#             try:
+#                 imgs, text = fetch_and_parse_url(url)
+#                 if text:
+#                     context_block += f"=== OBJECTIVE ANSWER KEY ===\n{text}\n============================\n\n"
+#                     print(f"📋 OBJECTIVE ANSWER KEY: {len(text)} chars appended")
+#                 if imgs:
+#                   extracted_text = extract_images_to_text(imgs, label="Answer Key")
+#                   if extracted_text:
+#                       context_block += f"=== EXTRACTED REFERENCE IMAGES ===\n{extracted_text}\n==================================\n\n"
+#             except Exception as e:
+#                 print(f"⚠️ Could not fetch answer key URL {url}: {e}")
 
-        for url in all_reference_urls:
-            try:
-                imgs, text = fetch_and_parse_url(url)
-                if text:
-                    context_block += f"=== REFERENCE MATERIAL ===\n{text}\n==========================\n\n"
-                    print(f"📋 REFERENCE MATERIAL: {len(text)} chars appended")
-                if imgs:
-                  extracted_text = extract_images_to_text(imgs, label="Answer Key")
-                  if extracted_text:
-                      context_block += f"=== EXTRACTED REFERENCE IMAGES ===\n{extracted_text}\n==================================\n\n"
-            except Exception as e:
-                print(f"⚠️ Could not fetch reference URL {url}: {e}")
+#         for url in all_reference_urls:
+#             try:
+#                 imgs, text = fetch_and_parse_url(url)
+#                 if text:
+#                     context_block += f"=== REFERENCE MATERIAL ===\n{text}\n==========================\n\n"
+#                     print(f"📋 REFERENCE MATERIAL: {len(text)} chars appended")
+#                 if imgs:
+#                   extracted_text = extract_images_to_text(imgs, label="Answer Key")
+#                   if extracted_text:
+#                       context_block += f"=== EXTRACTED REFERENCE IMAGES ===\n{extracted_text}\n==================================\n\n"
+#             except Exception as e:
+#                 print(f"⚠️ Could not fetch reference URL {url}: {e}")
 
-        if not context_block.strip():
-            context_block = "=== NO RUBRIC PROVIDED — Score everything as 0 ==="
+#         if not context_block.strip():
+#             context_block = "=== NO RUBRIC PROVIDED — Score everything as 0 ==="
 
-        print(f"📋 Final context_block ({len(context_block)} chars):\n{context_block[:600]}")
+#         print(f"📋 Final context_block ({len(context_block)} chars):\n{context_block[:600]}")
 
-        # --- PATH A: pre-transcribed text, grade directly ---
-        if transcribed_text_override:
-            if not transcribed_text_override:
-                return jsonify({"success": False, "error": "No transcription provided"}), 400
+#         # --- PATH A: pre-transcribed text, grade directly ---
+#         if transcribed_text_override:
+#             if not transcribed_text_override:
+#                 return jsonify({"success": False, "error": "No transcription provided"}), 400
 
-            data = grade_single_page(transcribed_text_override, context_block, page_num=1)
-            save_grade_log(data)
+#             data = grade_single_page(transcribed_text_override, context_block, page_num=1)
+#             save_grade_log(data)
 
-            obj = data.get("objective_total", 0) or 0
-            essay_from_json = data.get("essay_total", 0) or 0
-            essay_from_log = extract_essay_total_from_log(data.get("essay_score_log", ""))
-            essay = max(essay_from_json, essay_from_log)
+#             obj = data.get("objective_total", 0) or 0
+#             essay_from_json = data.get("essay_total", 0) or 0
+#             essay_from_log = extract_essay_total_from_log(data.get("essay_score_log", ""))
+#             essay = max(essay_from_json, essay_from_log)
 
-            if essay_from_json != essay_from_log:
-                print(f"⚠️ Essay total mismatch (PATH A) — JSON: {essay_from_json}, Log: {essay_from_log}")
+#             if essay_from_json != essay_from_log:
+#                 print(f"⚠️ Essay total mismatch (PATH A) — JSON: {essay_from_json}, Log: {essay_from_log}")
 
-            data["essay_total"] = essay
-            data["score"] = obj + essay
+#             data["essay_total"] = essay
+#             data["score"] = obj + essay
 
-            print(f"✅ Grading done: score={data.get('score')}")
-            return jsonify({"success": True, "data": data})
+#             print(f"✅ Grading done: score={data.get('score')}")
+#             return jsonify({"success": True, "data": data})
 
-        # --- PATH B: files uploaded — transcribe + grade each page in parallel ---
-        if not files:
-            return jsonify({"success": False, "error": "No file or transcribed_text provided"}), 400
+#         # --- PATH B: files uploaded — transcribe + grade each page in parallel ---
+#         if not files:
+#             return jsonify({"success": False, "error": "No file or transcribed_text provided"}), 400
 
-        all_images = []
-        for f in files:
-            file_bytes = f.read()
-            print(f"📄 File received: {f.filename}, size: {len(file_bytes)} bytes")
-            all_images.extend(read_file_as_images(file_bytes, label=f.filename or "exam"))
+#         all_images = []
+#         for f in files:
+#             file_bytes = f.read()
+#             print(f"📄 File received: {f.filename}, size: {len(file_bytes)} bytes")
+#             all_images.extend(read_file_as_images(file_bytes, label=f.filename or "exam"))
 
-        print(f"⚙️ Transcribing + grading {len(all_images)} page(s) in parallel...")
+#         print(f"⚙️ Transcribing + grading {len(all_images)} page(s) in parallel...")
 
-        # After building context_block, before parallel grading:
-        cache_name = create_context_cache(context_block)
+#         # After building context_block, before parallel grading:
+#         cache_name = create_context_cache(context_block)
 
-        try:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-                futures = [
-                    executor.submit(transcribe_and_grade_page, img, i + 1, context_block, cache_name)
-                    for i, img in enumerate(all_images)
-                ]
-                page_grades = [f.result() for f in concurrent.futures.as_completed(futures)]
-        finally:
-            # Always clean up cache after grading, even if something errors
-            if cache_name:
-                delete_context_cache(cache_name)
+#         try:
+#             with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+#                 futures = [
+#                     executor.submit(transcribe_and_grade_page, img, i + 1, context_block, cache_name)
+#                     for i, img in enumerate(all_images)
+#                 ]
+#                 page_grades = [f.result() for f in concurrent.futures.as_completed(futures)]
+#         finally:
+#             # Always clean up cache after grading, even if something errors
+#             if cache_name:
+#                 delete_context_cache(cache_name)
 
-        # Save merged transcript log
-        merged_transcript = "\n\n".join(
-            f"[PAGE {g['page']}]\n{g.get('transcribed_text', '')}"
-            for g in sorted(page_grades, key=lambda x: x["page"])
-        )
-        avg_confidence = sum(g.get("confidence_score", 0) or 0 for g in page_grades) // len(page_grades)
-        save_transcript_log({"transcribed_text": merged_transcript, "confidence_score": avg_confidence})
+#         # Save merged transcript log
+#         merged_transcript = "\n\n".join(
+#             f"[PAGE {g['page']}]\n{g.get('transcribed_text', '')}"
+#             for g in sorted(page_grades, key=lambda x: x["page"])
+#         )
+#         avg_confidence = sum(g.get("confidence_score", 0) or 0 for g in page_grades) // len(page_grades)
+#         save_transcript_log({"transcribed_text": merged_transcript, "confidence_score": avg_confidence})
 
-        data = merge_grades(page_grades)
-        save_grade_log(data)
+#         data = merge_grades(page_grades)
+#         save_grade_log(data)
 
-        print(f"✅ All pages graded. Final score={data['score']}")
-        return jsonify({"success": True, "data": data})
+#         print(f"✅ All pages graded. Final score={data['score']}")
+#         return jsonify({"success": True, "data": data})
 
-    except google.api_core.exceptions.ResourceExhausted:
-        return jsonify({
-            "success": False,
-            "error": "quota_exceeded",
-            "message": "AI service is temporarily unavailable. Please try again in a minute."
-        }), 429
-    except Exception as e:
-        print(f"❌ Grading Error: {e}")
-        return jsonify({"success": False, "error": "server_error", "message": "Something went wrong."}), 500
+#     except google.api_core.exceptions.ResourceExhausted:
+#         return jsonify({
+#             "success": False,
+#             "error": "quota_exceeded",
+#             "message": "AI service is temporarily unavailable. Please try again in a minute."
+#         }), 429
+#     except Exception as e:
+#         print(f"❌ Grading Error: {e}")
+#         return jsonify({"success": False, "error": "server_error", "message": "Something went wrong."}), 500
 
 
 @app.route('/masterlist', methods=['POST'])
