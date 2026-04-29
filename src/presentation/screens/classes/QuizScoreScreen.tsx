@@ -388,7 +388,7 @@ export const QuizScoreScreen = () => {
     let inEssayBlock = false;
 
     aiTarget.essayScoreLog.split("\n").forEach((line) => {
-      if (line.trim() === "[ESSAY]") {
+      if (line.trim().startsWith("[ESSAY")) {
         inEssayBlock = true;
         return;
       }
