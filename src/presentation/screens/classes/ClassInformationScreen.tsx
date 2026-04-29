@@ -7,7 +7,7 @@ import { colors, typography, shadows } from "../../theme";
 import { useAuthSession } from "../../../hooks/useAuthSession";
 import { classRepository } from "../../../data/repositories/FirebaseClassRepository";
 import { safeGoBack } from "../../../utils/navigation";
-import { getContrastColor } from "../../../utils/colorUtils";
+import { getContrastColor, getIconBoxColors } from "../../../utils/colorUtils";
 
 export const ClassInformationScreen = () => {
   const router = useRouter();
@@ -66,6 +66,7 @@ export const ClassInformationScreen = () => {
   );
 
   const headerTextColor = getContrastColor(classData.color);
+  const { bg: iconBg, icon: iconFg } = getIconBoxColors(classData.color);
 
   return (
     <View style={styles.container}>
@@ -127,8 +128,8 @@ export const ClassInformationScreen = () => {
           }
           style={styles.actionCard}
         >
-          <View style={[styles.iconBox, { backgroundColor: classData.color + '20' }]}>
-            <Feather name="users" size={20} color={classData.color} />
+          <View style={[styles.iconBox, { backgroundColor: iconBg }]}>
+            <Feather name="users" size={20} color={iconFg} />
           </View>
           <View style={styles.actionInfo}>
             <Text style={styles.actionTitle}>Student Masterlist</Text>
@@ -151,8 +152,8 @@ export const ClassInformationScreen = () => {
           }
           style={styles.actionCard}
         >
-          <View style={[styles.iconBox, { backgroundColor: classData.color + '20' }]}>
-            <Feather name="book-open" size={20} color={classData.color} />
+          <View style={[styles.iconBox, { backgroundColor: iconBg }]}>
+            <Feather name="book-open" size={20} color={iconFg} />
           </View>
           <View style={styles.actionInfo}>
             <Text style={styles.actionTitle}>Class Activities</Text>

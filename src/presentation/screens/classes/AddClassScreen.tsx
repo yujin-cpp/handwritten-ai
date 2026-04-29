@@ -21,6 +21,7 @@ import { classRepository } from "../../../data/repositories/FirebaseClassReposit
 import { useAuthSession } from "../../../hooks/useAuthSession";
 import { showAlert } from "../../../utils/alert";
 import { safeGoBack } from "../../../utils/navigation";
+import { getContrastColor } from "../../../utils/colorUtils";
 
 const YEARS = ["A.Y. 2025 - 2026", "A.Y. 2026 - 2027", "A.Y. 2027 - 2028"];
 const SWATCHES = [
@@ -41,6 +42,9 @@ export const AddClassScreen = () => {
   const [themeModal, setThemeModal] = useState(false);
   const [yearOpen, setYearOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const isCustomTheme = !SWATCHES.includes(theme);
+  const themeIconColor = getContrastColor(theme);
 
   const sliderWidth = Dimensions.get("window").width - 80;
 
@@ -116,7 +120,7 @@ export const AddClassScreen = () => {
             <Text style={styles.label}>Class Name</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g. Introduction to AI"
+              placeholder="e.g. GEM14 - Life and Works of Rizal"
               value={name}
               onChangeText={setName}
               placeholderTextColor={colors.textSecondary}
@@ -127,7 +131,7 @@ export const AddClassScreen = () => {
             <Text style={styles.label}>Section / Block</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g. BSCS 4A"
+              placeholder="e.g. BSCS 4B"
               value={section}
               onChangeText={setSection}
               placeholderTextColor={colors.textSecondary}
@@ -171,11 +175,18 @@ export const AddClassScreen = () => {
                 style={[styles.swatch, { backgroundColor: s }]}
                 onPress={() => setTheme(s)}
               >
-                {theme === s && <Feather name="check" size={20} color={colors.white} />}
+                {theme === s && <Feather name="check" size={20} color={getContrastColor(s)} />}
               </TouchableOpacity>
             ))}
-            <TouchableOpacity style={styles.moreColorsBtn} onPress={() => setThemeModal(true)}>
-              <Feather name="plus" size={20} color={colors.textSecondary} />
+            <TouchableOpacity
+              style={[styles.moreColorsBtn, isCustomTheme && { backgroundColor: theme }]}
+              onPress={() => setThemeModal(true)}
+            >
+              <Feather
+                name={isCustomTheme ? "check" : "plus"}
+                size={20}
+                color={isCustomTheme ? themeIconColor : colors.textSecondary}
+              />
             </TouchableOpacity>
           </View>
         </View>
@@ -225,7 +236,7 @@ export const AddClassScreen = () => {
                   style={[styles.themeSwatch, { backgroundColor: s }]}
                   onPress={() => { setTheme(s); setThemeModal(false); }}
                 >
-                  {theme === s && <Feather name="check" size={24} color={colors.white} />}
+                  {theme === s && <Feather name="check" size={24} color={getContrastColor(s)} />}
                 </TouchableOpacity>
               ))}
             </View>

@@ -1,11 +1,11 @@
 {
   "expo": {
     "owner": "handwrittenai",
-    "name": "handwrittenAI",
+    "name": "HandwrittenAI",
     "slug": "handwrittenAI",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./src/assets/images/logo-aiscorer.png",
+    "icon": "./src/assets/images/app-icon.png",
     "backgroundColor": "#0EA47A",
     "splash": {
       "image": "./src/assets/images/logo-aiscorer.png",
@@ -19,13 +19,20 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.handwrittenai.handwrittenAI",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.1093390926434-d0uvi309ncnc8qhhm9rl7b5p6l0t63lm"
+            ]
+          }
+        ]
       }
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#0EA47A",
-        "foregroundImage": "./src/assets/images/logo-aiscorer.png"
+        "foregroundImage": "./src/assets/images/app-icon.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -48,7 +55,8 @@
             "backgroundColor": "#0EA47A"
           }
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "googleAuth": {

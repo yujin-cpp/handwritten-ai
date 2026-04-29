@@ -19,7 +19,7 @@ import { useAuthSession } from "../../../hooks/useAuthSession";
 import { showAlert } from "../../../utils/alert";
 import { storageRepository } from "../../../data/repositories/FirebaseStorageRepository";
 import { safeGoBack } from "../../../utils/navigation";
-import { getContrastColor } from "../../../utils/colorUtils";
+import { getContrastColor, getIconBoxColors } from "../../../utils/colorUtils";
 
 // Quick Firebase imports for settings
 import { ref, remove } from "firebase/database";
@@ -94,6 +94,7 @@ export const QAViewScreen = () => {
   };
 
   const headerTextColor = getContrastColor(headerColor);
+  const { bg: iconBg, icon: iconFg } = getIconBoxColors(headerColor);
 
   return (
     <View style={styles.container}>
@@ -125,8 +126,8 @@ export const QAViewScreen = () => {
               </View>
             ) : (
               <View style={styles.filePlaceholder}>
-                <View style={[styles.iconCircle, { backgroundColor: headerColor + "15" }]}>
-                  <Feather name={isPdf ? "file-text" : "file"} size={64} color={headerColor} />
+                <View style={[styles.iconCircle, { backgroundColor: iconBg }]}>
+                  <Feather name={isPdf ? "file-text" : "file"} size={64} color={iconFg} />
                 </View>
                 <Text style={styles.placeholderText}>{isPdf ? "PDF Document" : "Word Document"}</Text>
               </View>

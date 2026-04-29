@@ -19,8 +19,8 @@ import { storageRepository } from "../../../data/repositories/FirebaseStorageRep
 import { studentRepository } from "../../../data/repositories/FirebaseStudentRepository";
 import { showAlert } from "../../../utils/alert";
 import { safeGoBack } from "../../../utils/navigation";
-import { getContrastColor } from "../../../utils/colorUtils";
-import { AI_SERVER_URL } from "@/src/constants/Config";
+import { getContrastColor, getIconBoxColors } from "../../../utils/colorUtils";
+import { AI_SERVER_URL } from "../../../constants/Config";
 
 const P = (v: string | string[] | undefined, fb = "") =>
   Array.isArray(v) ? v[0] : (v ?? fb);
@@ -112,6 +112,7 @@ export const MasterlistScreen = () => {
   };
 
   const headerTextColor = getContrastColor(headerColor);
+  const { bg: iconBg, icon: iconFg } = getIconBoxColors(headerColor);
 
   return (
     <View style={styles.container}>
@@ -166,15 +167,8 @@ export const MasterlistScreen = () => {
           <View style={styles.statusSection}>
             <View style={styles.listHeaderRow}>
               <Text style={styles.listLabel}>CURRENT ROSTER</Text>
-              <View
-                style={[
-                  styles.activeBadge,
-                  { backgroundColor: headerColor + "15" },
-                ]}
-              >
-                <Text style={[styles.activeBadgeText, { color: headerColor }]}>
-                  ACTIVE
-                </Text>
+              <View style={[styles.activeBadge, { backgroundColor: iconBg }]}>
+                <Text style={[styles.activeBadgeText, { color: iconFg }]}>ACTIVE</Text>
               </View>
             </View>
 
@@ -192,13 +186,8 @@ export const MasterlistScreen = () => {
               }
               style={styles.actionCard}
             >
-              <View
-                style={[
-                  styles.fileIconBox,
-                  { backgroundColor: headerColor + "15" },
-                ]}
-              >
-                <Feather name="file-text" size={24} color={headerColor} />
+              <View style={[styles.fileIconBox, { backgroundColor: iconBg }]}>
+                <Feather name="file-text" size={24} color={iconFg} />
               </View>
               <View style={styles.fileInfo}>
                 <Text style={styles.fileName}>{className}_Masterlist.pdf</Text>
@@ -224,17 +213,9 @@ export const MasterlistScreen = () => {
             </TouchableOpacity>
           </View>
         ) : (
-          <TouchableOpacity
-            style={styles.emptyCard}
-            onPress={() => setModalVisible(true)}
-          >
-            <View
-              style={[
-                styles.largeIconBox,
-                { backgroundColor: headerColor + "15" },
-              ]}
-            >
-              <Feather name="upload-cloud" size={40} color={headerColor} />
+          <TouchableOpacity style={styles.emptyCard} onPress={() => setModalVisible(true)}>
+            <View style={[styles.largeIconBox, { backgroundColor: iconBg }]}>
+              <Feather name="upload-cloud" size={40} color={iconFg} />
             </View>
             <Text style={styles.uploadMainTitle}>No Masterlist Found</Text>
             <Text style={styles.uploadMainSub}>

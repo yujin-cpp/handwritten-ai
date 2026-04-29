@@ -5,7 +5,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithCredential } from 'firebase/auth';
 import * as Google from 'expo-auth-session/providers/google';
-import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 
 // Ensures the browser window closes properly after Google auth redirect
@@ -14,7 +13,7 @@ WebBrowser.maybeCompleteAuthSession();
 import { auth } from '../../../firebase/firebaseConfig';
 import { classRepository } from '../../../data/repositories/FirebaseClassRepository'; // Just reusing a repository to ensure access to DB
 import { colors, typography, shadows } from '../../theme';
-import { GOOGLE_AUTH_CONFIG, hasNativeGoogleAuthConfig, isExpoGo, MOBILE_GOOGLE_AUTH_SETUP_MESSAGE, EXPO_GO_GOOGLE_AUTH_MESSAGE } from '../../../constants/googleAuth';
+import { GOOGLE_AUTH_CONFIG, hasNativeGoogleAuthConfig, MOBILE_GOOGLE_AUTH_SETUP_MESSAGE } from '../../../constants/googleAuth';
 import { get, ref, set } from 'firebase/database';
 import { db } from '../../../firebase/firebaseConfig';
 
@@ -26,22 +25,27 @@ export const LoginScreen = () => {
   const [loading, setLoading] = useState(false);
 
   const [request, response, promptAsync] = Google.useAuthRequest({
-    expoClientId: GOOGLE_AUTH_CONFIG.expoClientId || undefined,
-    iosClientId: GOOGLE_AUTH_CONFIG.iosClientId || undefined,
+    iosClientId: GOOGLE_AUTH_CONFIG.iosClientId || undefined,      // Native iOS dev build
     androidClientId: GOOGLE_AUTH_CONFIG.androidClientId || undefined,
     webClientId: GOOGLE_AUTH_CONFIG.webClientId || undefined,
-    responseType: AuthSession.ResponseType.IdToken,
-    shouldAutoExchangeCode: false,
-    scopes: ['profile', 'email'],
+    scopes: ['profile', 'email', 'openid'],
   });
 
   const isGoogleDisabled = loading || (Platform.OS !== "web" && !request);
 
   React.useEffect(() => {
     if (response?.type === 'success') {
-      const { id_token, access_token } = response.params;
-      const credential = GoogleAuthProvider.credential(id_token || null, access_token || null);
-      handleFirebaseSignIn(credential);
+      // Code flow: tokens are in response.authentication after auto-exchange
+      const idToken = response.authentication?.idToken ?? null;
+      const accessToken = response.authentication?.accessToken ?? null;
+      if (idToken || accessToken) {
+        const credential = GoogleAuthProvider.credential(idToken, accessToken);
+        handleFirebaseSignIn(credential);
+      } else {
+        Alert.alert('Login Error', 'Could not retrieve Google tokens. Please try again.');
+      }
+    } else if (response?.type === 'error') {
+      Alert.alert('Google Sign-In Error', response.error?.message ?? 'Unknown error');
     }
   }, [response]);
 

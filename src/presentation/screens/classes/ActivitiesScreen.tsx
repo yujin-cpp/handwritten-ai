@@ -18,7 +18,7 @@ import { useAuthSession } from "../../../hooks/useAuthSession";
 import { activityRepository } from "../../../data/repositories/FirebaseActivityRepository";
 import { showAlert } from "../../../utils/alert";
 import { safeGoBack } from "../../../utils/navigation";
-import { getContrastColor } from "../../../utils/colorUtils";
+import { getContrastColor, getIconBoxColors } from "../../../utils/colorUtils";
 
 const P = (v: string | string[] | undefined, fb = "") => Array.isArray(v) ? v[0] : v ?? fb;
 
@@ -116,6 +116,7 @@ export const ActivitiesScreen = () => {
   }
 
   const headerTextColor = getContrastColor(headerColor);
+  const { bg: iconBg, icon: iconFg } = getIconBoxColors(headerColor);
 
   return (
     <View style={styles.container}>
@@ -155,8 +156,8 @@ export const ActivitiesScreen = () => {
           <View style={styles.listContainer}>
             {displayItems.length === 0 ? (
               <View style={styles.emptyBox}>
-                <View style={[styles.emptyIconBox, { backgroundColor: headerColor + '15' }]}>
-                  <Feather name="book-open" size={40} color={headerColor} />
+                <View style={[styles.emptyIconBox, { backgroundColor: iconBg }]}>
+                  <Feather name="book-open" size={40} color={iconFg} />
                 </View>
                 <Text style={styles.emptyText}>No activities created yet.</Text>
                 <TouchableOpacity style={styles.emptyAddBtn} onPress={() => setAddOpen(true)}>
@@ -183,8 +184,8 @@ export const ActivitiesScreen = () => {
                         {selected.has(a.id) && <Feather name="check" size={14} color={colors.white} />}
                       </View>
                     ) : (
-                      <View style={[styles.iconBox, { backgroundColor: headerColor + '15' }]}>
-                        <Feather name="file-text" size={20} color={headerColor} />
+                      <View style={[styles.iconBox, { backgroundColor: iconBg }]}>
+                        <Feather name="file-text" size={20} color={iconFg} />
                       </View>
                     )}
                     <View style={styles.activityInfo}>

@@ -24,6 +24,11 @@ import { studentRepository } from "../../../data/repositories/FirebaseStudentRep
 
 type PickerType = "section" | "activity" | null;
 
+type PickerOption = {
+  id: string;
+  label: string;
+};
+
 interface StudentScore {
   name: string;
   score: number;
@@ -170,15 +175,20 @@ export const AnalyticsScreen = () => {
     return () => unsubscribe();
   }, [activityList, selectedActivityId, selectedClassId, uid]);
 
-  const currentOptions = pickerType === "section" ? classList.map(c => c.className) : pickerType === "activity" ? activityList.map(a => a.title) : [];
-  const currentValue = pickerType === "section" ? selectedClassName : selectedActivityName;
+  const currentOptions: PickerOption[] =
+    pickerType === "section"
+      ? classList.map((c) => ({ id: c.id, label: c.className }))
+      : pickerType === "activity"
+        ? activityList.map((a) => ({ id: a.id, label: a.title }))
+        : [];
+  const currentValue = pickerType === "section" ? selectedClassId : selectedActivityId;
 
-  const handleSelect = (val: string) => {
+  const handleSelect = (option: PickerOption) => {
     if (pickerType === "section") {
-      const s = classList.find(c => c.className === val);
+      const s = classList.find(c => c.id === option.id);
       if (s) { setSelectedClassId(s.id); setSelectedClassName(s.className); }
     } else {
-      const s = activityList.find(a => a.title === val);
+      const s = activityList.find(a => a.id === option.id);
       if (s) { setSelectedActivityId(s.id); setSelectedActivityName(s.title); }
     }
     setPickerType(null);
@@ -338,12 +348,12 @@ export const AnalyticsScreen = () => {
               </View>
               {currentOptions.map((opt) => (
                 <TouchableOpacity
-                  key={opt}
-                  style={[styles.popupItem, opt === currentValue && { backgroundColor: colors.primary + "15" }]}
+                  key={`${pickerType}-${opt.id}`}
+                  style={[styles.popupItem, opt.id === currentValue && { backgroundColor: colors.primary + "15" }]}
                   onPress={() => handleSelect(opt)}
                 >
-                  <Text style={[styles.popupItemText, opt === currentValue && { color: colors.primary, fontFamily: typography.fontFamily.bold }]}>{opt}</Text>
-                  {opt === currentValue && <Feather name="check" size={20} color={colors.primary} />}
+                  <Text style={[styles.popupItemText, opt.id === currentValue && { color: colors.primary, fontFamily: typography.fontFamily.bold }]}>{opt.label}</Text>
+                  {opt.id === currentValue && <Feather name="check" size={20} color={colors.primary} />}
                 </TouchableOpacity>
               ))}
               {currentOptions.length === 0 && <Text style={styles.noData}>No data available</Text>}

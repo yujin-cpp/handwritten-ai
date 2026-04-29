@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, typography, shadows } from "../../theme";
 import { useAuthSession } from "../../../hooks/useAuthSession";
 import { safeGoBack } from "../../../utils/navigation";
-import { getContrastColor } from "../../../utils/colorUtils";
+import { getContrastColor, getIconBoxColors } from "../../../utils/colorUtils";
 
 // Quick Firebase imports for settings
 import { onValue, ref } from "firebase/database";
@@ -68,6 +68,7 @@ export const EssayScreen = () => {
   }, [activityId, classId, uid]);
 
   const headerTextColor = getContrastColor(headerColor);
+  const { bg: iconBg, icon: iconFg } = getIconBoxColors(headerColor);
 
   return (
     <View style={styles.container}>
@@ -94,8 +95,8 @@ export const EssayScreen = () => {
         <View style={styles.listSection}>
           <View style={styles.listHeaderRow}>
             <Text style={styles.listHeader}>ACTIVE INSTRUCTIONS</Text>
-            <View style={[styles.badge, { backgroundColor: headerColor + '15' }]}>
-              <Text style={[styles.badgeText, { color: headerColor }]}>{instructions.length}</Text>
+            <View style={[styles.badge, { backgroundColor: iconBg }]}>
+              <Text style={[styles.badgeText, { color: iconFg }]}>{instructions.length}</Text>
             </View>
           </View>
 
@@ -103,8 +104,8 @@ export const EssayScreen = () => {
             <ActivityIndicator size="large" color={headerColor} style={{ marginTop: 40 }} />
           ) : instructions.length === 0 ? (
             <View style={styles.emptyState}>
-              <View style={[styles.emptyIconBox, { backgroundColor: headerColor + '15' }]}>
-                <Feather name="file-text" size={40} color={headerColor} />
+              <View style={[styles.emptyIconBox, { backgroundColor: iconBg }]}>
+                <Feather name="file-text" size={40} color={iconFg} />
               </View>
               <Text style={styles.emptyText}>No rubrics configured yet.</Text>
             </View>
@@ -125,8 +126,8 @@ export const EssayScreen = () => {
                     })
                   }
                 >
-                  <View style={[styles.iconBox, { backgroundColor: headerColor + '15' }]}>
-                    <Feather name="book-open" size={20} color={headerColor} />
+                  <View style={[styles.iconBox, { backgroundColor: iconBg }]}>
+                    <Feather name="book-open" size={20} color={iconFg} />
                   </View>
                   <View style={styles.instInfo}>
                     <Text style={styles.instTitle} numberOfLines={1}>{inst.title}</Text>
