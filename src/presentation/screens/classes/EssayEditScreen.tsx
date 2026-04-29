@@ -162,8 +162,8 @@ export const EssayEditScreen = () => {
             <Text style={styles.subLabel}>Lesson References</Text>
             {lessonAssets.map((asset, idx) => (
               <View key={`${asset.name}-${idx}`} style={[styles.attachBtn, { borderColor: headerColor, backgroundColor: iconBg, marginBottom: 8 }]}>
-                <Feather name="file-text" size={20} color={headerColor} />
-                <Text style={[styles.attachText, { color: headerColor, fontFamily: typography.fontFamily.bold, flex: 1 }]} numberOfLines={1}>
+                <Feather name="file-text" size={20} color={iconFg} />
+                <Text style={[styles.attachText, { color: iconFg, fontFamily: typography.fontFamily.bold, flex: 1 }]} numberOfLines={1}>
                   {asset.name}
                 </Text>
                 <TouchableOpacity onPress={() => setLessonAssets((prev) => prev.filter((_, i) => i !== idx))}>
@@ -188,11 +188,11 @@ export const EssayEditScreen = () => {
               style={[styles.attachBtn, rubricsAsset && { borderColor: headerColor, backgroundColor: iconBg }]}
               onPress={pickRubricsFile}
             >
-              <Feather name="paperclip" size={20} color={rubricsAsset ? headerColor : colors.textSecondary} />
-              <Text style={[styles.attachText, rubricsAsset && { color: headerColor, fontFamily: typography.fontFamily.bold }]} numberOfLines={1}>
+              <Feather name="paperclip" size={20} color={rubricsAsset ? iconFg : colors.textSecondary} />
+              <Text style={[styles.attachText, rubricsAsset && { color: iconFg, fontFamily: typography.fontFamily.bold }]} numberOfLines={1}>
                 {rubricsAsset ? rubricsAsset.name : "Attach Detailed Rubric"}
               </Text>
-              {rubricsAsset && <Feather name="check" size={20} color={headerColor} />}
+              {rubricsAsset && <Feather name="check" size={20} color={iconFg} />}
             </TouchableOpacity>
           </View>
         </View>

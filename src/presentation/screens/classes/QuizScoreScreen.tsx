@@ -18,11 +18,11 @@ import { useAuthSession } from "../../../hooks/useAuthSession";
 import { showAlert } from "../../../utils/alert";
 import { studentRepository } from "../../../data/repositories/FirebaseStudentRepository";
 import { safeGoBack } from "../../../utils/navigation";
+import { getContrastColor, getIconBoxColors } from "../../../utils/colorUtils";
 
 // Quick Firebase import for direct updates
 import { ref, update } from "firebase/database";
 import { db } from "../../../firebase/firebaseConfig";
-import { getContrastColor } from "../../../utils/colorUtils";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system";
@@ -67,6 +67,7 @@ export const QuizScoreScreen = () => {
   const section = P(params.section, "Section");
   const headerColor = P(params.color, colors.primary);
   const activityTitle = P(params.title, "Activity");
+  const { bg: iconBg, icon: iconFg } = getIconBoxColors(headerColor);
 
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
@@ -522,7 +523,7 @@ export const QuizScoreScreen = () => {
           ) : (
             filtered.map((s, idx) => (
               <View
-                key={s.id}
+                key={`${s.id || "student"}-${idx}`}
                 style={[
                   styles.listRow,
                   idx === filtered.length - 1 && { borderBottomWidth: 0 },
@@ -665,7 +666,7 @@ export const QuizScoreScreen = () => {
                   style={[
                     styles.sortOpt,
                     sortOption === opt && {
-                      backgroundColor: headerColor + "10",
+                      backgroundColor: iconBg,
                     },
                   ]}
                 >
@@ -673,7 +674,7 @@ export const QuizScoreScreen = () => {
                     style={[
                       styles.sortOptText,
                       sortOption === opt && {
-                        color: headerColor,
+                        color: iconFg,
                         fontFamily: typography.fontFamily.bold,
                       },
                     ]}
@@ -689,7 +690,7 @@ export const QuizScoreScreen = () => {
                             : "Highest First"}
                   </Text>
                   {sortOption === opt && (
-                    <Feather name="check" size={20} color={headerColor} />
+                    <Feather name="check" size={20} color={iconFg} />
                   )}
                 </TouchableOpacity>
               ))}
@@ -718,9 +719,9 @@ export const QuizScoreScreen = () => {
               </TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 350, marginTop: 16 }}>
-              {missingStudents.map((s) => (
+              {missingStudents.map((s, idx) => (
                 <TouchableOpacity
-                  key={s.id}
+                  key={`${s.id || "missing"}-${idx}`}
                   style={styles.missRow}
                   onPress={() => openCameraFor(s)}
                 >

@@ -20,6 +20,7 @@ import { studentRepository } from "../../../data/repositories/FirebaseStudentRep
 import { showAlert } from "../../../utils/alert";
 import { safeGoBack } from "../../../utils/navigation";
 import { getContrastColor, getIconBoxColors } from "../../../utils/colorUtils";
+import { AI_SERVER_URL } from "../../../constants/Config";
 
 const P = (v: string | string[] | undefined, fb = "") =>
   Array.isArray(v) ? v[0] : (v ?? fb);

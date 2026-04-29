@@ -298,7 +298,7 @@ export const MasterlistViewSectionScreen = () => {
             </View>
           ) : (
             visibleRows.map((r, idx) => (
-              <View key={r.id} style={[styles.row, idx === visibleRows.length - 1 && { borderBottomWidth: 0 }]}>
+              <View key={`${r.id || r.studentId || "student"}-${idx}`} style={[styles.row, idx === visibleRows.length - 1 && { borderBottomWidth: 0 }]}>
                 <View style={{ flex: 2 }}>
                   <Text style={styles.rowName} numberOfLines={1}>{r.name}</Text>
                 </View>

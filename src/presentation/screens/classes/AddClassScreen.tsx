@@ -120,7 +120,7 @@ export const AddClassScreen = () => {
             <Text style={styles.label}>Class Name</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g. GEM 14 - Life and Works of Rizal"
+              placeholder="e.g. GEM14 - Life and Works of Rizal"
               value={name}
               onChangeText={setName}
               placeholderTextColor={colors.textSecondary}
