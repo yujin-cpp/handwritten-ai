@@ -373,6 +373,65 @@ export const QuizScoreScreen = () => {
 
   const headerTextColor = getContrastColor(headerColor);
 
+  type EssaySection = {
+    title: string;
+    lines: string[];
+    finalScore: string;
+  };
+
+  const essaySection = useMemo(() => {
+    if (!aiTarget?.essayScoreLog) return null;
+
+    const sections: EssaySection[] = [];
+    let current: EssaySection | null = null;
+    const seen = new Map<string, number>();
+    let inEssayBlock = false;
+
+    aiTarget.essayScoreLog.split("\n").forEach((line) => {
+      if (line.trim() === "[ESSAY]") {
+        inEssayBlock = true;
+        return;
+      }
+
+      if (!inEssayBlock) return;
+
+      if (line.startsWith("Question:")) {
+        if (current) {
+          const existingIndex = seen.get(current.title);
+          if (existingIndex !== undefined) {
+            sections[existingIndex] = current;
+          } else {
+            seen.set(current.title, sections.length);
+            sections.push(current);
+          }
+        }
+        current = { title: line, lines: [], finalScore: "" };
+      } else if (current) {
+        if (line.startsWith("Final Score:")) {
+          const match = line.match(/Final Score:\s*(\d+)/);
+          current.finalScore = match ? match[1] : "";
+        }
+        current.lines.push(line);
+      }
+    });
+
+    if (current) {
+      const existingIndex = seen.get(current.title);
+      if (existingIndex !== undefined) {
+        sections[existingIndex] = current;
+      } else {
+        sections.push(current);
+      }
+    }
+
+    const totalEssayScore =
+      aiTarget.essayScoreLog
+        .split("\n")
+        .find((line) => line.startsWith("TOTAL ESSAY SCORE:")) ?? "";
+
+    return { sections, totalEssayScore };
+  }, [aiTarget]);
+
   return (
     <View style={styles.container}>
       <View
@@ -956,116 +1015,67 @@ export const QuizScoreScreen = () => {
                 })()}
 
               {/* Essay Score Log */}
-              {aiTarget?.essayScoreLog &&
-                (() => {
-                  type EssaySection = {
-                    title: string;
-                    lines: string[];
-                    finalScore: string;
-                  };
-
-                  const sections: EssaySection[] = [];
-                  let current: EssaySection | null = null;
-                  const seen = new Map<string, number>();
-
-                  aiTarget.essayScoreLog.split("\n").forEach((line) => {
-                    if (line.startsWith("Question:")) {
-                      if (current) {
-                        const existingIndex = seen.get(current.title);
-                        if (existingIndex !== undefined) {
-                          sections[existingIndex] = current; // overwrite duplicate
-                        } else {
-                          seen.set(current.title, sections.length);
-                          sections.push(current);
-                        }
-                      }
-                      current = { title: line, lines: [], finalScore: "" };
-                    } else if (current) {
-                      if (line.startsWith("Final Score:")) {
-                        const match = line.match(/Final Score:\s*(\d+)/);
-                        current.finalScore = match ? match[1] : "";
-                      }
-                      current.lines.push(line);
-                    }
-                  });
-
-                  const totalEssayScore =
-                    aiTarget.essayScoreLog
-                      .split("\n")
-                      .find((line) => line.startsWith("TOTAL ESSAY SCORE:")) ??
-                    "";
-                  console.log(totalEssayScore);
-                  if (current) {
-                    const existingIndex = seen.get(current.title);
-                    if (existingIndex !== undefined) {
-                      sections[existingIndex] = current;
-                    } else {
-                      sections.push(current);
-                    }
-                  }
-
-                  return (
-                    <View style={styles.reportSection}>
-                      <Text style={styles.reportSectionTitle}>
-                        ✍️ Essay Score Log
-                      </Text>
-                      <Text
+              {essaySection && (
+                <View style={styles.reportSection}>
+                  <Text style={styles.reportSectionTitle}>
+                    ✍️ Essay Score Log
+                  </Text>
+                  <Text
+                    style={{
+                      color: "#00b679",
+                      fontSize: 14,
+                      fontWeight: "bold",
+                    }}
+                  >
+                    {essaySection.totalEssayScore}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      alignSelf: "flex-start",
+                      color: colors.textSecondary,
+                    }}
+                  >
+                    Click to see the logs
+                  </Text>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      flexWrap: "wrap",
+                      gap: 8,
+                      marginTop: 8,
+                    }}
+                  >
+                    {essaySection.sections.map((section, i) => (
+                      <TouchableOpacity
+                        key={i}
+                        onPress={() => setSelectedEssaySection(section)}
                         style={{
-                          color: "#00b679",
-                          fontSize: 14,
-                          fontWeight: "bold",
+                          paddingHorizontal: 14,
+                          paddingVertical: 8,
+                          borderRadius: 20,
+                          backgroundColor: "#00b679" + "20",
+                          borderWidth: 1,
+                          borderColor: "#00b679",
                         }}
                       >
-                        {totalEssayScore}
-                      </Text>
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          alignSelf: "flex-start",
-                          color: colors.textSecondary,
-                        }}
-                      >
-                        Click to see the logs
-                      </Text>
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          flexWrap: "wrap",
-                          gap: 8,
-                          marginTop: 8,
-                        }}
-                      >
-                        {sections.map((section, i) => (
-                          <TouchableOpacity
-                            key={i}
-                            onPress={() => setSelectedEssaySection(section)}
-                            style={{
-                              paddingHorizontal: 14,
-                              paddingVertical: 8,
-                              borderRadius: 20,
-                              backgroundColor: "#00b679" + "20",
-                              borderWidth: 1,
-                              borderColor: "#00b679",
-                            }}
-                          >
-                            <Text
-                              style={{
-                                color: "#00b679",
-                                fontFamily: typography.fontFamily.medium,
-                                fontSize: 13,
-                              }}
-                            >
-                              {section.title}
-                              {section.finalScore
-                                ? `  (${section.finalScore} pts)`
-                                : ""}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
-                  );
-                })()}
+                        <Text
+                          style={{
+                            color: "#00b679",
+                            fontFamily: typography.fontFamily.medium,
+                            fontSize: 13,
+                          }}
+                        >
+                          {section.title}
+                          {section.finalScore
+                            ? `  (${section.finalScore} pts)`
+                            : ""}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
             </ScrollView>
           </View>
         </View>

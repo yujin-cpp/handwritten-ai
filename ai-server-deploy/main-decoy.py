@@ -53,8 +53,9 @@ CORS(app)
 # ==========================================
 TRANSCRIPT_DIR = "processed_images/transcripts"
 GRADE_LOG_DIR = "processed_images/grade_logs"
+ENHANCED_DIR = "processed_images/enhanced"
 
-for d in [TRANSCRIPT_DIR, GRADE_LOG_DIR]:
+for d in [TRANSCRIPT_DIR, GRADE_LOG_DIR, ENHANCED_DIR]:
     if not os.path.exists(d):
         os.makedirs(d)
 
@@ -229,21 +230,23 @@ Return ONLY this JSON, no extra text:
 # IMAGE HELPERS
 # ==========================================
 def enhance_image(pil_img):
-    """Denoise and sharpen a PIL image using OpenCV."""
+    """Lightly denoise and subtly sharpen a PIL image using OpenCV."""
     try:
         img = np.array(pil_img)
         if len(img.shape) == 3:
             img = img[:, :, ::-1].copy()
 
-        denoised = cv2.fastNlMeansDenoisingColored(img, None, 10, 10, 7, 21)
-        kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
+        # Lighter denoise — lower h values = less aggressive
+        denoised = cv2.fastNlMeansDenoisingColored(img, None, 3, 3, 7, 21)
+
+        # Subtle sharpen — closer to identity matrix = gentler effect
+        kernel = np.array([[0, -0.5, 0], [-0.5, 3, -0.5], [0, -0.5, 0]])
         sharpened = cv2.filter2D(denoised, -1, kernel)
 
         return Image.fromarray(cv2.cvtColor(sharpened, cv2.COLOR_BGR2RGB))
     except Exception as e:
         print(f"⚠️ OpenCV Error: {e}")
         return pil_img
-
 
 def extract_images_to_text(images: list, label: str = "Reference") -> str:
     """
@@ -293,8 +296,16 @@ def read_file_as_images(file_bytes, label="exam"):
         except Exception:
             raise ValueError(f"Invalid file format for {label}. Supported: PDF, JPG, PNG.")
 
-    return [enhance_image(img) for img in raw_images]
+    enhanced = []
+    for i, img in enumerate(raw_images):
+        enh = enhance_image(img)
+        timestamp = int(time.time())
+        filename = f"{ENHANCED_DIR}/{label}_page{i+1}_{timestamp}.jpg"
+        enh.save(filename, format="JPEG", quality=90)
+        print(f"💾 Saved enhanced image: {filename}")
+        enhanced.append(enh)
 
+    return enhanced
 
 # ==========================================
 # FILE HELPERS
