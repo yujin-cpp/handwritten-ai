@@ -394,6 +394,10 @@ export const QuizScoreScreen = () => {
         return;
       }
 
+      if (!inEssayBlock && line.startsWith("Question:")) {
+        inEssayBlock = true;
+      }
+
       if (!inEssayBlock) return;
 
       if (line.startsWith("Question:")) {
@@ -425,12 +429,21 @@ export const QuizScoreScreen = () => {
       }
     }
 
+    const filteredSections = sections.filter((section) => {
+      const hasRubricContent = section.lines.some(
+        (line) => line.includes("→") || line.startsWith("Rubric Requirements:"),
+      );
+      const hasNonZeroScore =
+        section.finalScore !== "" && section.finalScore !== "0";
+      return hasRubricContent && hasNonZeroScore; // ← AND not OR
+    });
+
     const totalEssayScore =
       aiTarget.essayScoreLog
         .split("\n")
         .find((line) => line.startsWith("TOTAL ESSAY SCORE:")) ?? "";
 
-    return { sections, totalEssayScore };
+    return { sections: filteredSections, totalEssayScore };
   }, [aiTarget]);
 
   return (
