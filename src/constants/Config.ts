@@ -4,5 +4,5 @@ export const AI_SERVER_URL =
 
 // 🛠️ Local Testing URL (Uncomment to use local python server)
 // export const AI_SERVER_URL = "http://localhost:8080";
-//running on phone
-// export const AI_SERVER_URL = "http://192.168.100.6:8080";
+// running on phone
+// export const AI_SERVER_URL = "http://192.168.1.61:8080";
