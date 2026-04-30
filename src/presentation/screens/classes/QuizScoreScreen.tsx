@@ -413,8 +413,11 @@ export const QuizScoreScreen = () => {
         current = { title: line, lines: [], finalScore: "" };
       } else if (current) {
         if (line.startsWith("Final Score:")) {
-          const match = line.match(/Final Score:\s*(\d+)/);
-          current.finalScore = match ? match[1] : "";
+          // Try = N format first (floor expression), then plain number
+          const matchEq = line.match(/=\s*(\d+)/);
+          const matchPlain = line.match(/Final Score:\s*(\d+)/);
+          const raw = matchEq ? matchEq[1] : matchPlain ? matchPlain[1] : "";
+          current.finalScore = raw;
         }
         current.lines.push(line);
       }
@@ -430,16 +433,13 @@ export const QuizScoreScreen = () => {
     }
 
     const filteredSections = sections.filter((section) => {
-      const hasRubricContent = section.lines.some(
-        (line) => line.includes("→") || line.startsWith("Rubric Requirements:"),
-      );
-      const hasNonZeroScore =
-        section.finalScore !== "" && section.finalScore !== "0";
-      return hasRubricContent && hasNonZeroScore; // ← AND not OR
+      const score = parseInt(section.finalScore, 10);
+      return !isNaN(score) && score > 0;
     });
 
     const totalEssayScore =
       aiTarget.essayScoreLog
+        .replace(/\r/g, "")
         .split("\n")
         .find((line) => line.startsWith("TOTAL ESSAY SCORE:")) ?? "";
 

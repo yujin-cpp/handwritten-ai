@@ -211,6 +211,9 @@ FAIL-SAFE RULES:
 - Never fabricate quotes or requirements.
 - Always use floor().
 - Never double-count a question in both objective and essay logs.
+- Never re-evaluate or override the floor() calculation.
+- Final Score is always floor((P/R) * max). No exceptions.
+- Do not add "Final Score Re-evaluation" sectio
 
 Return ONLY this JSON, no extra text:
 {{
